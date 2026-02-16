@@ -1,6 +1,13 @@
 import flet as ft
 
 
+class NumButton(ft.Button):
+    def __init__(self, num):
+        super().__init__(content=str(num), on_click=lambda: self.button_click(num))
+
+    def button_click(self, e):
+        print(e)
+
 class CalculatorApp():
     def __init__(self):
         pass
@@ -11,7 +18,10 @@ class CalculatorApp():
         self.create_ui()
 
     def create_ui(self):
-        button = ft.Button("1", on_click=self.button_click, height=50, width=50, type=ft.ButtonStyle.elevation)
+        self.display = ft.TextField(disabled=True)
+        self.page.add(self.display)
+
+        button = NumButton(1)
         self.page.add(button)
     
     def button_click(self, e):
