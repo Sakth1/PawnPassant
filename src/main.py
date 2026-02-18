@@ -1,7 +1,6 @@
-from app.gui import CalculatorApp
+from app.gui import main as MainPage
 
 import flet as ft
 
 if __name__ == "__main__":
-    app = CalculatorApp()
-    ft.run(app.MainPage)
+    ft.run(MainPage)

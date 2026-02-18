@@ -1,6 +1,40 @@
 import flet as ft
 
+DARK = "#769656"
+LIGHT = "#eeeed2"
+class ChessSquare(ft.Container):
+    def __init__(self, color):
+        super().__init__(
+            width=5,
+            height=5,
+            bgcolor=color
+        )
+        Position: tuple[str, int] = (None, None)  # Example position, can be set dynamically
 
+class ChessBoard(ft.GridView):
+    def __init__(self):
+        super().__init__(
+            expand=True,
+            child_aspect_ratio=1,
+            max_extent=50,
+        )
+        self.create_board()
+
+    def create_board(self):
+        colors = [DARK, LIGHT]  # Light and dark square colors
+        for row in range(8):
+            for col in range(8):
+                color = colors[(row + col) % 2]
+                print(f"Adding square at row {row}, col {col} with color {color}")
+                self.controls.append(ChessSquare(color))
+
+
+def main(page: ft.Page):
+    page.title = "Chess Board"
+    chess_board = ChessBoard()
+    page.add(chess_board)
+
+"""
 class NumButton(ft.Button):
     def __init__(self, num):
         super().__init__(content=str(num), on_click=lambda: self.button_click(num))
@@ -34,3 +68,4 @@ class CalculatorApp():
     
     def button_click(self, e):
         print("Button clicked")
+"""

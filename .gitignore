@@ -165,3 +165,7 @@ storage/
 #manually added
 .python-version
 practice
+
+# IDE
+.vscode/
+.vs
