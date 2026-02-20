@@ -6,7 +6,7 @@ class Game:
         self.board: Board = Board()
         #print(self.board.unicode(borders=True))
         #print(self.board.legal_moves)
-
+        
     def make_move(self, move):
         try:
             self.board.mo
