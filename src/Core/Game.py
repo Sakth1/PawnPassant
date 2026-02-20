@@ -1,11 +1,11 @@
-from chess import Board
+from chess import Board 
 
 
 class Game:
     def __init__(self):
         self.board: Board = Board()
-        print(self.board.unicode(borders=True))
-        print(self.board.legal_moves)
+        #print(self.board.unicode(borders=True))
+        #print(self.board.legal_moves)
 
     def make_move(self, move):
         try:
