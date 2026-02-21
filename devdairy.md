@@ -1,1 +1,0 @@
-add square to board with reference of file and rank, refer to that and set poece
