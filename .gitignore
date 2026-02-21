@@ -165,6 +165,7 @@ storage/
 #manually added
 .python-version
 practice
+devdairy.md
 
 # IDE
 .vscode/
