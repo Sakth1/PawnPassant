@@ -24,8 +24,15 @@ class Square(ft.Container, ft.Control):
         # ensure no gap around each square
         self.margin = 0
 
-    def update_content(self, piece:Optional[Piece]=None):
-        self.content = piece
+    def update_content(self, piece:Optional[Piece | str]=None):
+        if piece is None:
+            self.content = ft.Text("ERROR", align=ft.Alignment.CENTER, color=ft.Colors.RED)
+            return
+        
+        if isinstance(piece, Piece):
+            piece = piece.symbol()
+
+        self.content = ft.Text(piece, align=ft.Alignment.CENTER, color=ft.Colors.RED)  # TODO: use actual piece
         # calling update() before the control is attached to a page raises RuntimeError
         # so attempt to update but ignore if not yet added to a page
         try:
@@ -55,7 +62,7 @@ class ChessBoard(ft.Container):
         self.height = 480
         self.width = 480
         self.content = self.board_frame
-        #self._setup_pieces()
+        self._setup_pieces()
     
     def _create_squares(self) -> list[Square]:
         # Create a flat list of Square controls in the same order GridView expects
@@ -78,23 +85,15 @@ class ChessBoard(ft.Container):
                 )
                 self.squares.append(sq)
                 self.square_map[coords] = sq
-        
-
-        print(self.square_map)
         return self.squares
 
     def _setup_pieces(self):
-        for i in range(len(RANK_NAMES)):
-            for j in range(len(FILE_NAMES)):
-                chess_sq = square(j, i)
-                piece = Piece(self.game.board.piece_at(chess_sq))
-                coord = f"{FILE_NAMES[j]}{RANK_NAMES[i]}"
-                # set piece in the square control (update_content is safe if control not yet attached)
-                if coord in getattr(self, 'square_map', {}):
-                    self.square_map[coord].update_content(piece=piece)
-                else:
-                    # fallback debug print if map not present
-                    print(f"Setting up square {coord} with piece {piece}")
+        for rank_idx in range(len(RANK_NAMES)):
+            for file_idx in range(len(FILE_NAMES)):
+                coords=f"{FILE_NAMES[file_idx]}{RANK_NAMES[rank_idx]}"
+                piece = self.game.board.piece_at(square(file_idx, rank_idx))
+                if piece is not None:
+                    self.square_map[coords].update_content(piece.symbol())
 
     
 class ChessApp():
