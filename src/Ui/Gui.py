@@ -20,20 +20,47 @@ class ChessPiece(ft.Container):
         return ft.Image(src=piece_src)
 
 class Square(ft.Container):
-    def __init__(self, file, rank, coordinate, color, on_square_click=None):
+    def __init__(self, file, rank, coordinate, color, on_square_click=None, size=60):
         super().__init__(expand=True)
         self.file = file
         self.rank = rank
         self.coordinate = coordinate
         self.color = color
         self.on_square_click = on_square_click
-        self.is_highlighted = False
+
+        #constants
+        dot_size = size * 0.3
+        ring_size = size * 0.8
+
+        self.square_dot = ft.Container(
+            width=dot_size,
+            height=dot_size,
+            border_radius=dot_size / 2,
+            bgcolor=ft.Colors.BLACK_45,
+            shadow=ft.BoxShadow(
+                blur_radius=10,
+                color=ft.Colors.BLACK_45,
+                offset=ft.Offset(0, 0),
+            )
+        )
+
+        self.square_ring = ft.Container(
+            width=ring_size,
+            height=ring_size,
+            border_radius=ring_size / 2,
+            border=ft.Border.all(3, ft.Colors.BLACK_54),
+            bgcolor=ft.Colors.TRANSPARENT,
+        )
 
         # container attributes
         self.base_bgcolor = ft.Colors.GREEN_100 if self.color == "w" else ft.Colors.GREEN_900
         self.bgcolor = self.base_bgcolor
-        self.width = 60
-        self.height = 60
+        self.is_highlighted = False
+        self.width = size
+        self.height = size
+        self.piece_control: Optional[ft.Control] = None
+        self.stack = ft.Stack(controls=[], expand=True, alignment=ft.Alignment.CENTER)
+        self.content = self.stack
 
         # ensure no gap around each square
         self.margin = 0
@@ -55,14 +82,7 @@ class Square(ft.Container):
 
     def set_highlight(self, highlighted: bool):
         self.is_highlighted = highlighted
-        if highlighted:
-            self.bgcolor = ft.Colors.BLUE_100
-            self.shape = ft.BoxShape.CIRCLE
-            
-        else:
-            self.bgcolor = self.base_bgcolor
-            self.shadow = None
-        
+        self._rebuild_stack()
         self.update()
 
     def update_content(self, piece:Optional[ChessPiece | str]=None):
@@ -84,7 +104,21 @@ class Square(ft.Container):
             print("piece is", piece, "piece type is", type(piece))
             traceback.print_exc()
             content = ft.Text("ERROR", align=ft.Alignment.CENTER, color=ft.Colors.RED)
-        self.content = content
+        self.piece_control = content
+        self._rebuild_stack()
+
+    def _rebuild_stack(self):
+        controls: list[ft.Control] = []
+        if self.piece_control is not None:
+            controls.append(self.piece_control)
+
+        if self.is_highlighted:
+            if self.piece_control is None:
+                controls.append(self.square_dot)
+            else:
+                controls.append(self.square_ring)
+
+        self.stack.controls = controls
 
 
 class ChessBoard(ft.Container):
