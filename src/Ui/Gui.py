@@ -1,12 +1,13 @@
 import flet as ft
 from chess import square, RANK_NAMES, FILE_NAMES, Piece
 from typing import Optional
+from dataclasses import dataclass
 
 
 from Core.Engine import Game
 
 
-class Square(ft.Container):
+class Square(ft.Container, ft.Control):
     def __init__(self, file, rank, coordinate, color, content=None):
         super().__init__(expand=True)
         self.file = file
@@ -23,7 +24,7 @@ class Square(ft.Container):
         # ensure no gap around each square
         self.margin = 0
 
-    def update_content(self, piece:Piece=None):
+    def update_content(self, piece:Optional[Piece]=None):
         self.content = piece
         # calling update() before the control is attached to a page raises RuntimeError
         # so attempt to update but ignore if not yet added to a page
@@ -56,19 +57,18 @@ class ChessBoard(ft.Container):
         self.content = self.board_frame
         #self._setup_pieces()
     
-    def _create_squares(self):
+    def _create_squares(self) -> list[Square]:
         # Create a flat list of Square controls in the same order GridView expects
         # and also keep a lookup map by algebraic coord (e.g., 'a1') for quick access.
         self.squares: list[Square] = []
         self.square_map: dict[str, Square] = {}
         reversed_rank = list(reversed(RANK_NAMES))  # so we start from rank 8 down to 1
-        reversed_file = list(reversed(FILE_NAMES))  # so we start from file 'h' down to 'a'
 
         for i in range(len(RANK_NAMES)):
             rank_idx = RANK_NAMES.index(reversed_rank[i])
             for j in range(len(FILE_NAMES)):
                 file_idx = FILE_NAMES.index(FILE_NAMES[j])
-                coords=f"{FILE_NAMES[file_idx]}{RANK_NAMES[rank_idx]}",
+                coords=f"{FILE_NAMES[file_idx]}{RANK_NAMES[rank_idx]}"
                 sq = Square(
                     file=file_idx,
                     rank=rank_idx,
@@ -87,7 +87,7 @@ class ChessBoard(ft.Container):
         for i in range(len(RANK_NAMES)):
             for j in range(len(FILE_NAMES)):
                 chess_sq = square(j, i)
-                piece = self.game.board.piece_at(chess_sq)
+                piece = Piece(self.game.board.piece_at(chess_sq))
                 coord = f"{FILE_NAMES[j]}{RANK_NAMES[i]}"
                 # set piece in the square control (update_content is safe if control not yet attached)
                 if coord in getattr(self, 'square_map', {}):
@@ -96,18 +96,6 @@ class ChessBoard(ft.Container):
                     # fallback debug print if map not present
                     print(f"Setting up square {coord} with piece {piece}")
 
-    def get_square_from_coards(self, position:str) -> Optional[Square]:
-        # use lookup map when available
-        coord = position[0:2]
-        if hasattr(self, 'square_map'):
-            return self.square_map.get(coord)
-        # fallback to scanning controls
-        file = position[0]
-        rank = position[1]
-        for square in self.board_frame.controls:
-            if square.file == file and square.rank == rank:
-                return square
-        return None
     
 class ChessApp():
     def __init__(self, page: ft.Page):
@@ -121,14 +109,3 @@ class ChessApp():
 
 def main(page: ft.Page):
     ChessApp(page)
-
-    """game = Game.Game()
-
-    while True:
-        move = input("Enter your move (e.g., e4, Nf3, etc.): ")
-        if move.lower() == "exit":
-            break
-        if game.make_move(move):
-            print(game.board.unicode(borders=True))
-        else:
-            print("Invalid move. Please try again.")"""
