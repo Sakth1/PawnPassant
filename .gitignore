@@ -166,6 +166,7 @@ storage/
 .python-version
 practice
 devdairy.md
+tests.py
 
 # IDE
 .vscode/

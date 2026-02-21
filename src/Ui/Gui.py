@@ -1,5 +1,5 @@
 import flet as ft
-from chess import square, RANK_NAMES, FILE_NAMES, Piece
+from chess import square, parse_square, square_name, RANK_NAMES, FILE_NAMES, Piece
 from typing import Optional
 from pathlib import Path
 import traceback
@@ -19,16 +19,18 @@ class ChessPiece(ft.Container):
         return ft.Image(src=str(piece_path))
 
 class Square(ft.Container):
-    def __init__(self, file, rank, coordinate, color, content=None):
+    def __init__(self, file, rank, coordinate, color, on_square_click=None):
         super().__init__(expand=True)
         self.file = file
         self.rank = rank
         self.coordinate = coordinate
         self.color = color
-        self.content = content
+        self.on_square_click = on_square_click
+        self.is_highlighted = False
 
         # container attributes
-        self.bgcolor = ft.Colors.GREEN_100 if self.color == "w" else ft.Colors.GREEN_900
+        self.base_bgcolor = ft.Colors.GREEN_100 if self.color == "w" else ft.Colors.GREEN_900
+        self.bgcolor = self.base_bgcolor
         self.width = 60
         self.height = 60
 
@@ -38,15 +40,29 @@ class Square(ft.Container):
         self.on_hover = self._handle_hover
     
     def _handle_click(self, e):
-        print(f"Square {self.coordinate} clicked")
+        if self.on_square_click is not None:
+            self.on_square_click(self.coordinate)
 
-    def _handle_hover(self, e: ft.Event[ft.Container]):
-        if e.data is True:
+    def _handle_hover(self, e):
+        if self.is_highlighted:
+            return
+        if e.data == "true":
             self.bgcolor = ft.Colors.BLUE_100
         else:
-            self.bgcolor = ft.Colors.GREEN_100 if self.color == "w" else ft.Colors.GREEN_900
+            self.bgcolor = self.base_bgcolor
         self.update()
 
+    def set_highlight(self, highlighted: bool):
+        self.is_highlighted = highlighted
+        if highlighted:
+            self.bgcolor = ft.Colors.BLUE_100
+            self.shape = ft.BoxShape.CIRCLE
+            
+        else:
+            self.bgcolor = self.base_bgcolor
+            self.shadow = None
+        
+        self.update()
 
     def update_content(self, piece:Optional[ChessPiece | str]=None):
         try:
@@ -74,6 +90,7 @@ class ChessBoard(ft.Container):
     def __init__(self):
         super().__init__()
         self.game = Game()
+        self.highlighted_squares: set[str] = set()
         self.board_frame = ft.GridView(
             runs_count=8,
             controls=self._create_squares(),
@@ -108,7 +125,7 @@ class ChessBoard(ft.Container):
                     rank=rank_idx,
                     coordinate=coords,
                     color="b" if (file_idx + rank_idx) % 2 == 0 else "w",
-                    content=ft.Text(coords, align=ft.Alignment.CENTER, color=ft.Colors.RED)  # placeholder content for debugging
+                    on_square_click=self._handle_square_click,
                 )
                 self.squares.append(sq)
                 self.square_map[coords] = sq
@@ -121,6 +138,27 @@ class ChessBoard(ft.Container):
                 piece = self.game.board.piece_at(square(file_idx, rank_idx))
                 if piece is not None:
                     self.square_map[coords].update_content(ChessPiece(piece))
+
+    def _clear_move_highlights(self):
+        for coord in self.highlighted_squares:
+            sq = self.square_map.get(coord)
+            if sq is not None:
+                sq.set_highlight(False)
+        self.highlighted_squares.clear()
+
+    def _handle_square_click(self, coordinate: str):
+        self._clear_move_highlights()
+        from_sq = parse_square(coordinate)
+        legal_targets = [
+            square_name(move.to_square)
+            for move in self.game.board.legal_moves
+            if move.from_square == from_sq
+        ]
+        for target in legal_targets:
+            sq = self.square_map.get(target)
+            if sq is not None:
+                sq.set_highlight(True)
+                self.highlighted_squares.add(target)
 
     
 class ChessApp():
