@@ -5,7 +5,7 @@ from pathlib import Path
 import traceback
 
 from Core.Engine import Game
-from Constants import PIECES_DIR, ROOT_DIR, SYMBOL_MAP
+from Constants import SYMBOL_MAP
 
 class ChessPiece(ft.Container):
     def __init__(self, piece:Piece):
@@ -15,8 +15,9 @@ class ChessPiece(ft.Container):
     def to_control(self) -> ft.Control:
         symbol = self.piece.symbol()
         piece_name = SYMBOL_MAP.get(symbol)
-        piece_path = Path(PIECES_DIR, f"{piece_name}.png")
-        return ft.Image(src=str(piece_path))
+        # Flet static assets must be addressed relative to the assets directory.
+        piece_src = Path("pieces", "default", f"{piece_name}.png").as_posix()
+        return ft.Image(src=piece_src)
 
 class Square(ft.Container):
     def __init__(self, file, rank, coordinate, color, on_square_click=None):
