@@ -34,6 +34,19 @@ class Square(ft.Container):
 
         # ensure no gap around each square
         self.margin = 0
+        self.on_click = self._handle_click
+        self.on_hover = self._handle_hover
+    
+    def _handle_click(self, e):
+        print(f"Square {self.coordinate} clicked")
+
+    def _handle_hover(self, e: ft.Event[ft.Container]):
+        if e.data is True:
+            self.bgcolor = ft.Colors.BLUE_100
+        else:
+            self.bgcolor = ft.Colors.GREEN_100 if self.color == "w" else ft.Colors.GREEN_900
+        self.update()
+
 
     def update_content(self, piece:Optional[ChessPiece | str]=None):
         try:
@@ -61,8 +74,6 @@ class ChessBoard(ft.Container):
     def __init__(self):
         super().__init__()
         self.game = Game()
-        print("game.board.piece_map")
-        print(self.game.board)
         self.board_frame = ft.GridView(
             runs_count=8,
             controls=self._create_squares(),
