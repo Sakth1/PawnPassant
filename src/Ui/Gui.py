@@ -1,13 +1,24 @@
 import flet as ft
 from chess import square, RANK_NAMES, FILE_NAMES, Piece
 from typing import Optional
-from dataclasses import dataclass
-
+from pathlib import Path
+import traceback
 
 from Core.Engine import Game
+from Constants import PIECES_DIR, ROOT_DIR, SYMBOL_MAP
 
+class ChessPiece(ft.Container):
+    def __init__(self, piece:Piece):
+        super().__init__()
+        self.piece = piece
+    
+    def to_control(self) -> ft.Control:
+        symbol = self.piece.symbol()
+        piece_name = SYMBOL_MAP.get(symbol)
+        piece_path = Path(PIECES_DIR, f"{piece_name}.png")
+        return ft.Image(src=str(piece_path))
 
-class Square(ft.Container, ft.Control):
+class Square(ft.Container):
     def __init__(self, file, rank, coordinate, color, content=None):
         super().__init__(expand=True)
         self.file = file
@@ -24,21 +35,26 @@ class Square(ft.Container, ft.Control):
         # ensure no gap around each square
         self.margin = 0
 
-    def update_content(self, piece:Optional[Piece | str]=None):
-        if piece is None:
-            self.content = ft.Text("ERROR", align=ft.Alignment.CENTER, color=ft.Colors.RED)
-            return
-        
-        if isinstance(piece, Piece):
-            piece = piece.symbol()
-
-        self.content = ft.Text(piece, align=ft.Alignment.CENTER, color=ft.Colors.RED)  # TODO: use actual piece
-        # calling update() before the control is attached to a page raises RuntimeError
-        # so attempt to update but ignore if not yet added to a page
+    def update_content(self, piece:Optional[ChessPiece | str]=None):
         try:
-            self.update()
-        except RuntimeError:
-            pass
+            if piece is None:
+                content = None
+            
+            elif isinstance(piece, ChessPiece):
+                content = piece.to_control()
+
+            elif isinstance(piece, str):
+                content = ft.Text(piece, align=ft.Alignment.CENTER, color=ft.Colors.RED)
+            
+            else:
+                content = ft.Text("ERROR", align=ft.Alignment.CENTER, color=ft.Colors.RED)
+
+        except Exception as e:
+            print(e)
+            print("piece is", piece, "piece type is", type(piece))
+            traceback.print_exc()
+            content = ft.Text("ERROR", align=ft.Alignment.CENTER, color=ft.Colors.RED)
+        self.content = content
 
 
 class ChessBoard(ft.Container):
@@ -93,7 +109,7 @@ class ChessBoard(ft.Container):
                 coords=f"{FILE_NAMES[file_idx]}{RANK_NAMES[rank_idx]}"
                 piece = self.game.board.piece_at(square(file_idx, rank_idx))
                 if piece is not None:
-                    self.square_map[coords].update_content(piece.symbol())
+                    self.square_map[coords].update_content(ChessPiece(piece))
 
     
 class ChessApp():
