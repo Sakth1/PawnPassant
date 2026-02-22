@@ -4,6 +4,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing release tag to publish assets to (example: v0.1.0-alpha.1 or 0.1.0-alpha.1)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -15,6 +20,8 @@ jobs:
       version: ${{ steps.meta.outputs.version }}
       artifact_stem: ${{ steps.meta.outputs.artifact_stem }}
       source_packages: ${{ steps.meta.outputs.source_packages }}
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+      publish_enabled: ${{ steps.meta.outputs.publish_enabled }}
 
     steps:
       - name: Checkout
@@ -61,8 +68,17 @@ jobs:
               raise SystemExit("tool.flet.source_packages must include 'chess'")
 
           event_name = os.environ.get("GITHUB_EVENT_NAME")
-          release_tag = os.environ.get("GITHUB_EVENT_RELEASE_TAG_NAME", "")
+          release_tag = ""
+          publish_enabled = "false"
+
           if event_name == "release":
+              release_tag = os.environ.get("GITHUB_EVENT_RELEASE_TAG_NAME", "")
+              publish_enabled = "true"
+          elif event_name == "workflow_dispatch":
+              release_tag = os.environ.get("GITHUB_EVENT_INPUTS_RELEASE_TAG", "")
+              publish_enabled = "true" if release_tag else "false"
+
+          if publish_enabled == "true":
               clean_tag = release_tag[1:] if release_tag.startswith("v") else release_tag
               if clean_tag != version:
                   raise SystemExit(
@@ -73,9 +89,12 @@ jobs:
               out.write(f"version={version}\n")
               out.write(f"artifact_stem={artifact_stem}\n")
               out.write(f"source_packages={','.join(source_packages)}\n")
+              out.write(f"release_tag={release_tag}\n")
+              out.write(f"publish_enabled={publish_enabled}\n")
           PY
         env:
           GITHUB_EVENT_RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
+          GITHUB_EVENT_INPUTS_RELEASE_TAG: ${{ github.event.inputs.release_tag }}
 
   build-windows:
     runs-on: windows-latest
@@ -207,7 +226,7 @@ jobs:
 
   publish-release:
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
+    if: needs.metadata.outputs.publish_enabled == 'true'
     needs:
       - metadata
       - build-windows
@@ -229,6 +248,7 @@ jobs:
       - name: Attach binaries to release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.metadata.outputs.release_tag }}
           files: |
             release-assets/*.exe
             release-assets/*.apk
