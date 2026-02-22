@@ -130,7 +130,7 @@ jobs:
           [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
           flet build windows --yes --skip-flutter-doctor --no-rich-output
 
-      - name: Package Windows app bundle
+      - name: Collect Windows EXE
         id: collect
         shell: pwsh
         run: |
@@ -148,18 +148,8 @@ jobs:
             throw "No .exe output found in build/ or dist/."
           }
 
-          $bundleDir = $exe.DirectoryName
-          $pythonDll = Join-Path $bundleDir "python312.dll"
-          if (-not (Test-Path $pythonDll)) {
-            throw "Windows bundle appears incomplete: python312.dll not found next to executable."
-          }
-
-          $finalName = "${{ needs.metadata.outputs.artifact_stem }}.zip"
-          if (Test-Path $finalName) {
-            Remove-Item $finalName -Force
-          }
-
-          Compress-Archive -Path (Join-Path $bundleDir "*") -DestinationPath $finalName -CompressionLevel Optimal
+          $finalName = "${{ needs.metadata.outputs.artifact_stem }}.exe"
+          Copy-Item $exe.FullName $finalName -Force
           "path=$finalName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Upload Windows artifact
@@ -260,5 +250,5 @@ jobs:
         with:
           tag_name: ${{ needs.metadata.outputs.release_tag }}
           files: |
-            release-assets/*.zip
+            release-assets/*.exe
             release-assets/*.apk
