@@ -1,0 +1,230 @@
+name: Build Release Binaries
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      artifact_stem: ${{ steps.meta.outputs.artifact_stem }}
+      source_packages: ${{ steps.meta.outputs.source_packages }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Read metadata from pyproject.toml
+        id: meta
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          import tomllib
+
+          with open("pyproject.toml", "rb") as f:
+              data = tomllib.load(f)
+
+          version = data["project"]["version"]
+          semver = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$")
+          if not semver.match(version):
+              raise SystemExit(f"project.version '{version}' is not valid SemVer 2.0.0")
+
+          binary_name = (
+              data.get("tool", {})
+                  .get("pawnpassant", {})
+                  .get("release", {})
+                  .get("binary_name", "Pawn-Passant")
+          )
+          artifact_stem = f"{binary_name}{version}"
+
+          source_packages = (
+              data.get("tool", {})
+                  .get("flet", {})
+                  .get("source_packages", [])
+          )
+          if not isinstance(source_packages, list):
+              raise SystemExit("tool.flet.source_packages must be a list")
+          if "chess" not in source_packages:
+              raise SystemExit("tool.flet.source_packages must include 'chess'")
+
+          event_name = os.environ.get("GITHUB_EVENT_NAME")
+          release_tag = os.environ.get("GITHUB_EVENT_RELEASE_TAG_NAME", "")
+          if event_name == "release":
+              clean_tag = release_tag[1:] if release_tag.startswith("v") else release_tag
+              if clean_tag != version:
+                  raise SystemExit(
+                      f"Release tag '{release_tag}' must match pyproject version '{version}' (or 'v{version}')."
+                  )
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"version={version}\n")
+              out.write(f"artifact_stem={artifact_stem}\n")
+              out.write(f"source_packages={','.join(source_packages)}\n")
+          PY
+        env:
+          GITHUB_EVENT_RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
+
+  build-windows:
+    runs-on: windows-latest
+    needs: metadata
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project and Flet CLI
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+          pip install flet-cli
+
+      - name: Show source packages from pyproject
+        shell: pwsh
+        run: |
+          Write-Host "source_packages=${{ needs.metadata.outputs.source_packages }}"
+
+      - name: Build Windows EXE
+        shell: pwsh
+        run: |
+          flet build windows --yes --skip-flutter-doctor --no-rich-output
+
+      - name: Collect EXE
+        id: collect
+        shell: pwsh
+        run: |
+          $candidateDirs = @("build", "dist")
+          $exe = $null
+
+          foreach ($dir in $candidateDirs) {
+            if (Test-Path $dir) {
+              $exe = Get-ChildItem -Path $dir -Recurse -Filter *.exe -File | Select-Object -First 1
+              if ($exe) { break }
+            }
+          }
+
+          if (-not $exe) {
+            throw "No .exe output found in build/ or dist/."
+          }
+
+          $finalName = "${{ needs.metadata.outputs.artifact_stem }}.exe"
+          Copy-Item $exe.FullName $finalName -Force
+          "path=$finalName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.metadata.outputs.artifact_stem }}-windows
+          path: ${{ steps.collect.outputs.path }}
+
+  build-android:
+    runs-on: ubuntu-latest
+    needs: metadata
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install project and Flet CLI
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+          pip install flet-cli
+
+      - name: Show source packages from pyproject
+        run: |
+          echo "source_packages=${{ needs.metadata.outputs.source_packages }}"
+
+      - name: Build Android APK
+        run: |
+          flet build apk --yes --skip-flutter-doctor --no-rich-output
+
+      - name: Collect APK
+        id: collect
+        shell: pwsh
+        run: |
+          $candidateDirs = @("build", "dist")
+          $apk = $null
+
+          foreach ($dir in $candidateDirs) {
+            if (Test-Path $dir) {
+              $apk = Get-ChildItem -Path $dir -Recurse -Filter *.apk -File | Select-Object -First 1
+              if ($apk) { break }
+            }
+          }
+
+          if (-not $apk) {
+            throw "No .apk output found in build/ or dist/."
+          }
+
+          $finalName = "${{ needs.metadata.outputs.artifact_stem }}.apk"
+          Copy-Item $apk.FullName $finalName -Force
+          "path=$finalName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.metadata.outputs.artifact_stem }}-android
+          path: ${{ steps.collect.outputs.path }}
+
+  publish-release:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    needs:
+      - metadata
+      - build-windows
+      - build-android
+
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.metadata.outputs.artifact_stem }}-windows
+          path: release-assets
+
+      - name: Download Android artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.metadata.outputs.artifact_stem }}-android
+          path: release-assets
+
+      - name: Attach binaries to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/*.exe
+            release-assets/*.apk
