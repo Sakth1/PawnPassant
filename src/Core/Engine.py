@@ -7,15 +7,7 @@ class Game:
         #print(self.board.unicode(borders=True))
         #print(self.board.legal_moves)
         
-    def make_move(self, move):
-        try:
-            self.board.mo
-            self.board.legal_moves
-            return True
-        except ValueError as e:
-            print(f"Invalid move: {e}")
-            return False
-
+    
     def get_board_fen(self):
         return self.board.fen()
 

@@ -13,12 +13,17 @@ class ChessPiece(ft.Container):
         self.piece = piece
     
     def to_control(self) -> ft.Control:
-        symbol = self.piece.symbol()
-        piece_name = SYMBOL_MAP.get(symbol)
-        # Flet static assets must be addressed relative to the assets directory.
-        piece_src = Path("pieces", "default", f"{piece_name}.png").as_posix()
-        return ft.Image(src=piece_src)
+        try:
+            symbol = self.piece.symbol()
+            piece_name = SYMBOL_MAP.get(symbol)
+            # Flet static assets must be addressed relative to the assets directory.
+            piece_src = Path("pieces", "default", f"{piece_name}.png").as_posix()
+            return ft.Image(src=piece_src)
 
+        except Exception:
+            traceback.print_exc()
+            return ft.Text("ERROR", align=ft.Alignment.CENTER, color=ft.Colors.RED)
+                
 class Square(ft.Container):
     def __init__(self, file, rank, coordinate, color, on_square_click=None, size=60):
         super().__init__(expand=True)
@@ -55,12 +60,13 @@ class Square(ft.Container):
         # container attributes
         self.base_bgcolor = ft.Colors.GREEN_100 if self.color == "w" else ft.Colors.GREEN_900
         self.bgcolor = self.base_bgcolor
-        self.is_highlighted = False
         self.width = size
         self.height = size
         self.piece_control: Optional[ft.Control] = None
         self.stack = ft.Stack(controls=[], expand=True, alignment=ft.Alignment.CENTER)
         self.content = self.stack
+        self.highlighted_metadata: dict[str:bool|str|None] = {"highlighted":False, "parent_piece_square":None}
+        self.has_piece = False
 
         # ensure no gap around each square
         self.margin = 0
@@ -69,39 +75,38 @@ class Square(ft.Container):
     
     def _handle_click(self, e):
         if self.on_square_click is not None:
-            self.on_square_click(self.coordinate)
+            self.on_square_click(self, self.coordinate)
 
     def _handle_hover(self, e):
-        if self.is_highlighted:
+        if self.highlighted_metadata.get("highlighted"):
             return
-        if e.data == "true":
-            self.bgcolor = ft.Colors.BLUE_100
+        if e.data is True:
+            self.bgcolor = ft.Colors.BLUE
         else:
             self.bgcolor = self.base_bgcolor
         self.update()
 
-    def set_highlight(self, highlighted: bool):
-        self.is_highlighted = highlighted
+    def set_highlight(self, highlighted: bool, parent_piece_square=None):
+        self.highlighted_metadata["highlighted"] = highlighted
+        self.highlighted_metadata["parent_piece_square"] = parent_piece_square
         self._rebuild_stack()
         self.update()
 
-    def update_content(self, piece:Optional[ChessPiece | str]=None):
+    def update_content(self, piece:Optional[ChessPiece]=None):
         try:
             if piece is None:
                 content = None
+                self.has_piece = False
             
             elif isinstance(piece, ChessPiece):
                 content = piece.to_control()
-
-            elif isinstance(piece, str):
-                content = ft.Text(piece, align=ft.Alignment.CENTER, color=ft.Colors.RED)
+                self.has_piece = True
             
             else:
                 content = ft.Text("ERROR", align=ft.Alignment.CENTER, color=ft.Colors.RED)
+                self.has_piece = False
 
-        except Exception as e:
-            print(e)
-            print("piece is", piece, "piece type is", type(piece))
+        except Exception:
             traceback.print_exc()
             content = ft.Text("ERROR", align=ft.Alignment.CENTER, color=ft.Colors.RED)
         self.piece_control = content
@@ -112,7 +117,7 @@ class Square(ft.Container):
         if self.piece_control is not None:
             controls.append(self.piece_control)
 
-        if self.is_highlighted:
+        if self.highlighted_metadata.get("highlighted"):
             if self.piece_control is None:
                 controls.append(self.square_dot)
             else:
@@ -178,12 +183,16 @@ class ChessBoard(ft.Container):
         for coord in self.highlighted_squares:
             sq = self.square_map.get(coord)
             if sq is not None:
-                sq.set_highlight(False)
+                sq.set_highlight(False, None)
         self.highlighted_squares.clear()
 
-    def _handle_square_click(self, coordinate: str):
+    def _handle_square_click(self, square_instance: Square, click_cords: str):
+        if square_instance.highlighted_metadata.get("highlighted"):
+            self.move_piece(from_cords = square_instance.highlighted_metadata.get("parent_piece_square"), to_cords = click_cords)
+            return
+        
         self._clear_move_highlights()
-        from_sq = parse_square(coordinate)
+        from_sq = parse_square(click_cords)
         legal_targets = [
             square_name(move.to_square)
             for move in self.game.board.legal_moves
@@ -192,8 +201,22 @@ class ChessBoard(ft.Container):
         for target in legal_targets:
             sq = self.square_map.get(target)
             if sq is not None:
-                sq.set_highlight(True)
+                sq.set_highlight(True, click_cords)
                 self.highlighted_squares.add(target)
+
+    def _update_last_move_on_board(self):
+        last_move = self.game.board.move_stack[-1]
+        self.square_map[square_name(last_move.from_square)].update_content(self.game.board.piece_at(last_move.from_square))
+        self.square_map[square_name(last_move.to_square)].update_content(ChessPiece(self.game.board.piece_at(last_move.to_square)))
+
+    def move_piece(self, from_cords: str, to_cords: str):
+        requested_move = f"{from_cords}{to_cords}"
+        self._clear_move_highlights()
+        for move in self.game.board.legal_moves:
+            if str(move) == requested_move:
+                self.game.board.push(move)
+                self._update_last_move_on_board()
+                break
 
     
 class ChessApp():
