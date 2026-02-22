@@ -1,6 +1,6 @@
 [project]
 name = "pawnpassant"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 description = ""
 readme = "README.md"
 requires-python = ">=3.10"
@@ -8,7 +8,8 @@ authors = [
     { name = "Flet developer", email = "you@example.com" }
 ]
 dependencies = [
-    "flet>=0.80.5"
+    "flet>=0.80.5",
+    "chess>=1.11.2"
 ]
 
 [dependency-groups]
@@ -20,9 +21,13 @@ dev = [
 
 [tool.flet]
 org = "com.mycompany"
-product = "pawnpassant"
+product = "Pawn Passant"
 company = "Flet"
 copyright = "Copyright (C) 2023-2026 by Flet"
+source_packages = ["chess"]
 
 [tool.flet.app]
 path = "src"
+
+[tool.pawnpassant.release]
+binary_name = "Pawn-Passant"
