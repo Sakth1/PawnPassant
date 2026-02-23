@@ -139,18 +139,31 @@ jobs:
         id: collect
         shell: pwsh
         run: |
-          $candidateDirs = @("build", "dist")
-          $exe = $null
+          $allExeCandidates = @(Get-ChildItem -Path build, dist -Recurse -Filter *.exe -File -ErrorAction SilentlyContinue)
+          $allExeCandidates = $allExeCandidates | Where-Object {
+            $_.Name -notin @("python.exe", "pythonw.exe", "flet.exe", "httpx.exe") -and
+            $_.FullName -notmatch "\\site-packages\\bin\\" -and
+            $_.FullName -notmatch "\\CompilerId" -and
+            $_.FullName -notmatch "\\build_python_" -and
+            $_.FullName -notmatch "\\python\\"
+          }
 
-          foreach ($dir in $candidateDirs) {
-            if (Test-Path $dir) {
-              $exe = Get-ChildItem -Path $dir -Recurse -Filter *.exe -File | Select-Object -First 1
-              if ($exe) { break }
-            }
+          $exe = $allExeCandidates |
+            Where-Object { $_.DirectoryName -match "\\build\\windows$" } |
+            Select-Object -First 1
+
+          if (-not $exe) {
+            $exe = $allExeCandidates |
+              Where-Object { $_.DirectoryName -match "\\build\\flutter\\build\\windows\\x64\\runner\\Release$" } |
+              Select-Object -First 1
           }
 
           if (-not $exe) {
-            throw "No .exe output found in build/ or dist/."
+            $exe = $allExeCandidates | Select-Object -First 1
+          }
+
+          if (-not $exe) {
+            throw "No application .exe output found. Candidates were filtered to avoid Python/tool executables."
           }
 
           $bundleDir = $exe.DirectoryName
@@ -158,6 +171,8 @@ jobs:
           if (-not (Test-Path $pythonDll)) {
             throw "Windows bundle appears incomplete: python312.dll not found next to executable."
           }
+
+          Write-Host "Selected app executable: $($exe.FullName)"
 
           $portableName = "${{ needs.metadata.outputs.artifact_stem }}-portable.zip"
           if (Test-Path $portableName) {
