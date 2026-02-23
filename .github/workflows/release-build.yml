@@ -116,6 +116,11 @@ jobs:
           pip install .
           pip install flet-cli
 
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+
       - name: Show source packages from pyproject
         shell: pwsh
         run: |
@@ -130,7 +135,7 @@ jobs:
           [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
           flet build windows --yes --skip-flutter-doctor --no-rich-output
 
-      - name: Collect Windows EXE
+      - name: Package portable ZIP and installer
         id: collect
         shell: pwsh
         run: |
@@ -148,15 +153,88 @@ jobs:
             throw "No .exe output found in build/ or dist/."
           }
 
-          $finalName = "${{ needs.metadata.outputs.artifact_stem }}.exe"
-          Copy-Item $exe.FullName $finalName -Force
-          "path=$finalName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          $bundleDir = $exe.DirectoryName
+          $pythonDll = Join-Path $bundleDir "python312.dll"
+          if (-not (Test-Path $pythonDll)) {
+            throw "Windows bundle appears incomplete: python312.dll not found next to executable."
+          }
+
+          $portableName = "${{ needs.metadata.outputs.artifact_stem }}-portable.zip"
+          if (Test-Path $portableName) {
+            Remove-Item $portableName -Force
+          }
+          Compress-Archive -Path (Join-Path $bundleDir "*") -DestinationPath $portableName -CompressionLevel Optimal
+
+          $installerBase = "${{ needs.metadata.outputs.artifact_stem }}-setup"
+          $installerName = "$installerBase.exe"
+          $issPath = Join-Path $PWD "installer.iss"
+          $appName = "Pawn Passant"
+          $appVersion = "${{ needs.metadata.outputs.version }}"
+          $exeName = $exe.Name
+
+          @"
+          #define MyAppName "$appName"
+          #define MyAppVersion "$appVersion"
+          #define MyAppPublisher "Flet"
+          #define MyAppExeName "$exeName"
+
+          [Setup]
+          AppId={{F1A40D0B-0D6D-44FA-B8D2-A25F8A2EAC77}
+          AppName={#MyAppName}
+          AppVersion={#MyAppVersion}
+          AppPublisher={#MyAppPublisher}
+          DefaultDirName={autopf}\{#MyAppName}
+          DefaultGroupName={#MyAppName}
+          OutputDir=$($PWD.Path)
+          OutputBaseFilename=$installerBase
+          Compression=lzma
+          SolidCompression=yes
+          WizardStyle=modern
+          ArchitecturesAllowed=x64compatible
+          ArchitecturesInstallIn64BitMode=x64compatible
+
+          [Languages]
+          Name: "english"; MessagesFile: "compiler:Default.isl"
+
+          [Tasks]
+          Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
+
+          [Files]
+          Source: "$bundleDir\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+          [Icons]
+          Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+          Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
+          [Run]
+          Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+          "@ | Set-Content -Path $issPath -Encoding UTF8
+
+          $isccPath = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $isccPath)) {
+            $isccFromPath = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
+            if ($isccFromPath) {
+              $isccPath = $isccFromPath
+            } else {
+              throw "ISCC.exe not found after installing Inno Setup."
+            }
+          }
+
+          & $isccPath $issPath
+          if (-not (Test-Path $installerName)) {
+            throw "Installer was not produced at expected path: $installerName"
+          }
+
+          "portable_path=$portableName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "installer_path=$installerName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ needs.metadata.outputs.artifact_stem }}-windows
-          path: ${{ steps.collect.outputs.path }}
+          path: |
+            ${{ steps.collect.outputs.portable_path }}
+            ${{ steps.collect.outputs.installer_path }}
 
   build-android:
     runs-on: ubuntu-latest
@@ -250,5 +328,6 @@ jobs:
         with:
           tag_name: ${{ needs.metadata.outputs.release_tag }}
           files: |
-            release-assets/*.exe
+            release-assets/*-portable.zip
+            release-assets/*-setup.exe
             release-assets/*.apk

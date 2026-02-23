@@ -5,7 +5,8 @@ This is a cross platform chess game built with Flet, a Python framework for buil
 Publishing is handled by `.github/workflows/release-build.yml`.
 
 - Trigger a GitHub release with a tag matching `project.version` in `pyproject.toml` (for example `v0.1.0-alpha.1`).
-- The workflow builds and publishes exactly two files to that release:
+- The workflow builds and publishes these files to that release:
   - `*.apk` for Android
-  - `*.exe` for Windows
+  - `*-portable.zip` containing the full portable app bundle
+  - `*-setup.exe` installer
 
