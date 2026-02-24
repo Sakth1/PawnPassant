@@ -1,25 +1,34 @@
-from chess import Board, Square
+from chess import Board, Move, Square
+from Core.MoveType import MoveType
 
 
 class Game:
     def __init__(self):
         self.board: Board = Board()
-        #print(self.board.unicode(borders=True))
-        #print(self.board.legal_moves)
-        
-    
+
     def get_board_fen(self):
         return self.board.fen()
 
+    def get_move_type(self, move: Move) -> MoveType:
+        if self.board.is_castling(move):
+            return MoveType.CASTLING
+        if self.board.is_en_passant(move):
+            return MoveType.EN_PASSANT
+        if move.promotion is not None:
+            return MoveType.PROMOTION
+        if self.board.is_capture(move):
+            return MoveType.CAPTURE
+        return MoveType.NORMAL
+
     def is_game_over(self):
         return self.board.is_game_over()
-    
+
     def piece_at_square(self, square: Square):
         return self.board.piece_at(square)
-    
+
     def color_of_piece_at_square(self, square: Square):
         return self.board.color_at(square)
-    
+
     def get_last_move(self):
         return self.board.move_stack[-1]
 

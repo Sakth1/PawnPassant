@@ -2,6 +2,7 @@ import flet as ft
 from chess import FILE_NAMES, RANK_NAMES, parse_square, square, square_name, Move
 
 from Core.Engine import Game
+from Core.MoveType import MoveType
 from Ui.chess_piece import ChessPiece
 from Ui.square import Square
 
@@ -106,15 +107,12 @@ class ChessBoard(ft.Container):
         self.square_map[square_name(last_move.to_square)].update_content(
             ChessPiece(self.game.piece_at_square(last_move.to_square))
         )
-
-    def _move_type(self):
-        #TODO: add method that returns move type, ex: normal, capture, en passant, etc
-        pass
                    
     def move_piece(self, from_cords: str, to_cords: str):
         requested_move = Move(parse_square(from_cords), parse_square(to_cords))
         self._clear_move_highlights()
-        #TODO: add method that returns move type
+        movement_type = self.game.get_move_type(requested_move)
+        print(movement_type)
         #TODO: Implement other UI features, ex: castling, promotion etc/
         if requested_move in self.game.board.legal_moves:
             if self.game.board.is_en_passant(requested_move):
@@ -124,3 +122,4 @@ class ChessBoard(ft.Container):
                 self.game.board.push(requested_move)
                 self._update_last_move_on_board()
             self._flip_board()
+
