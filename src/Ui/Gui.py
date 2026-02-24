@@ -131,6 +131,7 @@ class ChessBoard(ft.Container):
         super().__init__()
         self.game = Game()
         self.highlighted_squares: set[str] = set()
+        self.is_flipped = False
         self.board_frame = ft.GridView(
             runs_count=8,
             controls=self._create_squares(),
@@ -179,6 +180,11 @@ class ChessBoard(ft.Container):
                 if piece is not None:
                     self.square_map[coords].update_content(ChessPiece(piece))
 
+    def _flip_board(self):
+        self.is_flipped = not self.is_flipped
+        self.board_frame.controls = self.squares[::-1] if self.is_flipped else self.squares
+        self.board_frame.update()
+
     def _clear_move_highlights(self):
         for coord in self.highlighted_squares:
             sq = self.square_map.get(coord)
@@ -224,6 +230,7 @@ class ChessBoard(ft.Container):
     def move_piece(self, from_cords: str, to_cords: str):
         requested_move = f"{from_cords}{to_cords}"
         self._clear_move_highlights()
+        move_made = False
         for move in self.game.board.legal_moves:
             if str(move) == requested_move:
                 if self.game.board.is_en_passant(move):
@@ -232,8 +239,10 @@ class ChessBoard(ft.Container):
                 else:
                     self.game.board.push(move)
                     self._update_last_move_on_board()
-
+                move_made = True
                 break
+        if move_made:
+            self._flip_board()
 
     
 class ChessApp():
