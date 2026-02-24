@@ -1,4 +1,4 @@
-from chess import Board 
+from chess import Board, Square
 
 
 class Game:
@@ -13,6 +13,15 @@ class Game:
 
     def is_game_over(self):
         return self.board.is_game_over()
+    
+    def piece_at_square(self, square: Square):
+        return self.board.piece_at(square)
+    
+    def color_of_piece_at_square(self, square: Square):
+        return self.board.color_at(square)
+    
+    def get_last_move(self):
+        return self.board.move_stack[-1]
 
     def get_winner(self):
         if self.board.is_checkmate():

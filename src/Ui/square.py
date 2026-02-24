@@ -60,6 +60,7 @@ class Square(ft.Container):
             self.on_square_click(self, self.coordinate)
 
     def _handle_hover(self, e):
+        #TODO: improve hovering mechanism, making it less hacky and heavy in UI
         if self.highlighted_metadata.get("highlighted"):
             return
         if e.data is True:

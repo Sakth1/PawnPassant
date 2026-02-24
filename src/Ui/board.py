@@ -53,7 +53,7 @@ class ChessBoard(ft.Container):
         for rank_idx in range(len(RANK_NAMES)):
             for file_idx in range(len(FILE_NAMES)):
                 coords = f"{FILE_NAMES[file_idx]}{RANK_NAMES[rank_idx]}"
-                piece = self.game.board.piece_at(square(file_idx, rank_idx))
+                piece = self.game.piece_at_square(square(file_idx, rank_idx))
                 if piece is not None:
                     self.square_map[coords].update_content(ChessPiece(piece))
 
@@ -90,8 +90,8 @@ class ChessBoard(ft.Container):
 
     def _en_passant_capture(self):
         self._update_last_move_on_board()
-        last_move = self.game.board.move_stack[-1]
-        piece_color_is_white = self.game.board.piece_at(last_move.to_square).color
+        last_move = self.game.get_last_move()
+        piece_color_is_white = self.game.color_of_piece_at_square(last_move.to_square)
         if piece_color_is_white is True:
             opponent_pawn_direction = -1
         else:
@@ -101,16 +101,23 @@ class ChessBoard(ft.Container):
         self.square_map[squarename].update_content(None)
 
     def _update_last_move_on_board(self):
-        last_move = self.game.board.move_stack[-1]
+        last_move = self.game.get_last_move()
         self.square_map[square_name(last_move.from_square)].update_content(None)
         self.square_map[square_name(last_move.to_square)].update_content(
-            ChessPiece(self.game.board.piece_at(last_move.to_square))
+            ChessPiece(self.game.piece_at_square(last_move.to_square))
         )
 
+    def _move_type(self):
+        #TODO: add method that returns move type, ex: normal, capture, en passant, etc
+        pass
+                   
     def move_piece(self, from_cords: str, to_cords: str):
         requested_move = f"{from_cords}{to_cords}"
         self._clear_move_highlights()
         move_made = False
+        #TODO: rework checking legal move
+        #TODO: add method that returns move type
+        #TODO: Implement other UI features, ex: castling, promotion etc/
         for move in self.game.board.legal_moves:
             if str(move) == requested_move:
                 if self.game.board.is_en_passant(move):
