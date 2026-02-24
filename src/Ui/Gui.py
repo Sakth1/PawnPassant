@@ -204,9 +204,21 @@ class ChessBoard(ft.Container):
                 sq.set_highlight(True, click_cords)
                 self.highlighted_squares.add(target)
 
+    def _en_passant_capture(self):
+        self._update_last_move_on_board()
+        last_move = self.game.board.move_stack[-1]
+        piece_color_is_white = self.game.board.piece_at(last_move.to_square).color
+        if piece_color_is_white is True:
+            opponent_pawn_direction = -1
+        else:
+            opponent_pawn_direction = 1
+        squarename = square_name(last_move.to_square)
+        squarename = squarename[0] + str(int(squarename[1]) + opponent_pawn_direction)
+        self.square_map[squarename].update_content(None)
+
     def _update_last_move_on_board(self):
         last_move = self.game.board.move_stack[-1]
-        self.square_map[square_name(last_move.from_square)].update_content(self.game.board.piece_at(last_move.from_square))
+        self.square_map[square_name(last_move.from_square)].update_content(None)
         self.square_map[square_name(last_move.to_square)].update_content(ChessPiece(self.game.board.piece_at(last_move.to_square)))
 
     def move_piece(self, from_cords: str, to_cords: str):
@@ -214,8 +226,13 @@ class ChessBoard(ft.Container):
         self._clear_move_highlights()
         for move in self.game.board.legal_moves:
             if str(move) == requested_move:
-                self.game.board.push(move)
-                self._update_last_move_on_board()
+                if self.game.board.is_en_passant(move):
+                    self.game.board.push(move)
+                    self._en_passant_capture()
+                else:
+                    self.game.board.push(move)
+                    self._update_last_move_on_board()
+
                 break
 
     
