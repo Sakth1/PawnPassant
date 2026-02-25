@@ -2,7 +2,7 @@ import traceback
 from pathlib import Path
 
 import flet as ft
-from chess import Piece
+from chess import Piece, Color
 
 from Constants import SYMBOL_MAP
 
@@ -11,6 +11,7 @@ class ChessPiece(ft.Container):
     def __init__(self, piece: Piece):
         super().__init__()
         self.piece = piece
+        self.color: Color = piece.color
 
     def to_control(self) -> ft.Control:
         try:

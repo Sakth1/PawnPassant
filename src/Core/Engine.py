@@ -1,4 +1,6 @@
-from chess import Board, Move, Square
+from chess import Board, Move, Square, Color, square_file, square_rank
+from typing import Optional
+
 from Core.MoveType import MoveType
 
 
@@ -37,7 +39,7 @@ class Game:
     def piece_at_square(self, square: Square):
         return self.board.piece_at(square)
 
-    def color_of_piece_at_square(self, square: Square):
+    def color_of_piece_at_square(self, square: Square) -> Optional[Color]:
         return self.board.color_at(square)
 
     def get_last_move(self):
