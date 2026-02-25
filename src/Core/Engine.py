@@ -19,6 +19,17 @@ class Game:
         if self.board.is_capture(move):
             return MoveType.CAPTURE
         return MoveType.NORMAL
+    
+    def move(self, move: Move):
+        self.board.push(move)
+
+    def castling_side(self, move: Move):
+        print(move)
+        if self.board.is_queenside_castling(move):
+            return "q"
+        if self.board.is_kingside_castling(move):
+            return "k"
+        return None
 
     def is_game_over(self):
         return self.board.is_game_over()

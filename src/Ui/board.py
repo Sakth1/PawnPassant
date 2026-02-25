@@ -107,19 +107,56 @@ class ChessBoard(ft.Container):
         self.square_map[square_name(last_move.to_square)].update_content(
             ChessPiece(self.game.piece_at_square(last_move.to_square))
         )
+
+    def _queen_side_castling(self):
+        last_move = self.game.get_last_move()
+        print(last_move)
+        self.square_map["e1"].update_content(None)
+        self.square_map["f1"].update_content(None)
+        self.square_map["d1"].update_content(ChessPiece(self.game.piece_at_square(square(2, 0))))
+        self.square_map["c1"].update_content(ChessPiece(self.game.piece_at_square(square(3, 0))))
+
+    def _king_side_castling(self):
+        self._update_last_move_on_board()
+        self.square_map["e8"].update_content(ChessPiece(self.game.piece_at_square(square(0, 7))))
+        self.square_map["f8"].update_content(ChessPiece(self.game.piece_at_square(square(1, 7))))
+        self.square_map["g8"].update_content(ChessPiece(self.game.piece_at_square(square(2, 7))))
+        self.square_map["h8"].update_content(ChessPiece(self.game.piece_at_square(square(3, 7))))
                    
     def move_piece(self, from_cords: str, to_cords: str):
         requested_move = Move(parse_square(from_cords), parse_square(to_cords))
+        print(requested_move)
         self._clear_move_highlights()
         movement_type = self.game.get_move_type(requested_move)
-        print(movement_type)
         #TODO: Implement other UI features, ex: castling, promotion etc/
         if requested_move in self.game.board.legal_moves:
-            if self.game.board.is_en_passant(requested_move):
-                self.game.board.push(requested_move)
-                self._en_passant_capture()
-            else:
-                self.game.board.push(requested_move)
-                self._update_last_move_on_board()
+            match movement_type:
+                case MoveType.NORMAL | MoveType.CAPTURE:
+                    self.game.move(requested_move)
+                    self._update_last_move_on_board()
+                case MoveType.EN_PASSANT:
+                    self.game.move(requested_move)
+                    self._en_passant_capture()
+                case MoveType.CASTLING:
+                    print("Castling")
+                    self.game.move(requested_move)
+                    castling_side = self.game.castling_side(requested_move)
+                    #TODO: test self.game.castling_side, it returns None
+                    print(castling_side)
+                    match castling_side:
+                        case "q":
+                            print("Queen side castling")
+                            self._queen_side_castling()
+                        case "k":
+                            print("King side castling")
+                            self._king_side_castling()
+                        case _:
+                            print("Invalid castling side")
+                            pass
+                case MoveType.PROMOTION:
+                    #TODO: implement promotion
+                    pass
+                case _:
+                    pass
             self._flip_board()
 
