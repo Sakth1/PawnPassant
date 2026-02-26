@@ -8,6 +8,12 @@ class Game:
     def __init__(self):
         self.board: Board = Board()
 
+    def reset_board(self):
+        self.board = Board()
+
+    def set_board_fen(self, fen: str):
+        self.board = Board(fen)
+
     def get_board_fen(self):
         return self.board.fen()
 

@@ -1,7 +1,21 @@
+import threading
 from typing import Optional
 
 import flet as ft
-from chess import FILE_NAMES, RANK_NAMES, parse_square, square, square_name, Move, Color
+from chess import (
+    FILE_NAMES,
+    RANK_NAMES,
+    parse_square,
+    square,
+    square_name,
+    Move,
+    Color,
+    Piece,
+    QUEEN,
+    ROOK,
+    KNIGHT,
+    BISHOP,
+)
 
 from Core.Engine import Game
 from Core.MoveType import MoveType
@@ -11,6 +25,14 @@ from Constants import CASTLING_ROOK_START_SQUARE, CASTLING_ROOK_END_SQUARE
 
 
 class ChessBoard(ft.Container):
+    TEST_POSITIONS: dict[str, Optional[str]] = {
+        "Start Position": None,
+        "Castle Test": "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
+        "En Passant Test": "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1",
+        "Promotion Test": "4k3/4P3/8/8/8/8/3p4/4K3 w - - 0 1",
+        "Mate In One": "6k1/5ppp/8/8/8/8/6PP/5RK1 w - - 0 1",
+    }
+
     def __init__(self):
         super().__init__()
         self.game = Game()
@@ -31,6 +53,22 @@ class ChessBoard(ft.Container):
         self.width = 480
         self.content = self.board_frame
         self._setup_pieces()
+
+    def _render_board_state(self):
+        self._clear_move_highlights()
+        for sq in self.squares:
+            sq.update_content(None)
+        self._setup_pieces()
+        self.board_frame.update()
+
+    def load_position(self, fen: Optional[str] = None):
+        if fen:
+            self.game.set_board_fen(fen)
+        else:
+            self.game.reset_board()
+        self.is_flipped = False
+        self.board_frame.controls = self.squares
+        self._render_board_state()
 
     def _create_squares(self) -> list[Square]:
         self.squares: list[Square] = []
@@ -175,11 +213,50 @@ class ChessBoard(ft.Container):
                 CASTLING_ROOK_END_SQUARE.get("KING_SIDE_BLACK")
             ].update_content(rook)
 
+    def _promote_pawn_dialog(self):
+        pawn_color = self.game.board.turn
+        page = self.page
+        if page is None:
+            return ChessPiece(Piece(QUEEN, pawn_color))
+
+        selected_piece_type = QUEEN
+        selection_done = threading.Event()
+
+        def choose_piece(piece_type: int):
+            nonlocal selected_piece_type
+            selected_piece_type = piece_type
+            dialog.open = False
+            page.update()
+            selection_done.set()
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Promote pawn"),
+            content=ft.Text("Choose promotion piece"),
+            actions=[
+                ft.TextButton("Queen", on_click=lambda _: choose_piece(QUEEN)),
+                ft.TextButton("Rook", on_click=lambda _: choose_piece(ROOK)),
+                ft.TextButton("Knight", on_click=lambda _: choose_piece(KNIGHT)),
+                ft.TextButton("Bishop", on_click=lambda _: choose_piece(BISHOP)),
+            ],
+            actions_alignment=ft.MainAxisAlignment.SPACE_EVENLY,
+            on_dismiss=lambda _: selection_done.set(),
+        )
+
+        page.dialog = dialog
+        dialog.open = True
+        page.update()
+        selection_done.wait()
+        return ChessPiece(Piece(selected_piece_type, pawn_color))
+
+    def _promote_pawn(self, move: Move):
+        promoted_piece = self._promote_pawn_dialog()
+
     def move_piece(self, from_cords: str, to_cords: str):
         requested_move = Move(parse_square(from_cords), parse_square(to_cords))
         self._clear_move_highlights()
         movement_type = self.game.get_move_type(requested_move)
-        # TODO: Implement other UI features, ex: castling, promotion etc/
+        # TODO: Implement other UI features, ex: promotion etc/
         if requested_move in self.game.board.legal_moves:
             match movement_type:
                 case MoveType.NORMAL | MoveType.CAPTURE:
@@ -200,7 +277,7 @@ class ChessBoard(ft.Container):
                         case _:
                             pass
                 case MoveType.PROMOTION:
-                    # TODO: implement promotion
+                    self._promote_pawn(requested_move)
                     pass
                 case _:
                     pass
