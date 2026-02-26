@@ -62,7 +62,9 @@ class ChessBoard(ft.Container):
 
     def _flip_board(self):
         self.is_flipped = not self.is_flipped
-        self.board_frame.controls = self.squares[::-1] if self.is_flipped else self.squares
+        self.board_frame.controls = (
+            self.squares[::-1] if self.is_flipped else self.squares
+        )
         self.board_frame.update()
 
     def _clear_move_highlights(self):
@@ -75,7 +77,9 @@ class ChessBoard(ft.Container):
     def _handle_square_click(self, square_instance: Square, click_cords: str):
         if square_instance.highlighted_metadata.get("highlighted"):
             self.move_piece(
-                from_cords=square_instance.highlighted_metadata.get("parent_piece_square"),
+                from_cords=square_instance.highlighted_metadata.get(
+                    "parent_piece_square"
+                ),
                 to_cords=click_cords,
             )
             return
@@ -83,7 +87,9 @@ class ChessBoard(ft.Container):
         self._clear_move_highlights()
         from_sq = parse_square(click_cords)
         legal_targets = [
-            square_name(move.to_square) for move in self.game.board.legal_moves if move.from_square == from_sq
+            square_name(move.to_square)
+            for move in self.game.board.legal_moves
+            if move.from_square == from_sq
         ]
         for target in legal_targets:
             sq = self.square_map.get(target)
@@ -94,7 +100,9 @@ class ChessBoard(ft.Container):
     def _en_passant_capture(self):
         self._update_last_move_on_board()
         last_move = self.game.get_last_move()
-        piece_color_is_white: Optional[Color] = self.game.color_of_piece_at_square(last_move.to_square)
+        piece_color_is_white: Optional[Color] = self.game.color_of_piece_at_square(
+            last_move.to_square
+        )
         if piece_color_is_white is True:
             opponent_pawn_direction = -1
         else:
@@ -115,31 +123,55 @@ class ChessBoard(ft.Container):
 
     def _queen_side_castling(self):
         last_move = self.game.get_last_move()
-        piece_color_is_white: Optional[Color] = self.game.color_of_piece_at_square(last_move.to_square)
+        piece_color_is_white: Optional[Color] = self.game.color_of_piece_at_square(
+            last_move.to_square
+        )
         if piece_color_is_white is True:
-            rook = self._get_piece_at_square(self.square_map[square_name(last_move.to_square)])
+            rook = self._get_piece_at_square(
+                self.square_map[square_name(last_move.to_square)]
+            )
             print(rook.piece)
             breakpoint()
-            self.square_map["a1"].update_content(ChessPiece(self.game.piece_at_square(square(0, 0))))
-            self.square_map["b1"].update_content(ChessPiece(self.game.piece_at_square(square(1, 0))))
-            self.square_map["c1"].update_content(ChessPiece(self.game.piece_at_square(square(2, 0))))
-            self.square_map["d1"].update_content(ChessPiece(self.game.piece_at_square(square(3, 0))))
+            self.square_map["a1"].update_content(
+                ChessPiece(self.game.piece_at_square(square(0, 0)))
+            )
+            self.square_map["b1"].update_content(
+                ChessPiece(self.game.piece_at_square(square(1, 0)))
+            )
+            self.square_map["c1"].update_content(
+                ChessPiece(self.game.piece_at_square(square(2, 0)))
+            )
+            self.square_map["d1"].update_content(
+                ChessPiece(self.game.piece_at_square(square(3, 0)))
+            )
         else:
-            self.square_map["h1"].update_content(ChessPiece(self.game.piece_at_square(square(0, 0))))
-            self.square_map["g1"].update_content(ChessPiece(self.game.piece_at_square(square(1, 0))))
+            self.square_map["h1"].update_content(
+                ChessPiece(self.game.piece_at_square(square(0, 0)))
+            )
+            self.square_map["g1"].update_content(
+                ChessPiece(self.game.piece_at_square(square(1, 0)))
+            )
 
     def _king_side_castling(self):
-        self.square_map["e8"].update_content(ChessPiece(self.game.piece_at_square(square(0, 7))))
-        self.square_map["f8"].update_content(ChessPiece(self.game.piece_at_square(square(1, 7))))
-        self.square_map["g8"].update_content(ChessPiece(self.game.piece_at_square(square(2, 7))))
-        self.square_map["h8"].update_content(ChessPiece(self.game.piece_at_square(square(3, 7))))
-                   
+        self.square_map["e8"].update_content(
+            ChessPiece(self.game.piece_at_square(square(0, 7)))
+        )
+        self.square_map["f8"].update_content(
+            ChessPiece(self.game.piece_at_square(square(1, 7)))
+        )
+        self.square_map["g8"].update_content(
+            ChessPiece(self.game.piece_at_square(square(2, 7)))
+        )
+        self.square_map["h8"].update_content(
+            ChessPiece(self.game.piece_at_square(square(3, 7)))
+        )
+
     def move_piece(self, from_cords: str, to_cords: str):
         requested_move = Move(parse_square(from_cords), parse_square(to_cords))
         self._clear_move_highlights()
         movement_type = self.game.get_move_type(requested_move)
         print(self._get_piece_at_square(self.square_map[from_cords]).piece)
-        #TODO: Implement other UI features, ex: castling, promotion etc/
+        # TODO: Implement other UI features, ex: castling, promotion etc/
         if requested_move in self.game.board.legal_moves:
             match movement_type:
                 case MoveType.NORMAL | MoveType.CAPTURE:
@@ -160,7 +192,7 @@ class ChessBoard(ft.Container):
                         case _:
                             pass
                 case MoveType.PROMOTION:
-                    #TODO: implement promotion
+                    # TODO: implement promotion
                     pass
                 case _:
                     pass

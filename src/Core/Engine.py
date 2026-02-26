@@ -21,7 +21,7 @@ class Game:
         if self.board.is_capture(move):
             return MoveType.CAPTURE
         return MoveType.NORMAL
-    
+
     def move(self, move: Move):
         self.board.push(move)
 
@@ -48,7 +48,12 @@ class Game:
     def get_winner(self):
         if self.board.is_checkmate():
             return "Black" if self.board.turn else "White"
-        elif self.board.is_stalemate() or self.board.is_insufficient_material() or self.board.is_seventyfive_moves() or self.board.is_fivefold_repetition():
+        elif (
+            self.board.is_stalemate()
+            or self.board.is_insufficient_material()
+            or self.board.is_seventyfive_moves()
+            or self.board.is_fivefold_repetition()
+        ):
             return "Draw"
         else:
             return None

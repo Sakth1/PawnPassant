@@ -38,14 +38,16 @@ class Square(ft.Container):
             bgcolor=ft.Colors.TRANSPARENT,
         )
 
-        self.base_bgcolor = ft.Colors.GREEN_100 if self.color == "w" else ft.Colors.GREEN_900
+        self.base_bgcolor = (
+            ft.Colors.GREEN_100 if self.color == "w" else ft.Colors.GREEN_900
+        )
         self.bgcolor = self.base_bgcolor
         self.width = size
         self.height = size
         self.piece_control: Optional[ft.Control] = None
         self.stack = ft.Stack(controls=[], expand=True, alignment=ft.Alignment.CENTER)
         self.content = self.stack
-        self.highlighted_metadata: dict[str: bool | str | None] = {
+        self.highlighted_metadata: dict[str : bool | str | None] = {
             "highlighted": False,
             "parent_piece_square": None,
         }
@@ -61,7 +63,7 @@ class Square(ft.Container):
             self.on_square_click(self, self.coordinate)
 
     def _handle_hover(self, e):
-        #TODO: improve hovering mechanism, making it less hacky and heavy in UI
+        # TODO: improve hovering mechanism, making it less hacky and heavy in UI
         if self.highlighted_metadata.get("highlighted"):
             return
         if e.data is True:
@@ -87,7 +89,9 @@ class Square(ft.Container):
                 self.piece = piece
                 self.has_piece = True
             else:
-                content = ft.Text("ERROR", align=ft.Alignment.CENTER, color=ft.Colors.RED)
+                content = ft.Text(
+                    "ERROR", align=ft.Alignment.CENTER, color=ft.Colors.RED
+                )
                 self.has_piece = False
                 self.piece = None
         except Exception:
