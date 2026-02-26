@@ -20,3 +20,17 @@ SYMBOL_MAP = {
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSET_DIR = Path(ROOT_DIR, "assets")
 PIECES_DIR = Path(ASSET_DIR, "pieces", "default")
+
+CASTLING_ROOK_START_SQUARE = {
+    "QUEEN_SIDE_WHITE": "a1",
+    "KING_SIDE_WHITE": "h1",
+    "QUEEN_SIDE_BLACK": "a8",
+    "KING_SIDE_BLACK": "h8",
+}
+
+CASTLING_ROOK_END_SQUARE = {
+    "QUEEN_SIDE_WHITE": "d1",
+    "KING_SIDE_WHITE": "f1",
+    "QUEEN_SIDE_BLACK": "d8",
+    "KING_SIDE_BLACK": "f8",
+}

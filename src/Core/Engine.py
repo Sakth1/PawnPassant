@@ -26,7 +26,6 @@ class Game:
         self.board.push(move)
 
     def castling_side(self, move: Move):
-        print(move)
         if self.board.is_queenside_castling(move):
             return "q"
         if self.board.is_kingside_castling(move):
@@ -35,6 +34,9 @@ class Game:
 
     def is_game_over(self):
         return self.board.is_game_over()
+
+    def display_board(self):
+        print(self.board)
 
     def piece_at_square(self, square: Square):
         return self.board.piece_at(square)

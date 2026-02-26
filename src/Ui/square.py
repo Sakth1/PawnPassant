@@ -52,7 +52,7 @@ class Square(ft.Container):
             "parent_piece_square": None,
         }
         self.has_piece = False
-        self.piece: Optional[ChessPiece] = None
+        self.piece_container: Optional[ChessPiece] = None
 
         self.margin = 0
         self.on_click = self._handle_click
@@ -83,17 +83,17 @@ class Square(ft.Container):
             if piece is None:
                 content = None
                 self.has_piece = False
-                self.piece = None
+                self.piece_container = None
             elif isinstance(piece, ChessPiece):
                 content = piece.to_control()
-                self.piece = piece
+                self.piece_container = piece
                 self.has_piece = True
             else:
                 content = ft.Text(
                     "ERROR", align=ft.Alignment.CENTER, color=ft.Colors.RED
                 )
                 self.has_piece = False
-                self.piece = None
+                self.piece_container = None
         except Exception:
             traceback.print_exc()
             content = ft.Text("ERROR", align=ft.Alignment.CENTER, color=ft.Colors.RED)

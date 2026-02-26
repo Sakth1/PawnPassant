@@ -1,6 +1,5 @@
 import traceback
 from pathlib import Path
-
 import flet as ft
 from chess import Piece, Color
 
