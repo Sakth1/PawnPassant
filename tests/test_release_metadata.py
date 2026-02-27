@@ -259,6 +259,90 @@ class TestVersionBumpDetection(unittest.TestCase):
                 "previous pyproject.toml not found; skipping auto-release", written
             )
 
+    def test_detect_version_bump_skips_when_previous_version_key_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "config", "user.email", "ci-tests@example.com"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "CI Tests"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+
+            # Intentionally malformed: version key typo in previous revision.
+            (repo / "pyproject.toml").write_text(
+                (
+                    "[project]\n"
+                    'name = "pawnpassant"\n'
+                    'veversion = "1.0.0"\n\n'
+                    "[tool.flet]\n"
+                    'source_packages = ["chess"]\n'
+                ),
+                encoding="utf-8",
+            )
+            subprocess.run(
+                ["git", "add", "pyproject.toml"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "bad metadata"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            before = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=repo, text=True
+            ).strip()
+
+            (repo / "pyproject.toml").write_text(
+                (
+                    "[project]\n"
+                    'name = "pawnpassant"\n'
+                    'version = "1.0.1"\n\n'
+                    "[tool.flet]\n"
+                    'source_packages = ["chess"]\n'
+                ),
+                encoding="utf-8",
+            )
+            subprocess.run(
+                ["git", "add", "pyproject.toml"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "fix metadata and bump version"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+
+            output = repo / "out.txt"
+            args = Args(
+                pyproject="pyproject.toml", before=before, github_output=str(output)
+            )
+
+            prev_cwd = Path.cwd()
+            try:
+                os.chdir(repo)
+                rc = command_detect_version_bump(args)
+            finally:
+                os.chdir(prev_cwd)
+
+            self.assertEqual(rc, 0)
+            written = output.read_text(encoding="utf-8")
+            self.assertIn("should_release=false", written)
+            self.assertIn("previous pyproject.toml invalid", written)
+
     def test_detect_version_bump_raises_on_downgrade(self):
         temp_dir, repo = self._init_repo_with_versions(["1.0.0", "1.0.0-alpha.1"])
         with temp_dir:

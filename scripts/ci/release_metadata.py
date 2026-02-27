@@ -88,7 +88,12 @@ def read_pyproject(pyproject_path: Path) -> dict:
 
 def read_version_from_pyproject(pyproject_path: Path) -> str:
     data = read_pyproject(pyproject_path)
-    return data["project"]["version"]
+    try:
+        return data["project"]["version"]
+    except KeyError as error:
+        raise KeyError(
+            f"{pyproject_path} must define [project].version for release automation"
+        ) from error
 
 
 def read_version_from_git_revision(revision: str, pyproject_relpath: str) -> str:
@@ -103,7 +108,12 @@ def read_version_from_git_revision(revision: str, pyproject_relpath: str) -> str
             f"Could not load {pyproject_relpath!r} from git revision {revision!r}"
         )
     data = tomllib.loads(result.stdout)
-    return data["project"]["version"]
+    try:
+        return data["project"]["version"]
+    except KeyError as error:
+        raise KeyError(
+            f"{pyproject_relpath!r} at revision {revision!r} must define [project].version"
+        ) from error
 
 
 def normalize_tag(tag: str) -> str:
@@ -192,6 +202,8 @@ def command_detect_version_bump(args: argparse.Namespace) -> int:
             parse_semver(previous_version)
         except FileNotFoundError:
             reason = "previous pyproject.toml not found; skipping auto-release"
+        except (KeyError, ValueError) as error:
+            reason = f"previous pyproject.toml invalid ({error}); skipping auto-release"
         else:
             comparison = compare_semver(current_version, previous_version)
             if comparison > 0:
