@@ -255,27 +255,19 @@ class ChessBoard(ft.Container):
     def move_piece(self, from_cords: str, to_cords: str):
         requested_move = Move(parse_square(from_cords), parse_square(to_cords))
         self._clear_move_highlights()
-        movement_type = self.game.get_move_type(requested_move)
         # TODO: Implement other UI features, ex: promotion etc/
         if requested_move in self.game.board.legal_moves:
+            self.game.move(requested_move)
+            movement_type = self.game.get_move_type(requested_move)
             match movement_type:
                 case MoveType.NORMAL | MoveType.CAPTURE:
-                    self.game.move(requested_move)
                     self._update_last_move_on_board()
                 case MoveType.EN_PASSANT:
-                    self.game.move(requested_move)
                     self._en_passant_capture()
-                case MoveType.CASTLING:
-                    castling_side = self.game.castling_side(requested_move)
-                    self.game.move(requested_move)
-                    self._update_last_move_on_board()
-                    match castling_side:
-                        case "q":
-                            self._queen_side_castling()
-                        case "k":
-                            self._king_side_castling()
-                        case _:
-                            pass
+                case MoveType.QUEEN_SIDE_CASTLING:
+                    self._queen_side_castling()
+                case MoveType.KING_SIDE_CASTLING:
+                    self._king_side_castling()
                 case MoveType.PROMOTION:
                     self._promote_pawn(requested_move)
                     pass

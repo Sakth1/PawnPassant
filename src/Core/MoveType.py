@@ -5,5 +5,6 @@ class MoveType(str, Enum):
     NORMAL = "normal"
     CAPTURE = "capture"
     EN_PASSANT = "en_passant"
-    CASTLING = "castling"
+    KING_SIDE_CASTLING = "king_side_castling"
+    QUEEN_SIDE_CASTLING = "queen_side_castling"
     PROMOTION = "promotion"

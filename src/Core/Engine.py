@@ -18,11 +18,14 @@ class Game:
         return self.board.fen()
 
     def get_move_type(self, move: Move) -> MoveType:
-        if self.board.is_castling(move):
-            return MoveType.CASTLING
+        if self.board.is_queenside_castling(move):
+            return MoveType.QUEEN_SIDE_CASTLING
+        if self.board.is_kingside_castling(move):
+            return MoveType.KING_SIDE_CASTLING
         if self.board.is_en_passant(move):
             return MoveType.EN_PASSANT
         if move.promotion is not None:
+            #move.promotion in engine does not really detect weather the move passed to this fuction is a valid protion move
             return MoveType.PROMOTION
         if self.board.is_capture(move):
             return MoveType.CAPTURE
@@ -33,13 +36,6 @@ class Game:
 
     def get_move_san(self, move: Move) -> str:
         return self.board.san(move)
-
-    def castling_side(self, move: Move):
-        if self.board.is_queenside_castling(move):
-            return "q"
-        if self.board.is_kingside_castling(move):
-            return "k"
-        return None
 
     def is_game_over(self):
         return self.board.is_game_over()
