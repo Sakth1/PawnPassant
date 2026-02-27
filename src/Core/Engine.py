@@ -31,6 +31,9 @@ class Game:
     def move(self, move: Move):
         self.board.push(move)
 
+    def get_move_san(self, move: Move) -> str:
+        return self.board.san(move)
+
     def castling_side(self, move: Move):
         if self.board.is_queenside_castling(move):
             return "q"
