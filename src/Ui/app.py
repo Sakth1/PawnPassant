@@ -39,6 +39,5 @@ def main(page: ft.Page):
         "yes",
         "dev",
     }
-    #  $env:PAWNPASSANT_DEV = "true"    # to run in dev mode
-    #  Remove-Item Env:PAWNPASSANT_DEV  # to run in prod mode
+    
     ChessApp(page, dev_mode=dev_mode)

@@ -1,4 +1,4 @@
-from chess import Board, Move, Square, Color
+from chess import Board, Move, Square, Color, PAWN, square_rank
 from typing import Optional
 
 from Core.MoveType import MoveType
@@ -24,12 +24,17 @@ class Game:
             return MoveType.KING_SIDE_CASTLING
         if self.board.is_en_passant(move):
             return MoveType.EN_PASSANT
-        if move.promotion is not None:
-            #move.promotion in engine does not really detect weather the move passed to this fuction is a valid protion move
+        if self._is_promotion_move(move):
             return MoveType.PROMOTION
         if self.board.is_capture(move):
             return MoveType.CAPTURE
         return MoveType.NORMAL
+
+    def _is_promotion_move(self, move: Move) -> bool:
+        piece = self.board.piece_at(move.from_square)
+        if piece is None or piece.piece_type != PAWN:
+            return False
+        return square_rank(move.to_square) in (0, 7)
 
     def move(self, move: Move):
         self.board.push(move)

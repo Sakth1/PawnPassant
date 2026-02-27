@@ -1,4 +1,3 @@
-import threading
 from typing import Optional
 
 import flet as ft
@@ -10,7 +9,6 @@ from chess import (
     square_name,
     Move,
     Color,
-    Piece,
     QUEEN,
     ROOK,
     KNIGHT,
@@ -213,21 +211,47 @@ class ChessBoard(ft.Container):
                 CASTLING_ROOK_END_SQUARE.get("KING_SIDE_BLACK")
             ].update_content(rook)
 
-    def _promote_pawn_dialog(self):
-        pawn_color = self.game.board.turn
+    def _complete_move(self, requested_move: Move, movement_type: MoveType):
+        if requested_move not in self.game.board.legal_moves:
+            return
+
+        print(self.game.get_move_san(requested_move))
+        self.game.move(requested_move)
+        match movement_type:
+            case MoveType.NORMAL | MoveType.CAPTURE:
+                self._update_last_move_on_board()
+            case MoveType.EN_PASSANT:
+                self._en_passant_capture()
+            case MoveType.QUEEN_SIDE_CASTLING:
+                self._queen_side_castling()
+            case MoveType.KING_SIDE_CASTLING:
+                self._king_side_castling()
+            case MoveType.PROMOTION:
+                self._update_last_move_on_board()
+            case _:
+                pass
+        self._flip_board()
+
+    def _show_promotion_dialog(self, move: Move):
         page = self.page
         if page is None:
-            return ChessPiece(Piece(QUEEN, pawn_color))
-
-        selected_piece_type = QUEEN
-        selection_done = threading.Event()
+            promoted_move = Move(
+                from_square=move.from_square,
+                to_square=move.to_square,
+                promotion=QUEEN,
+            )
+            self._complete_move(promoted_move, MoveType.PROMOTION)
+            return
 
         def choose_piece(piece_type: int):
-            nonlocal selected_piece_type
-            selected_piece_type = piece_type
             dialog.open = False
             page.update()
-            selection_done.set()
+            promoted_move = Move(
+                from_square=move.from_square,
+                to_square=move.to_square,
+                promotion=piece_type,
+            )
+            self._complete_move(promoted_move, MoveType.PROMOTION)
 
         dialog = ft.AlertDialog(
             modal=True,
@@ -240,37 +264,18 @@ class ChessBoard(ft.Container):
                 ft.TextButton("Bishop", on_click=lambda _: choose_piece(BISHOP)),
             ],
             actions_alignment=ft.MainAxisAlignment.SPACE_EVENLY,
-            on_dismiss=lambda _: selection_done.set(),
         )
 
         page.dialog = dialog
         dialog.open = True
         page.update()
-        selection_done.wait()
-        return ChessPiece(Piece(selected_piece_type, pawn_color))
-
-    def _promote_pawn(self, move: Move):
-        promoted_piece = self._promote_pawn_dialog()
 
     def move_piece(self, from_cords: str, to_cords: str):
         requested_move = Move(parse_square(from_cords), parse_square(to_cords))
         self._clear_move_highlights()
-        # TODO: Implement other UI features, ex: promotion etc/
-        if requested_move in self.game.board.legal_moves:
-            self.game.move(requested_move)
-            movement_type = self.game.get_move_type(requested_move)
-            match movement_type:
-                case MoveType.NORMAL | MoveType.CAPTURE:
-                    self._update_last_move_on_board()
-                case MoveType.EN_PASSANT:
-                    self._en_passant_capture()
-                case MoveType.QUEEN_SIDE_CASTLING:
-                    self._queen_side_castling()
-                case MoveType.KING_SIDE_CASTLING:
-                    self._king_side_castling()
-                case MoveType.PROMOTION:
-                    self._promote_pawn(requested_move)
-                    pass
-                case _:
-                    pass
-            self._flip_board()
+        movement_type = self.game.get_move_type(requested_move)
+        if movement_type == MoveType.PROMOTION:
+            self._show_promotion_dialog(requested_move)
+            return
+
+        self._complete_move(requested_move, movement_type)
