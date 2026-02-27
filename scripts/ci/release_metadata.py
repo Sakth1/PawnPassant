@@ -235,9 +235,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Extract metadata required by release-build workflow",
     )
     extract_parser.add_argument("--pyproject", default="pyproject.toml")
-    extract_parser.add_argument("--event-name", default=os.getenv("GITHUB_EVENT_NAME", ""))
+    extract_parser.add_argument(
+        "--event-name", default=os.getenv("GITHUB_EVENT_NAME", "")
+    )
     extract_parser.add_argument("--release-tag", default="")
-    extract_parser.add_argument("--github-output", default=os.getenv("GITHUB_OUTPUT", ""))
+    extract_parser.add_argument(
+        "--github-output", default=os.getenv("GITHUB_OUTPUT", "")
+    )
     extract_parser.set_defaults(func=command_extract_release_metadata)
 
     detect_parser = subparsers.add_parser(
@@ -246,7 +250,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     detect_parser.add_argument("--pyproject", default="pyproject.toml")
     detect_parser.add_argument("--before", default=os.getenv("GITHUB_EVENT_BEFORE", ""))
-    detect_parser.add_argument("--github-output", default=os.getenv("GITHUB_OUTPUT", ""))
+    detect_parser.add_argument(
+        "--github-output", default=os.getenv("GITHUB_OUTPUT", "")
+    )
     detect_parser.set_defaults(func=command_detect_version_bump)
 
     return parser

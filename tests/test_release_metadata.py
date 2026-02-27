@@ -48,8 +48,7 @@ source_packages = ["chess"]
 
 [tool.pawnpassant.release]
 binary_name = "Pawn-Passant"
-""".strip()
-                + "\n",
+""".strip() + "\n",
                 encoding="utf-8",
             )
 
@@ -79,8 +78,7 @@ version = "1.2.3"
 
 [tool.flet]
 source_packages = ["chess"]
-""".strip()
-                + "\n",
+""".strip() + "\n",
                 encoding="utf-8",
             )
 
@@ -118,14 +116,19 @@ class TestVersionBumpDetection(unittest.TestCase):
             (repo / "pyproject.toml").write_text(
                 (
                     "[project]\n"
-                    "name = \"pawnpassant\"\n"
-                    f"version = \"{version}\"\n\n"
+                    'name = "pawnpassant"\n'
+                    f'version = "{version}"\n\n'
                     "[tool.flet]\n"
-                    "source_packages = [\"chess\"]\n"
+                    'source_packages = ["chess"]\n'
                 ),
                 encoding="utf-8",
             )
-            subprocess.run(["git", "add", "pyproject.toml"], cwd=repo, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "add", "pyproject.toml"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
             subprocess.run(
                 ["git", "commit", "--allow-empty", "-m", f"version {version}"],
                 cwd=repo,
@@ -136,11 +139,17 @@ class TestVersionBumpDetection(unittest.TestCase):
         return temp_dir, repo
 
     def test_detect_version_bump_true_when_version_increased(self):
-        temp_dir, repo = self._init_repo_with_versions(["1.0.0-alpha.1", "1.0.0-alpha.2"])
+        temp_dir, repo = self._init_repo_with_versions(
+            ["1.0.0-alpha.1", "1.0.0-alpha.2"]
+        )
         with temp_dir:
-            before = subprocess.check_output(["git", "rev-parse", "HEAD~1"], cwd=repo, text=True).strip()
+            before = subprocess.check_output(
+                ["git", "rev-parse", "HEAD~1"], cwd=repo, text=True
+            ).strip()
             output = repo / "out.txt"
-            args = Args(pyproject="pyproject.toml", before=before, github_output=str(output))
+            args = Args(
+                pyproject="pyproject.toml", before=before, github_output=str(output)
+            )
 
             prev_cwd = Path.cwd()
             try:
@@ -157,9 +166,13 @@ class TestVersionBumpDetection(unittest.TestCase):
     def test_detect_version_bump_false_when_unchanged(self):
         temp_dir, repo = self._init_repo_with_versions(["1.0.0", "1.0.0"])
         with temp_dir:
-            before = subprocess.check_output(["git", "rev-parse", "HEAD~1"], cwd=repo, text=True).strip()
+            before = subprocess.check_output(
+                ["git", "rev-parse", "HEAD~1"], cwd=repo, text=True
+            ).strip()
             output = repo / "out.txt"
-            args = Args(pyproject="pyproject.toml", before=before, github_output=str(output))
+            args = Args(
+                pyproject="pyproject.toml", before=before, github_output=str(output)
+            )
 
             prev_cwd = Path.cwd()
             try:
@@ -177,13 +190,32 @@ class TestVersionBumpDetection(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
             subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
-            subprocess.run(["git", "config", "user.email", "ci-tests@example.com"], cwd=repo, check=True, capture_output=True)
-            subprocess.run(["git", "config", "user.name", "CI Tests"], cwd=repo, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "config", "user.email", "ci-tests@example.com"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "CI Tests"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
 
             (repo / "README.md").write_text("seed\n", encoding="utf-8")
-            subprocess.run(["git", "add", "README.md"], cwd=repo, check=True, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "seed"], cwd=repo, check=True, capture_output=True)
-            before = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+            subprocess.run(
+                ["git", "add", "README.md"], cwd=repo, check=True, capture_output=True
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "seed"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            before = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=repo, text=True
+            ).strip()
 
             (repo / "pyproject.toml").write_text(
                 (
@@ -195,11 +227,23 @@ class TestVersionBumpDetection(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            subprocess.run(["git", "add", "pyproject.toml"], cwd=repo, check=True, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "add pyproject"], cwd=repo, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "add", "pyproject.toml"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "add pyproject"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
 
             output = repo / "out.txt"
-            args = Args(pyproject="pyproject.toml", before=before, github_output=str(output))
+            args = Args(
+                pyproject="pyproject.toml", before=before, github_output=str(output)
+            )
 
             prev_cwd = Path.cwd()
             try:
@@ -211,12 +255,16 @@ class TestVersionBumpDetection(unittest.TestCase):
             self.assertEqual(rc, 0)
             written = output.read_text(encoding="utf-8")
             self.assertIn("should_release=false", written)
-            self.assertIn("previous pyproject.toml not found; skipping auto-release", written)
+            self.assertIn(
+                "previous pyproject.toml not found; skipping auto-release", written
+            )
 
     def test_detect_version_bump_raises_on_downgrade(self):
         temp_dir, repo = self._init_repo_with_versions(["1.0.0", "1.0.0-alpha.1"])
         with temp_dir:
-            before = subprocess.check_output(["git", "rev-parse", "HEAD~1"], cwd=repo, text=True).strip()
+            before = subprocess.check_output(
+                ["git", "rev-parse", "HEAD~1"], cwd=repo, text=True
+            ).strip()
             args = Args(pyproject="pyproject.toml", before=before, github_output="")
 
             prev_cwd = Path.cwd()
