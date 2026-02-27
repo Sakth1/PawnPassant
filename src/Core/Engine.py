@@ -1,4 +1,4 @@
-from chess import Board, Move, Square, Color, square_file, square_rank
+from chess import Board, Move, Square, Color
 from typing import Optional
 
 from Core.MoveType import MoveType
