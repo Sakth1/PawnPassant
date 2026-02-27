@@ -1,7 +1,7 @@
 [project]
 name = "pawnpassant"
-veversion = "0.1.0-alpha.2"
-cription = ""
+version = "0.1.0-alpha.2"
+description = ""
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
@@ -31,3 +31,4 @@ path = "src"
 
 [tool.pawnpassant.release]
 binary_name = "Pawn-Passant"
+
