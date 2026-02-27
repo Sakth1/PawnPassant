@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - master
     paths:
       - pyproject.toml
   workflow_dispatch:
@@ -30,110 +29,9 @@ jobs:
         id: detect
         shell: bash
         run: |
-          python - <<'PY'
-          import os
-          import re
-          import subprocess
-          import tomllib
-
-          semver = re.compile(
-              r"^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
-              r"(?:-([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?"
-              r"(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
-          )
-
-          def parse_semver(version: str):
-              m = semver.match(version)
-              if not m:
-                  raise SystemExit(f"project.version '{version}' is not valid SemVer 2.0.0")
-              major, minor, patch, pre = m.group(1), m.group(2), m.group(3), m.group(4)
-              pre_parts = pre.split('.') if pre else []
-              return (int(major), int(minor), int(patch), pre_parts)
-
-          def compare_ident(a: str, b: str):
-              a_num = a.isdigit()
-              b_num = b.isdigit()
-              if a_num and b_num:
-                  return (int(a) > int(b)) - (int(a) < int(b))
-              if a_num and not b_num:
-                  return -1
-              if not a_num and b_num:
-                  return 1
-              return (a > b) - (a < b)
-
-          def compare_semver(left: str, right: str):
-              lmaj, lmin, lpat, lpre = parse_semver(left)
-              rmaj, rmin, rpat, rpre = parse_semver(right)
-
-              if (lmaj, lmin, lpat) != (rmaj, rmin, rpat):
-                  return ((lmaj, lmin, lpat) > (rmaj, rmin, rpat)) - ((lmaj, lmin, lpat) < (rmaj, rmin, rpat))
-
-              if not lpre and not rpre:
-                  return 0
-              if not lpre:
-                  return 1
-              if not rpre:
-                  return -1
-
-              for la, rb in zip(lpre, rpre):
-                  cmp = compare_ident(la, rb)
-                  if cmp != 0:
-                      return cmp
-
-              return (len(lpre) > len(rpre)) - (len(lpre) < len(rpre))
-
-          def load_version_from_text(text: bytes) -> str:
-              data = tomllib.loads(text.decode("utf-8"))
-              return data["project"]["version"]
-
-          with open("pyproject.toml", "rb") as f:
-              current_version = tomllib.load(f)["project"]["version"]
-
-          parse_semver(current_version)
-
-          before = os.environ.get("GITHUB_EVENT_BEFORE", "")
-          all_zero = "0" * 40
-          previous_version = ""
-          should_release = "false"
-          reason = ""
-
-          if before and before != all_zero:
-              show = subprocess.run(
-                  ["git", "show", f"{before}:pyproject.toml"],
-                  check=False,
-                  capture_output=True,
-              )
-              if show.returncode == 0:
-                  previous_version = load_version_from_text(show.stdout)
-                  parse_semver(previous_version)
-
-                  cmp = compare_semver(current_version, previous_version)
-                  if cmp > 0:
-                      should_release = "true"
-                      reason = f"version increased from {previous_version} to {current_version}"
-                  elif cmp == 0:
-                      reason = f"version unchanged at {current_version}"
-                  else:
-                      raise SystemExit(
-                          f"project.version must increase on main/master. "
-                          f"previous={previous_version}, current={current_version}"
-                      )
-              else:
-                  reason = "previous pyproject.toml not found; skipping auto-release"
-          else:
-              reason = "no previous commit in push event; skipping auto-release"
-
-          tag = f"v{current_version}"
-
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
-              out.write(f"current_version={current_version}\\n")
-              out.write(f"previous_version={previous_version}\\n")
-              out.write(f"should_release={should_release}\\n")
-              out.write(f"tag={tag}\\n")
-              out.write(f"reason={reason}\\n")
-          PY
-        env:
-          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+          python scripts/ci/release_metadata.py detect-version-bump \
+            --pyproject pyproject.toml \
+            --before "${{ github.event.before }}"
 
       - name: Print decision
         run: |

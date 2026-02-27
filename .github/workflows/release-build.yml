@@ -35,66 +35,15 @@ jobs:
       - name: Read metadata from pyproject.toml
         id: meta
         shell: bash
-        run: |
-          python - <<'PY'
-          import os
-          import re
-          import tomllib
-
-          with open("pyproject.toml", "rb") as f:
-              data = tomllib.load(f)
-
-          version = data["project"]["version"]
-          semver = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$")
-          if not semver.match(version):
-              raise SystemExit(f"project.version '{version}' is not valid SemVer 2.0.0")
-
-          binary_name = (
-              data.get("tool", {})
-                  .get("pawnpassant", {})
-                  .get("release", {})
-                  .get("binary_name", "Pawn-Passant")
-          )
-          artifact_stem = f"{binary_name}{version}"
-
-          source_packages = (
-              data.get("tool", {})
-                  .get("flet", {})
-                  .get("source_packages", [])
-          )
-          if not isinstance(source_packages, list):
-              raise SystemExit("tool.flet.source_packages must be a list")
-          if "chess" not in source_packages:
-              raise SystemExit("tool.flet.source_packages must include 'chess'")
-
-          event_name = os.environ.get("GITHUB_EVENT_NAME")
-          release_tag = ""
-          publish_enabled = "false"
-
-          if event_name == "release":
-              release_tag = os.environ.get("GITHUB_EVENT_RELEASE_TAG_NAME", "")
-              publish_enabled = "true"
-          elif event_name == "workflow_dispatch":
-              release_tag = os.environ.get("GITHUB_EVENT_INPUTS_RELEASE_TAG", "")
-              publish_enabled = "true" if release_tag else "false"
-
-          if publish_enabled == "true":
-              clean_tag = release_tag[1:] if release_tag.startswith("v") else release_tag
-              if clean_tag != version:
-                  raise SystemExit(
-                      f"Release tag '{release_tag}' must match pyproject version '{version}' (or 'v{version}')."
-                  )
-
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
-              out.write(f"version={version}\n")
-              out.write(f"artifact_stem={artifact_stem}\n")
-              out.write(f"source_packages={','.join(source_packages)}\n")
-              out.write(f"release_tag={release_tag}\n")
-              out.write(f"publish_enabled={publish_enabled}\n")
-          PY
         env:
-          GITHUB_EVENT_RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
-          GITHUB_EVENT_INPUTS_RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+          EVENT_RELEASE_TAG: ${{ github.event.release.tag_name }}
+          EVENT_INPUTS_RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+        run: |
+          release_tag="${EVENT_RELEASE_TAG:-$EVENT_INPUTS_RELEASE_TAG}"
+          python scripts/ci/release_metadata.py extract-release-metadata \
+            --pyproject pyproject.toml \
+            --event-name "${{ github.event_name }}" \
+            --release-tag "$release_tag"
 
   build-windows:
     runs-on: windows-latest
