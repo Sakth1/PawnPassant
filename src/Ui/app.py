@@ -9,6 +9,7 @@ class ChessApp:
         self.page = page
         self.page.title = "Pawn Passant"
         self.board_view = ChessBoard()
+        self.main_page_view = ft.Row(alignment=ft.MainAxisAlignment.CENTER, expand=True, vertical_alignment=ft.CrossAxisAlignment.CENTER)
         self.dev_mode = dev_mode
 
         if self.dev_mode:
@@ -22,9 +23,11 @@ class ChessApp:
                 ],
                 on_select=self._handle_position_change,
             )
-            self.page.add(ft.Row([self.position_selector]), self.board_view)
+            self.main_page_view.controls = ft.Row([self.position_selector]), self.board_view
         else:
-            self.page.add(self.board_view)
+            self.main_page_view.controls = self.board_view
+        
+        self.page.add(self.main_page_view)
 
     def _handle_position_change(self, e: ft.ControlEvent):
         selected_name = e.control.value
