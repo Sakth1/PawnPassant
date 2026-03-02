@@ -67,6 +67,7 @@ class ChessBoard(ft.Container):
         self.is_flipped = False
         self.board_frame.controls = self.squares
         self._render_board_state()
+        self.update()
 
     def _create_squares(self) -> list[Square]:
         self.squares: list[Square] = []
@@ -279,3 +280,6 @@ class ChessBoard(ft.Container):
             return
 
         self._complete_move(requested_move, movement_type)
+
+
+
