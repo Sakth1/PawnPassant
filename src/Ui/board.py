@@ -392,6 +392,3 @@ class ChessBoard(ft.Container):
             return
 
         self._complete_move(requested_move, movement_type)
-
-
-

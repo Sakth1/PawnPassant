@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 
-from chess.svg import PIECES
 
 SYMBOL_MAP = {
     "P": "WHITE_PAWN",
