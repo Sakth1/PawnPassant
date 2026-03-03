@@ -56,21 +56,10 @@ class Square(ft.Container):
 
         self.margin = 0
         self.on_click = self._handle_click
-        self.on_hover = self._handle_hover
 
     def _handle_click(self, e):
         if self.on_square_click is not None:
             self.on_square_click(self, self.coordinate)
-
-    def _handle_hover(self, e):
-        # TODO: improve hovering mechanism, making it less hacky and heavy in UI
-        if self.highlighted_metadata.get("highlighted"):
-            return
-        if e.data is True:
-            self.bgcolor = ft.Colors.BLUE
-        else:
-            self.bgcolor = self.base_bgcolor
-        self.update()
 
     def set_highlight(self, highlighted: bool, parent_piece_square=None):
         self.highlighted_metadata["highlighted"] = highlighted
