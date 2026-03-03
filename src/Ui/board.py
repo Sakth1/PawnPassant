@@ -13,6 +13,7 @@ from chess import (
     ROOK,
     KNIGHT,
     BISHOP,
+    Piece,
 )
 
 from Core.Engine import Game
@@ -23,6 +24,8 @@ from Constants import CASTLING_ROOK_START_SQUARE, CASTLING_ROOK_END_SQUARE
 
 
 class ChessBoard(ft.Container):
+    PROMOTION_OPTIONS = [QUEEN, ROOK, BISHOP, KNIGHT]
+
     TEST_POSITIONS: dict[str, Optional[str]] = {
         "Start Position": None,
         "Castle Test": "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
@@ -36,20 +39,58 @@ class ChessBoard(ft.Container):
         self.game = Game()
         self.highlighted_squares: set[str] = set()
         self.is_flipped = False
+        self.square_size = 60
+        self.board_side_px = self.square_size * 8
+        self.promotion_lane_px = self.square_size
+        self.pending_promotion_move: Optional[Move] = None
+        self.pending_promotion_color_is_white: Optional[Color] = None
+
         self.board_frame = ft.GridView(
             runs_count=8,
             controls=self._create_squares(),
-            expand=True,
+            expand=False,
             spacing=0,
             run_spacing=0,
             padding=0,
+            width=self.board_side_px,
+            height=self.board_side_px,
         )
 
         self.margin = 0
         self.alignment = ft.Alignment.CENTER
-        self.height = 480
-        self.width = 480
-        self.content = self.board_frame
+        self.height = self.board_side_px + self.promotion_lane_px
+        self.width = self.board_side_px
+
+        self.board_layer = ft.Container(
+            left=0,
+            top=self.promotion_lane_px,
+            width=self.board_side_px,
+            height=self.board_side_px,
+            content=self.board_frame,
+        )
+        self.promotion_overlay = ft.Container(
+            visible=False,
+            left=0,
+            top=0,
+            width=self.square_size * 4,
+            height=self.square_size,
+            border=ft.Border.all(2, ft.Colors.BLACK_54),
+            border_radius=6,
+            bgcolor=ft.Colors.with_opacity(0.97, ft.Colors.GREEN_50),
+            shadow=ft.BoxShadow(
+                blur_radius=14,
+                color=ft.Colors.BLACK_38,
+                offset=ft.Offset(0, 2),
+            ),
+            content=ft.Row(spacing=0, controls=[]),
+        )
+        self.content = ft.Stack(
+            controls=[self.board_layer, self.promotion_overlay],
+            width=self.width,
+            height=self.height,
+            clip_behavior=ft.ClipBehavior.NONE,
+        )
+        self.clip_behavior = ft.ClipBehavior.NONE
         self._setup_pieces()
 
     def _render_board_state(self):
@@ -57,17 +98,18 @@ class ChessBoard(ft.Container):
         for sq in self.squares:
             sq.update_content(None)
         self._setup_pieces()
-        self.board_frame.update()
+        self._safe_update(self.board_frame)
 
     def load_position(self, fen: Optional[str] = None):
         if fen:
             self.game.set_board_fen(fen)
         else:
             self.game.reset_board()
+        self._hide_promotion_overlay(refresh=False)
         self.is_flipped = False
         self.board_frame.controls = self.squares
         self._render_board_state()
-        self.update()
+        self._safe_update(self)
 
     def _create_squares(self) -> list[Square]:
         self.squares: list[Square] = []
@@ -85,6 +127,7 @@ class ChessBoard(ft.Container):
                     coordinate=coords,
                     color="b" if (file_idx + rank_idx) % 2 == 0 else "w",
                     on_square_click=self._handle_square_click,
+                    size=self.square_size,
                 )
                 self.squares.append(sq)
                 self.square_map[coords] = sq
@@ -103,7 +146,7 @@ class ChessBoard(ft.Container):
         self.board_frame.controls = (
             self.squares[::-1] if self.is_flipped else self.squares
         )
-        self.board_frame.update()
+        self._safe_update(self.board_frame)
 
     def _clear_move_highlights(self):
         for coord in self.highlighted_squares:
@@ -113,6 +156,9 @@ class ChessBoard(ft.Container):
         self.highlighted_squares.clear()
 
     def _handle_square_click(self, square_instance: Square, click_cords: str):
+        if self.promotion_overlay.visible:
+            return
+
         if square_instance.highlighted_metadata.get("highlighted"):
             self.move_piece(
                 from_cords=square_instance.highlighted_metadata.get(
@@ -216,6 +262,7 @@ class ChessBoard(ft.Container):
         if requested_move not in self.game.board.legal_moves:
             return
 
+        self._hide_promotion_overlay(refresh=False)
         print(self.game.get_move_san(requested_move))
         self.game.move(requested_move)
         match movement_type:
@@ -234,7 +281,7 @@ class ChessBoard(ft.Container):
         self._flip_board()
 
     def _show_promotion_dialog(self, move: Move):
-        page = self.page
+        page = self._safe_page()
         if page is None:
             promoted_move = Move(
                 from_square=move.from_square,
@@ -244,32 +291,97 @@ class ChessBoard(ft.Container):
             self._complete_move(promoted_move, MoveType.PROMOTION)
             return
 
-        def choose_piece(piece_type: int):
-            dialog.open = False
-            page.update()
+        piece_color_is_white = self.game.color_of_piece_at_square(move.from_square)
+        if piece_color_is_white is None:
             promoted_move = Move(
                 from_square=move.from_square,
                 to_square=move.to_square,
-                promotion=piece_type,
+                promotion=QUEEN,
             )
             self._complete_move(promoted_move, MoveType.PROMOTION)
+            return
 
-        dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Text("Promote pawn"),
-            content=ft.Text("Choose promotion piece"),
-            actions=[
-                ft.TextButton("Queen", on_click=lambda _: choose_piece(QUEEN)),
-                ft.TextButton("Rook", on_click=lambda _: choose_piece(ROOK)),
-                ft.TextButton("Knight", on_click=lambda _: choose_piece(KNIGHT)),
-                ft.TextButton("Bishop", on_click=lambda _: choose_piece(BISHOP)),
+        self.pending_promotion_move = move
+        self.pending_promotion_color_is_white = piece_color_is_white
+        self.promotion_overlay.content = ft.Row(
+            spacing=0,
+            controls=[
+                self._build_promotion_option_control(piece_type)
+                for piece_type in self.PROMOTION_OPTIONS
             ],
-            actions_alignment=ft.MainAxisAlignment.SPACE_EVENLY,
         )
 
-        page.dialog = dialog
-        dialog.open = True
-        page.update()
+        to_cords = square_name(move.to_square)
+        visual_row, visual_col = self._get_visual_row_col(to_cords)
+        self.promotion_overlay.left = self._get_promotion_left(visual_col)
+        self.promotion_overlay.top = self._get_promotion_top(visual_row)
+        self.promotion_overlay.visible = True
+        self._safe_update(self)
+
+    def _get_visual_row_col(self, square_cords: str) -> tuple[int, int]:
+        target_square = self.square_map[square_cords]
+        visual_idx = self.board_frame.controls.index(target_square)
+        return visual_idx // 8, visual_idx % 8
+
+    def _get_promotion_left(self, visual_col: int) -> int:
+        unclamped_left = visual_col * self.square_size
+        max_left = self.board_side_px - (4 * self.square_size)
+        return min(max(unclamped_left, 0), max_left)
+
+    def _get_promotion_top(self, visual_row: int) -> int:
+        return self.promotion_lane_px + ((visual_row - 1) * self.square_size)
+
+    def _hide_promotion_overlay(self, refresh: bool = True):
+        self.pending_promotion_move = None
+        self.pending_promotion_color_is_white = None
+        self.promotion_overlay.visible = False
+        self.promotion_overlay.content = ft.Row(spacing=0, controls=[])
+        if refresh:
+            self._safe_update(self)
+
+    def _build_promotion_option_control(self, piece_type: int) -> ft.Control:
+        if self.pending_promotion_color_is_white is None:
+            return ft.Container(width=self.square_size, height=self.square_size)
+
+        option_piece = Piece(piece_type, self.pending_promotion_color_is_white)
+        return ft.Container(
+            width=self.square_size,
+            height=self.square_size,
+            padding=4,
+            bgcolor=ft.Colors.with_opacity(0.34, ft.Colors.GREEN_200),
+            border=ft.Border.all(1, ft.Colors.BLACK_38),
+            content=ChessPiece(option_piece).to_control(),
+            on_click=lambda _, promotion_piece=piece_type: self._handle_promotion_pick(
+                promotion_piece
+            ),
+        )
+
+    def _handle_promotion_pick(self, promotion_piece: int):
+        if self.pending_promotion_move is None:
+            self._hide_promotion_overlay(refresh=True)
+            return
+
+        move = self.pending_promotion_move
+        promoted_move = Move(
+            from_square=move.from_square,
+            to_square=move.to_square,
+            promotion=promotion_piece,
+        )
+        self._hide_promotion_overlay(refresh=False)
+        self._complete_move(promoted_move, MoveType.PROMOTION)
+
+    def _safe_page(self):
+        try:
+            return self.page
+        except RuntimeError:
+            return None
+
+    @staticmethod
+    def _safe_update(control: ft.Control):
+        try:
+            control.update()
+        except RuntimeError:
+            pass
 
     def move_piece(self, from_cords: str, to_cords: str):
         requested_move = Move(parse_square(from_cords), parse_square(to_cords))
