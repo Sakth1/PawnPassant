@@ -88,8 +88,12 @@ class ChessBoard(ft.Container):
             ),
             content=ft.Row(spacing=0, controls=[]),
         )
+        self.move_animation_overlay = ft.Container(
+            visible=False,
+
+        )
         self.content = ft.Stack(
-            controls=[self.board_layer, self.promotion_overlay],
+            controls=[self.board_layer, self.promotion_overlay, self.move_animation_overlay],
             width=self.width,
             height=self.height,
             clip_behavior=ft.ClipBehavior.NONE,
@@ -182,7 +186,7 @@ class ChessBoard(ft.Container):
 
         if square_instance.highlighted_metadata.get("highlighted"):
             # Highlighted squares represent the destination half of a pending move.
-            self.move_piece(
+            self._animate_piece_and_move(
                 from_cords=square_instance.highlighted_metadata.get(
                     "parent_piece_square"
                 ),
@@ -362,6 +366,15 @@ class ChessBoard(ft.Container):
         target_square = self.square_map[square_cords]
         visual_idx = self.board_frame.controls.index(target_square)
         return visual_idx // 8, visual_idx % 8
+    
+    def _get_center_pixel_of_square(self, square_cords: str) -> tuple[int, int]:
+        """Get the center pixel of a square in the current visual grid position."""
+
+        visual_row, visual_col = self._get_visual_row_col(square_cords)
+        center_x = (visual_col * self.square_size) + (self.square_size / 2)
+        center_y = self.promotion_lane_px + (visual_row * self.square_size) + (self.square_size / 2)
+
+        return center_x, center_y
 
     def _get_promotion_left(self, visual_col: int) -> int:
         """Clamp the promotion overlay horizontally so it stays inside the board."""
@@ -436,6 +449,16 @@ class ChessBoard(ft.Container):
             control.update()
         except RuntimeError:
             pass
+
+    def _animate_move(self, from_cords: str, to_cords: str):
+        """Animate a move from board coordinates and dispatch it through the UI flow."""
+        from_pixel = self._get_center_pixel_of_square(from_cords)
+        to_pixel = self._get_center_pixel_of_square(to_cords)
+        print(from_pixel, to_pixel)
+
+    def _animate_piece_and_move(self, from_cords: str, to_cords: str):
+        self.move_piece(from_cords, to_cords)
+        self._animate_move(from_cords, to_cords)
 
     def move_piece(self, from_cords: str, to_cords: str):
         """Create a move from board coordinates and dispatch it through the UI flow."""
