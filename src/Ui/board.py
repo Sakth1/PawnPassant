@@ -1,5 +1,6 @@
 """Chessboard UI control that coordinates game state, rendering, and interactions."""
 
+import asyncio
 from typing import Optional
 
 import flet as ft
@@ -90,10 +91,18 @@ class ChessBoard(ft.Container):
         )
         self.move_animation_overlay = ft.Container(
             visible=False,
-
+            left=0,
+            top=0,
+            width=self.square_size,
+            height=self.square_size,
+            animate_position=ft.Animation(180, curve=ft.AnimationCurve.EASE_IN_OUT),
         )
         self.content = ft.Stack(
-            controls=[self.board_layer, self.promotion_overlay, self.move_animation_overlay],
+            controls=[
+                self.board_layer,
+                self.promotion_overlay,
+                self.move_animation_overlay,
+            ],
             width=self.width,
             height=self.height,
             clip_behavior=ft.ClipBehavior.NONE,
@@ -185,13 +194,9 @@ class ChessBoard(ft.Container):
             square_instance._animate_piece_bob_when_clicked()
 
         if square_instance.highlighted_metadata.get("highlighted"):
-            # Highlighted squares represent the destination half of a pending move.
-            self._animate_piece_and_move(
-                from_cords=square_instance.highlighted_metadata.get(
-                    "parent_piece_square"
-                ),
-                to_cords=click_cords,
-            )
+            from_cords = square_instance.highlighted_metadata.get("parent_piece_square")
+            if from_cords is not None:
+                self._animate_piece_and_move(from_cords=from_cords, to_cords=click_cords)
             return
 
         self._clear_move_highlights()
@@ -450,15 +455,63 @@ class ChessBoard(ft.Container):
         except RuntimeError:
             pass
 
-    def _animate_move(self, from_cords: str, to_cords: str):
+    def _animate_move(
+        self,
+        piece: Optional[ft.Control],
+        from_cords: str,
+        to_cords: str,
+        requested_move: Move,
+        movement_type: MoveType,
+    ):
         """Animate a move from board coordinates and dispatch it through the UI flow."""
+        page = self._safe_page()
+        if page is None or piece is None:
+            self._complete_move(requested_move, movement_type)
+            return
+
         from_pixel = self._get_center_pixel_of_square(from_cords)
         to_pixel = self._get_center_pixel_of_square(to_cords)
-        print(from_pixel, to_pixel)
+
+        from_square = self.square_map.get(from_cords)
+        if from_square is not None:
+            from_square.update_content(None)
+            self._safe_update(from_square)
+
+        self.move_animation_overlay.content = piece
+        self.move_animation_overlay.left = from_pixel[0] - (self.square_size / 2)
+        self.move_animation_overlay.top = from_pixel[1] - (self.square_size / 2)
+        self.move_animation_overlay.visible = True
+        self._safe_update(self)
+
+        async def finish_animation():
+            await asyncio.sleep(0.01)
+            self.move_animation_overlay.left = to_pixel[0] - (self.square_size / 2)
+            self.move_animation_overlay.top = to_pixel[1] - (self.square_size / 2)
+            self._safe_update(self)
+
+            await asyncio.sleep(0.18)
+            self.move_animation_overlay.visible = False
+            self.move_animation_overlay.content = None
+            self._complete_move(requested_move, movement_type)
+            self._safe_update(self)
+
+        page.run_task(finish_animation)
 
     def _animate_piece_and_move(self, from_cords: str, to_cords: str):
-        self.move_piece(from_cords, to_cords)
-        self._animate_move(from_cords, to_cords)
+        requested_move = Move(parse_square(from_cords), parse_square(to_cords))
+        self._clear_move_highlights()
+        movement_type = self.game.get_move_type(requested_move)
+        if movement_type == MoveType.PROMOTION:
+            self.move_piece(from_cords, to_cords)
+            return
+
+        self._animate_move(
+            self.square_map[from_cords].piece_control,
+            from_cords,
+            to_cords,
+            requested_move,
+            movement_type,
+        )
 
     def move_piece(self, from_cords: str, to_cords: str):
         """Create a move from board coordinates and dispatch it through the UI flow."""
