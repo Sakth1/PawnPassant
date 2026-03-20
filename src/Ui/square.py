@@ -114,3 +114,11 @@ class Square(ft.Container):
                 controls.append(self.square_ring)
 
         self.stack.controls = controls
+
+    def _animate_piece_bob_when_clicked(self):
+        if not self.has_piece:
+            return
+        
+        self.piece_container._animate_click()
+
+            

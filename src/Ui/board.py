@@ -176,6 +176,9 @@ class ChessBoard(ft.Container):
 
         if self.promotion_overlay.visible:
             return
+        
+        if square_instance.has_piece:
+            square_instance._animate_piece_bob_when_clicked()
 
         if square_instance.highlighted_metadata.get("highlighted"):
             # Highlighted squares represent the destination half of a pending move.
