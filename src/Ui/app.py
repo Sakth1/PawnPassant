@@ -1,3 +1,5 @@
+"""Top-level application wiring for the Pawn Passant interface."""
+
 import json
 import os
 import flet as ft
@@ -6,6 +8,8 @@ from Ui.board import ChessBoard
 
 
 class ChessApp:
+    """Builds the page layout and optional developer controls."""
+
     def __init__(self, page: ft.Page, dev_mode: bool = False):
         self.page = page
         self.page.title = "Pawn Passant"
@@ -39,10 +43,13 @@ class ChessApp:
         self.page.add(self.main_page_view)
 
     def _handle_position_change(self, e: ft.ControlEvent):
+        """Load a canned board position selected from the developer dropdown."""
+
         selected_name = None
 
         if isinstance(e.data, str) and e.data:
             payload = e.data.strip()
+            # Flet events can arrive as either raw strings or a JSON payload.
             if payload.startswith("{"):
                 try:
                     event_data = json.loads(payload)
@@ -67,6 +74,8 @@ class ChessApp:
 
 
 def main(page: ft.Page):
+    """Create the app with dev-mode controls toggled by environment variable."""
+
     dev_mode = os.getenv("PAWNPASSANT_DEV", "").strip().lower() in {
         "1",
         "true",

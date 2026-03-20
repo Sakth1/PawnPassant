@@ -1,3 +1,5 @@
+"""UI tests for promotion overlay placement and fallback behavior."""
+
 import unittest
 from pathlib import Path
 import sys
@@ -10,6 +12,8 @@ from Ui.board import ChessBoard
 
 
 class TestPromotionOverlayUi(unittest.TestCase):
+    """Verify promotion controls stay aligned with the board state."""
+
     def test_promotion_option_order_is_queen_to_knight(self):
         self.assertEqual(ChessBoard.PROMOTION_OPTIONS, [QUEEN, ROOK, BISHOP, KNIGHT])
 

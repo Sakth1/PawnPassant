@@ -1,9 +1,11 @@
+"""Application entry point for launching the Flet chess interface."""
+
 from Ui.Gui import main
 
 import flet as ft
 
-#  $env:PAWNPASSANT_DEV = "true"    # to run in dev mode
-#  Remove-Item Env:PAWNPASSANT_DEV  # to run in prod mode
+# Set $env:PAWNPASSANT_DEV = "true" to expose the development board-position selector.
+# Remove the variable to return to the normal player-facing experience.
 
 if __name__ == "__main__":
     ft.run(main)

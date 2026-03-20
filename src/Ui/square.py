@@ -1,3 +1,5 @@
+"""Board-square control with piece rendering and move-highlight support."""
+
 import traceback
 from typing import Optional
 
@@ -7,6 +9,8 @@ from Ui.chess_piece import ChessPiece
 
 
 class Square(ft.Container):
+    """Represents one clickable chessboard square in the Flet UI."""
+
     def __init__(self, file, rank, coordinate, color, on_square_click=None, size=60):
         super().__init__(expand=True)
         self.file = file
@@ -58,16 +62,22 @@ class Square(ft.Container):
         self.on_click = self._handle_click
 
     def _handle_click(self, e):
+        """Forward click events to the board controller with square context."""
+
         if self.on_square_click is not None:
             self.on_square_click(self, self.coordinate)
 
     def set_highlight(self, highlighted: bool, parent_piece_square=None):
+        """Toggle the move highlight marker shown on the square."""
+
         self.highlighted_metadata["highlighted"] = highlighted
         self.highlighted_metadata["parent_piece_square"] = parent_piece_square
         self._rebuild_stack()
         self.update()
 
     def update_content(self, piece: Optional[ChessPiece] = None):
+        """Replace the visible piece control and refresh the square overlay."""
+
         try:
             if piece is None:
                 content = None
@@ -90,11 +100,14 @@ class Square(ft.Container):
         self._rebuild_stack()
 
     def _rebuild_stack(self):
+        """Recompose the square so highlights sit above the base board color."""
+
         controls: list[ft.Control] = []
         if self.piece_control is not None:
             controls.append(self.piece_control)
 
         if self.highlighted_metadata.get("highlighted"):
+            # Empty targets use a dot; occupied targets use a ring to keep the piece visible.
             if self.piece_control is None:
                 controls.append(self.square_dot)
             else:

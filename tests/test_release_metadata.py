@@ -1,3 +1,5 @@
+"""Tests for release metadata extraction and version bump detection helpers."""
+
 import os
 import subprocess
 import tempfile
@@ -12,11 +14,15 @@ from scripts.ci.release_metadata import (
 
 
 class Args:
+    """Simple namespace helper for calling command functions in tests."""
+
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
 
 class TestSemverComparator(unittest.TestCase):
+    """Validate semantic-version comparison edge cases."""
+
     def test_semver_ordering_cases(self):
         cases = [
             ("0.1.0", "0.1.0", 0),
@@ -33,6 +39,8 @@ class TestSemverComparator(unittest.TestCase):
 
 
 class TestReleaseMetadataExtraction(unittest.TestCase):
+    """Cover release metadata extraction for supported workflow events."""
+
     def test_extract_release_metadata_for_release_event(self):
         with tempfile.TemporaryDirectory() as tmp:
             pyproject = Path(tmp) / "pyproject.toml"
@@ -94,7 +102,11 @@ source_packages = ["chess"]
 
 
 class TestVersionBumpDetection(unittest.TestCase):
+    """Exercise the auto-release decision logic against temporary git histories."""
+
     def _init_repo_with_versions(self, versions):
+        """Create a temporary git repository with one commit per provided version."""
+
         temp_dir = tempfile.TemporaryDirectory()
         repo = Path(temp_dir.name)
 

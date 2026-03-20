@@ -1,7 +1,10 @@
+"""Project-wide constants for chess assets and special-move square mappings."""
+
 import os
 from pathlib import Path
 
 
+# Map python-chess piece symbols to the bundled image asset names.
 SYMBOL_MAP = {
     "P": "WHITE_PAWN",
     "N": "WHITE_KNIGHT",
@@ -20,6 +23,7 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSET_DIR = Path(ROOT_DIR, "assets")
 PIECES_DIR = Path(ASSET_DIR, "pieces", "default")
 
+# Keep rook source and destination squares centralized for castling UI updates.
 CASTLING_ROOK_START_SQUARE = {
     "QUEEN_SIDE_WHITE": "a1",
     "KING_SIDE_WHITE": "h1",

@@ -20,6 +20,8 @@ SEMVER_PATTERN = re.compile(
 
 @dataclass(frozen=True)
 class ParsedSemver:
+    """Normalized semantic-version parts used for comparisons."""
+
     major: int
     minor: int
     patch: int
@@ -27,6 +29,8 @@ class ParsedSemver:
 
 
 def parse_semver(version: str) -> ParsedSemver:
+    """Validate and split a SemVer 2.0.0 version string."""
+
     match = SEMVER_PATTERN.fullmatch(version)
     if not match:
         raise ValueError(f"project.version '{version}' is not valid SemVer 2.0.0")
@@ -41,6 +45,8 @@ def parse_semver(version: str) -> ParsedSemver:
 
 
 def compare_identifier(left: str, right: str) -> int:
+    """Compare two SemVer prerelease identifiers."""
+
     left_is_num = left.isdigit()
     right_is_num = right.isdigit()
 
@@ -54,6 +60,8 @@ def compare_identifier(left: str, right: str) -> int:
 
 
 def compare_semver(left: str, right: str) -> int:
+    """Compare two semantic versions using SemVer precedence rules."""
+
     left_version = parse_semver(left)
     right_version = parse_semver(right)
 
@@ -78,15 +86,20 @@ def compare_semver(left: str, right: str) -> int:
         if comp != 0:
             return comp
 
+    # When shared identifiers match, the shorter prerelease has lower precedence.
     return (len(left_pre) > len(right_pre)) - (len(left_pre) < len(right_pre))
 
 
 def read_pyproject(pyproject_path: Path) -> dict:
+    """Load a pyproject file into a dictionary."""
+
     with pyproject_path.open("rb") as file:
         return tomllib.load(file)
 
 
 def read_version_from_pyproject(pyproject_path: Path) -> str:
+    """Extract the current project version from pyproject.toml."""
+
     data = read_pyproject(pyproject_path)
     try:
         return data["project"]["version"]
@@ -97,6 +110,8 @@ def read_version_from_pyproject(pyproject_path: Path) -> str:
 
 
 def read_version_from_git_revision(revision: str, pyproject_relpath: str) -> str:
+    """Read the project version from a specific git revision of pyproject.toml."""
+
     result = subprocess.run(
         ["git", "show", f"{revision}:{pyproject_relpath}"],
         check=False,
@@ -117,16 +132,22 @@ def read_version_from_git_revision(revision: str, pyproject_relpath: str) -> str
 
 
 def normalize_tag(tag: str) -> str:
+    """Remove a leading `v` from release tags for version comparisons."""
+
     return tag[1:] if tag.startswith("v") else tag
 
 
 def append_outputs(path: Path, outputs: dict[str, str]) -> None:
+    """Append GitHub Actions style key-value outputs to a file."""
+
     with path.open("a", encoding="utf-8") as file:
         for key, value in outputs.items():
             file.write(f"{key}={value}\n")
 
 
 def command_extract_release_metadata(args: argparse.Namespace) -> int:
+    """Extract build and publishing metadata for the release workflow."""
+
     pyproject_path = Path(args.pyproject)
     data = read_pyproject(pyproject_path)
 
@@ -185,6 +206,8 @@ def command_extract_release_metadata(args: argparse.Namespace) -> int:
 
 
 def command_detect_version_bump(args: argparse.Namespace) -> int:
+    """Detect whether the current commit increases the project version."""
+
     pyproject_path = Path(args.pyproject)
     current_version = read_version_from_pyproject(pyproject_path)
     parse_semver(current_version)
@@ -239,6 +262,8 @@ def command_detect_version_bump(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the CLI parser for the CI helper entry points."""
+
     parser = argparse.ArgumentParser(description="CI helper utilities")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -271,6 +296,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    """Run the selected CI helper command and present validation errors cleanly."""
+
     parser = build_parser()
     args = parser.parse_args()
     try:

@@ -1,3 +1,5 @@
+"""Chessboard UI control that coordinates game state, rendering, and interactions."""
+
 from typing import Optional
 
 import flet as ft
@@ -24,6 +26,8 @@ from Constants import CASTLING_ROOK_START_SQUARE, CASTLING_ROOK_END_SQUARE
 
 
 class ChessBoard(ft.Container):
+    """Interactive chessboard widget with move highlighting and promotion UI."""
+
     PROMOTION_OPTIONS = [QUEEN, ROOK, BISHOP, KNIGHT]
 
     TEST_POSITIONS: dict[str, Optional[str]] = {
@@ -94,6 +98,8 @@ class ChessBoard(ft.Container):
         self._setup_pieces()
 
     def _render_board_state(self):
+        """Repaint every square from the current board position."""
+
         self._clear_move_highlights()
         for sq in self.squares:
             sq.update_content(None)
@@ -101,6 +107,8 @@ class ChessBoard(ft.Container):
         self._safe_update(self.board_frame)
 
     def load_position(self, fen: Optional[str] = None):
+        """Load a specific FEN position or reset to the standard starting board."""
+
         if fen:
             self.game.set_board_fen(fen)
         else:
@@ -112,6 +120,8 @@ class ChessBoard(ft.Container):
         self._safe_update(self)
 
     def _create_squares(self) -> list[Square]:
+        """Create the board squares in top-to-bottom visual order."""
+
         self.squares: list[Square] = []
         self.square_map: dict[str, Square] = {}
         reversed_rank = list(reversed(RANK_NAMES))
@@ -134,6 +144,8 @@ class ChessBoard(ft.Container):
         return self.squares
 
     def _setup_pieces(self):
+        """Populate the square controls with the pieces from the current position."""
+
         for rank_idx in range(len(RANK_NAMES)):
             for file_idx in range(len(FILE_NAMES)):
                 coords = f"{FILE_NAMES[file_idx]}{RANK_NAMES[rank_idx]}"
@@ -142,6 +154,8 @@ class ChessBoard(ft.Container):
                     self.square_map[coords].update_content(ChessPiece(piece))
 
     def _flip_board(self):
+        """Reverse the visible square order so the side to move faces the player."""
+
         self.is_flipped = not self.is_flipped
         self.board_frame.controls = (
             self.squares[::-1] if self.is_flipped else self.squares
@@ -149,6 +163,8 @@ class ChessBoard(ft.Container):
         self._safe_update(self.board_frame)
 
     def _clear_move_highlights(self):
+        """Remove any currently shown legal-move markers."""
+
         for coord in self.highlighted_squares:
             sq = self.square_map.get(coord)
             if sq is not None:
@@ -156,10 +172,13 @@ class ChessBoard(ft.Container):
         self.highlighted_squares.clear()
 
     def _handle_square_click(self, square_instance: Square, click_cords: str):
+        """Either play a highlighted move or reveal legal targets for the clicked square."""
+
         if self.promotion_overlay.visible:
             return
 
         if square_instance.highlighted_metadata.get("highlighted"):
+            # Highlighted squares represent the destination half of a pending move.
             self.move_piece(
                 from_cords=square_instance.highlighted_metadata.get(
                     "parent_piece_square"
@@ -182,6 +201,8 @@ class ChessBoard(ft.Container):
                 self.highlighted_squares.add(target)
 
     def _en_passant_capture(self):
+        """Apply the extra board cleanup required for an en passant capture."""
+
         self._update_last_move_on_board()
         last_move = self.game.get_last_move()
         piece_color_is_white: Optional[Color] = self.game.color_of_piece_at_square(
@@ -192,10 +213,13 @@ class ChessBoard(ft.Container):
         else:
             opponent_pawn_direction = 1
         squarename = square_name(last_move.to_square)
+        # The captured pawn remains behind the destination square, not on it.
         squarename = squarename[0] + str(int(squarename[1]) + opponent_pawn_direction)
         self.square_map[squarename].update_content(None)
 
     def _update_last_move_on_board(self):
+        """Move the active piece control from the source square to the destination square."""
+
         last_move = self.game.get_last_move()
         self.square_map[square_name(last_move.from_square)].update_content(None)
         self.square_map[square_name(last_move.to_square)].update_content(
@@ -203,9 +227,13 @@ class ChessBoard(ft.Container):
         )
 
     def _get_piece_at_square(self, square: Square) -> Optional[ChessPiece]:
+        """Return the UI piece object currently stored on a square."""
+
         return square.piece_container
 
     def _queen_side_castling(self):
+        """Reposition the rook after a queen-side castle."""
+
         last_move = self.game.get_last_move()
         piece_color_is_white: Optional[Color] = self.game.color_of_piece_at_square(
             last_move.to_square
@@ -232,6 +260,8 @@ class ChessBoard(ft.Container):
             ].update_content(rook)
 
     def _king_side_castling(self):
+        """Reposition the rook after a king-side castle."""
+
         last_move = self.game.get_last_move()
         piece_color_is_white: Optional[Color] = self.game.color_of_piece_at_square(
             last_move.to_square
@@ -259,6 +289,8 @@ class ChessBoard(ft.Container):
             ].update_content(rook)
 
     def _complete_move(self, requested_move: Move, movement_type: MoveType):
+        """Commit a legal move and update the UI according to its special behavior."""
+
         if requested_move not in self.game.board.legal_moves:
             return
 
@@ -281,8 +313,11 @@ class ChessBoard(ft.Container):
         self._flip_board()
 
     def _show_promotion_dialog(self, move: Move):
+        """Render the promotion picker near the destination square."""
+
         page = self._safe_page()
         if page is None:
+            # Headless tests and detached controls fall back to queen promotion.
             promoted_move = Move(
                 from_square=move.from_square,
                 to_square=move.to_square,
@@ -319,19 +354,27 @@ class ChessBoard(ft.Container):
         self._safe_update(self)
 
     def _get_visual_row_col(self, square_cords: str) -> tuple[int, int]:
+        """Translate algebraic square coordinates into the current visual grid position."""
+
         target_square = self.square_map[square_cords]
         visual_idx = self.board_frame.controls.index(target_square)
         return visual_idx // 8, visual_idx % 8
 
     def _get_promotion_left(self, visual_col: int) -> int:
+        """Clamp the promotion overlay horizontally so it stays inside the board."""
+
         unclamped_left = visual_col * self.square_size
         max_left = self.board_side_px - (4 * self.square_size)
         return min(max(unclamped_left, 0), max_left)
 
     def _get_promotion_top(self, visual_row: int) -> int:
+        """Place the promotion overlay one square above the promoted pawn."""
+
         return self.promotion_lane_px + ((visual_row - 1) * self.square_size)
 
     def _hide_promotion_overlay(self, refresh: bool = True):
+        """Dismiss the promotion picker and clear any pending promotion state."""
+
         self.pending_promotion_move = None
         self.pending_promotion_color_is_white = None
         self.promotion_overlay.visible = False
@@ -340,6 +383,8 @@ class ChessBoard(ft.Container):
             self._safe_update(self)
 
     def _build_promotion_option_control(self, piece_type: int) -> ft.Control:
+        """Create one clickable option inside the promotion overlay."""
+
         if self.pending_promotion_color_is_white is None:
             return ft.Container(width=self.square_size, height=self.square_size)
 
@@ -357,6 +402,8 @@ class ChessBoard(ft.Container):
         )
 
     def _handle_promotion_pick(self, promotion_piece: int):
+        """Finish a pending promotion using the chosen piece type."""
+
         if self.pending_promotion_move is None:
             self._hide_promotion_overlay(refresh=True)
             return
@@ -371,6 +418,8 @@ class ChessBoard(ft.Container):
         self._complete_move(promoted_move, MoveType.PROMOTION)
 
     def _safe_page(self):
+        """Return the attached page when available, otherwise `None`."""
+
         try:
             return self.page
         except RuntimeError:
@@ -378,12 +427,16 @@ class ChessBoard(ft.Container):
 
     @staticmethod
     def _safe_update(control: ft.Control):
+        """Update a control when attached to a page, ignoring detached-control errors."""
+
         try:
             control.update()
         except RuntimeError:
             pass
 
     def move_piece(self, from_cords: str, to_cords: str):
+        """Create a move from board coordinates and dispatch it through the UI flow."""
+
         requested_move = Move(parse_square(from_cords), parse_square(to_cords))
         self._clear_move_highlights()
         movement_type = self.game.get_move_type(requested_move)
