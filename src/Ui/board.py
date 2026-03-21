@@ -150,6 +150,7 @@ class ChessBoard(ft.Container):
                     coordinate=coords,
                     color="b" if (file_idx + rank_idx) % 2 == 0 else "w",
                     on_square_click=self._handle_square_click,
+                    on_square_drop=self._handle_square_drop,
                     size=self.square_size,
                 )
                 self.squares.append(sq)
@@ -213,6 +214,14 @@ class ChessBoard(ft.Container):
             if sq is not None:
                 sq.set_highlight(True, click_cords)
                 self.highlighted_squares.add(target)
+
+    def _handle_square_drop(self, from_cords: str, to_cords: str):
+        """Handle a piece being dropped onto a square."""
+
+        if self.promotion_overlay.visible or from_cords == to_cords:
+            return
+
+        self._animate_piece_and_move(from_cords=from_cords, to_cords=to_cords)
 
     def _en_passant_capture(self):
         """Apply the extra board cleanup required for an en passant capture."""
