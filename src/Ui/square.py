@@ -1,5 +1,6 @@
 """Board-square control with piece rendering and move-highlight support."""
 
+import threading
 import traceback
 from typing import Optional
 
@@ -10,6 +11,8 @@ from Ui.chess_piece import ChessPiece
 
 class Square(ft.Container):
     """Represents one clickable chessboard square in the Flet UI."""
+
+    LONG_PRESS_DURATION_SECONDS = 0.25
 
     def __init__(self, file, rank, coordinate, color, on_square_click=None, size=60):
         super().__init__(expand=True)
@@ -60,10 +63,16 @@ class Square(ft.Container):
 
         self.margin = 0
         self.on_click = self._handle_click
+        self.on_tap_down = self._handle_tap_down
 
-    def _handle_click(self, e):
+    def _handle_tap_down(self):
+        """Start a shorter custom long-press timer on pointer/touch down."""
+
+
+    def _handle_click(self):
         """Forward click events to the board controller with square context."""
 
+        print("click at", self.coordinate)
         if self.on_square_click is not None:
             self.on_square_click(self, self.coordinate)
 
