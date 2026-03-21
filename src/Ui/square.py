@@ -68,7 +68,6 @@ class Square(ft.Container):
     def _handle_tap_down(self):
         """Start a shorter custom long-press timer on pointer/touch down."""
 
-
     def _handle_click(self):
         """Forward click events to the board controller with square context."""
 
@@ -127,7 +126,5 @@ class Square(ft.Container):
     def _animate_piece_bob_when_clicked(self):
         if not self.has_piece:
             return
-        
-        self.piece_container._animate_click()
 
-            
+        self.piece_container._animate_click()

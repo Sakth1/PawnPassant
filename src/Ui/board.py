@@ -189,14 +189,16 @@ class ChessBoard(ft.Container):
 
         if self.promotion_overlay.visible:
             return
-        
+
         if square_instance.has_piece:
             square_instance._animate_piece_bob_when_clicked()
 
         if square_instance.highlighted_metadata.get("highlighted"):
             from_cords = square_instance.highlighted_metadata.get("parent_piece_square")
             if from_cords is not None:
-                self._animate_piece_and_move(from_cords=from_cords, to_cords=click_cords)
+                self._animate_piece_and_move(
+                    from_cords=from_cords, to_cords=click_cords
+                )
             return
 
         self._clear_move_highlights()
@@ -371,13 +373,17 @@ class ChessBoard(ft.Container):
         target_square = self.square_map[square_cords]
         visual_idx = self.board_frame.controls.index(target_square)
         return visual_idx // 8, visual_idx % 8
-    
+
     def _get_center_pixel_of_square(self, square_cords: str) -> tuple[int, int]:
         """Get the center pixel of a square in the current visual grid position."""
 
         visual_row, visual_col = self._get_visual_row_col(square_cords)
         center_x = (visual_col * self.square_size) + (self.square_size / 2)
-        center_y = self.promotion_lane_px + (visual_row * self.square_size) + (self.square_size / 2)
+        center_y = (
+            self.promotion_lane_px
+            + (visual_row * self.square_size)
+            + (self.square_size / 2)
+        )
 
         return center_x, center_y
 
