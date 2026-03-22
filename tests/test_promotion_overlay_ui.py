@@ -62,7 +62,7 @@ class TestPromotionOverlayUi(unittest.TestCase):
         self.assertEqual(board.promotion_overlay.top, 0)
 
         controls = board.promotion_overlay.content.controls
-        option_sources = [control.content.src for control in controls]
+        option_sources = [control.content.content.src for control in controls]
         self.assertEqual(
             option_sources,
             [

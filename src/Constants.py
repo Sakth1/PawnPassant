@@ -3,7 +3,6 @@
 import os
 from pathlib import Path
 
-
 # Map python-chess piece symbols to the bundled image asset names.
 SYMBOL_MAP = {
     "P": "WHITE_PAWN",
