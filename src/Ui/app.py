@@ -34,8 +34,15 @@ class ChessApp:
                 on_text_change=self._handle_position_change,
             )
             self.main_page_view.controls = [
-                ft.Row([self.position_selector]),
-                self.board_view,
+                ft.Column(
+                    controls=[
+                        ft.Row([self.position_selector]),
+                        self.board_view,
+                    ],
+                    tight=True,
+                    spacing=12,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                )
             ]
         else:
             self.main_page_view.controls = self.board_view
