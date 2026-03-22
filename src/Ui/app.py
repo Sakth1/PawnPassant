@@ -3,8 +3,10 @@
 import json
 import os
 import flet as ft
+from pathlib import Path
 
 from Ui.board import ChessBoard
+from Constants import ASSET_DIR
 
 
 class ChessApp:
@@ -13,6 +15,7 @@ class ChessApp:
     def __init__(self, page: ft.Page, dev_mode: bool = False):
         self.page = page
         self.page.title = "Pawn Passant"
+        self.page.window.icon = str(Path(ASSET_DIR, "PawnPassant.ico"))
         self.board_view = ChessBoard()
         self.main_page_view = ft.Row(
             alignment=ft.MainAxisAlignment.CENTER,
