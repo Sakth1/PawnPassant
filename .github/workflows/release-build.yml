@@ -129,7 +129,7 @@ jobs:
           }
           Compress-Archive -Path (Join-Path $bundleDir "*") -DestinationPath $portableName -CompressionLevel Optimal
 
-          $installerBase = "${{ needs.metadata.outputs.artifact_stem }}-setup"
+          $installerBase = "${{ needs.metadata.outputs.artifact_stem }}-installer"
           $installerName = "$installerBase.exe"
           $issPath = Join-Path $PWD "installer.iss"
           $appName = "Pawn Passant"
