@@ -20,7 +20,7 @@ class ChessPiece(ft.Container):
         self.animate_scale = ft.Animation(120, curve=ft.AnimationCurve.EASE_OUT)
         self.scale = 1
 
-    def to_control(self) -> ft.Control:
+    def to_control(self) :
         """Build the Flet control used to display the piece on the board."""
 
         try:

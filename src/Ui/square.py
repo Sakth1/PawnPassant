@@ -57,6 +57,7 @@ class Square(ft.Container):
         }
         self.has_piece = False
         self.piece_container: Optional[ChessPiece] = None
+        self._build_draggable_piece()
 
         self.margin = 0
         self.on_click = self._handle_click
@@ -66,6 +67,10 @@ class Square(ft.Container):
 
         if self.on_square_click is not None:
             self.on_square_click(self, self.coordinate)
+
+    def _build_draggable_piece(self):
+        pass
+
 
     def set_highlight(self, highlighted: bool, parent_piece_square=None):
         """Toggle the move highlight marker shown on the square."""
