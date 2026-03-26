@@ -4,26 +4,14 @@ import asyncio
 from typing import Optional
 
 import flet as ft
-from chess import (
-    FILE_NAMES,
-    RANK_NAMES,
-    parse_square,
-    square,
-    square_name,
-    Move,
-    Color,
-    QUEEN,
-    ROOK,
-    KNIGHT,
-    BISHOP,
-    Piece,
-)
+from chess import (BISHOP, FILE_NAMES, KNIGHT, QUEEN, RANK_NAMES, ROOK, Color,
+                   Move, Piece, parse_square, square, square_name)
 
+from Constants import CASTLING_ROOK_END_SQUARE, CASTLING_ROOK_START_SQUARE
 from Core.Engine import Game
 from Core.MoveType import MoveType
 from Ui.chess_piece import ChessPiece
 from Ui.square import Square
-from Constants import CASTLING_ROOK_START_SQUARE, CASTLING_ROOK_END_SQUARE
 
 
 class ChessBoard(ft.Container):

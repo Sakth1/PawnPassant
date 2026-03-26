@@ -1,7 +1,8 @@
 """Game-state helpers built on top of python-chess."""
 
-from chess import Board, Move, Square, Color, PAWN, square_rank
 from typing import Optional
+
+from chess import PAWN, Board, Color, Move, Square, square_rank
 
 from Core.MoveType import MoveType
 

@@ -6,11 +6,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.ci.release_metadata import (
-    command_detect_version_bump,
-    command_extract_release_metadata,
-    compare_semver,
-)
+from scripts.ci.release_metadata import (command_detect_version_bump,
+                                         command_extract_release_metadata,
+                                         compare_semver)
 
 
 class Args:
