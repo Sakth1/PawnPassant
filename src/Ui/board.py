@@ -277,33 +277,6 @@ class ChessBoard(ft.Container):
         self.selected_square = None
         self._clear_move_highlights(refresh=True)
 
-    def _handle_piece_drag_start(self, from_cords: str):
-        """Show legal moves as soon as a draggable piece starts moving."""
-
-        if self.promotion_overlay.visible or not self._is_selectable_square(from_cords):
-            return
-
-        self._set_tap_feedback(from_cords)
-        self._select_square(from_cords)
-
-    def _handle_piece_drag_complete(self, from_cords: str):
-        """Clear drag-only selection state when a drag ends without a move."""
-
-        if self.selected_square == from_cords:
-            self._clear_interaction_state(clear_tap_feedback=True)
-
-    def _handle_square_drop(self, from_cords: str, to_cords: str):
-        """Handle a piece being dropped onto a square."""
-
-        if self.promotion_overlay.visible:
-            return
-
-        self._clear_interaction_state(clear_tap_feedback=True)
-        if from_cords == to_cords:
-            return
-
-        self.move_piece(from_cords=from_cords, to_cords=to_cords)
-
     def _is_legal_move(self, requested_move: Move) -> bool:
         """Return whether a requested move is currently legal."""
 

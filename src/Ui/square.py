@@ -1,5 +1,6 @@
 """Board-square control with piece rendering and move-highlight support."""
 
+from math import pi
 import traceback
 from typing import Optional
 
@@ -20,9 +21,6 @@ class Square(ft.Container):
         coordinate,
         color,
         on_square_click=None,
-        on_square_drop=None,
-        on_piece_drag_start=None,
-        on_piece_drag_complete=None,
         size=60,
     ):
         super().__init__(expand=True)
@@ -31,9 +29,6 @@ class Square(ft.Container):
         self.coordinate = coordinate
         self.color = color
         self.on_square_click = on_square_click
-        self.on_square_drop = on_square_drop
-        self.on_piece_drag_start = on_piece_drag_start
-        self.on_piece_drag_complete = on_piece_drag_complete
 
         dot_size = size * 0.3
         ring_size = size * 0.8
@@ -73,16 +68,8 @@ class Square(ft.Container):
             "parent_piece_square": None,
         }
         self.stack = ft.Stack(controls=[], expand=True, alignment=ft.Alignment.CENTER)
-        self.interactive_surface = ft.Container(
-            content=self.stack,
-            on_click=self._handle_click,
-        )
-        self.drag_target = ft.DragTarget(
-            group=self.DRAG_GROUP,
-            on_accept=self._handle_drag_accept,
-            content=self.interactive_surface,
-        )
-        self.content = self.drag_target
+
+        self.content = None
         self.margin = 0
         self.animate = ft.Animation(90, curve=ft.AnimationCurve.EASE_OUT)
 
@@ -91,28 +78,6 @@ class Square(ft.Container):
 
         if self.on_square_click is not None:
             self.on_square_click(self, self.coordinate)
-
-    def _handle_drag_accept(self, event: ft.DragTargetEvent):
-        """Forward accepted drops to the board controller."""
-
-        if self.on_square_drop is None or event.src is None:
-            return
-
-        from_coordinate = event.src.data
-        if isinstance(from_coordinate, str):
-            self.on_square_drop(from_coordinate, self.coordinate)
-
-    def _handle_drag_start(self, _event=None):
-        """Notify the board when a drag gesture begins from this square."""
-
-        if self.on_piece_drag_start is not None and self.has_piece:
-            self.on_piece_drag_start(self.coordinate)
-
-    def _handle_drag_complete(self, _event=None):
-        """Notify the board when a drag gesture completes from this square."""
-
-        if self.on_piece_drag_complete is not None:
-            self.on_piece_drag_complete(self.coordinate)
 
     def set_highlight(
         self,
@@ -137,7 +102,7 @@ class Square(ft.Container):
                 self.has_piece = False
                 self.piece_container = None
             elif isinstance(piece, ChessPiece):
-                content = self._build_draggable_piece(piece)
+                content = piece.to_control()  #self._build_draggable_piece(piece)
                 self.piece_container = piece
                 self.has_piece = True
             else:
@@ -155,8 +120,8 @@ class Square(ft.Container):
         self.piece_control = content
         self._rebuild_stack()
 
-    def _build_draggable_piece(self, piece: ChessPiece) -> ft.Draggable:
-        """Render the piece as a native drag source for smoother pointer tracking."""
+    """def _build_draggable_piece(self, piece: ChessPiece) -> ft.Draggable:
+        #Render the piece as a native drag source for smoother pointer tracking.
 
         return ft.Draggable(
             group=self.DRAG_GROUP,
@@ -191,7 +156,7 @@ class Square(ft.Container):
             height=self.height,
             alignment=ft.Alignment.CENTER,
             content=control,
-        )
+        )"""
 
     def _rebuild_stack(self):
         """Recompose the square so highlights sit above the base board color."""
