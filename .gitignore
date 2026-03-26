@@ -167,6 +167,7 @@ storage/
 practice
 devdairy.md
 tests.py
+monkeytype.sqlite3
 
 # IDE
 .vscode/
