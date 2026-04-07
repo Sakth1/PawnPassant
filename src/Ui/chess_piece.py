@@ -6,7 +6,7 @@ from pathlib import Path
 import flet as ft
 from chess import Piece, Color
 
-from Constants import SYMBOL_MAP
+from utils.constants import SYMBOL_MAP
 
 
 class ChessPiece(ft.Container):

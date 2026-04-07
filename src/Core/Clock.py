@@ -1,10 +1,28 @@
 import threading
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 
 
 class Clock:
     """
-    The clock time control backend module.
+    The clock time control backend module. Returns two clock control for both players.
+    """
+
+    def __init__(self, time_control: Tuple[int, int]):
+        self.time_control: Tuple[int, int] = time_control
+        self.ticker: Ticker = Ticker()
+        self.setup_ticker()
+
+    def setup_ticker(self):
+        self.time_remaining: int = self.time_control[0]
+        self.increment: int = self.time_control[1]
+
+    def start(self):
+        pass
+    
+        
+
+class Ticker:
+    """
     Courtesy of https://github.com/omamkaz/flet-timer for example.
     """
 
@@ -14,12 +32,12 @@ class Clock:
         self.active: bool = False
         self.paused: bool = False
         self.pause_condition: threading.Condition = threading.Condition()
-        self.clock_thread = threading.Thread(target=self.tick, daemon=True)
+        self.ticker_thread = threading.Thread(target=self.tick, daemon=True)
 
     def start(self):
         self.active = True
-        if not self.clock_thread.is_alive():
-            self.clock_thread.start()
+        if not self.ticker_thread.is_alive():
+            self.ticker_thread.start()
 
     def pause(self):
         with self.pause_condition:

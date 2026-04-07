@@ -6,7 +6,7 @@ import flet as ft
 from pathlib import Path
 
 from ui.board import ChessBoard
-from Constants import ASSET_DIR
+from utils.constants import ASSET_DIR
 
 
 class ChessApp:

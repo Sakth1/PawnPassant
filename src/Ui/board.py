@@ -23,7 +23,7 @@ from core.engine import Game
 from core.movetype import MoveType
 from ui.chess_piece import ChessPiece
 from ui.square import Square
-from Constants import CASTLING_ROOK_START_SQUARE, CASTLING_ROOK_END_SQUARE
+from utils.constants import CASTLING_ROOK_START_SQUARE, CASTLING_ROOK_END_SQUARE
 
 
 class ChessBoard(ft.Container):

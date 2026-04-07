@@ -38,21 +38,3 @@ CASTLING_ROOK_END_SQUARE: Dict[str, str] = {
     "KING_SIDE_BLACK": "f8",
 }
 
-# Default clock time control
-TIME_CONTROL: List[str] = [
-    "1|0",
-    "1|1",
-    "2|1",  # Bullet
-    "3|0",
-    "3|2",
-    "5|0",
-    "5|3",  # Blitz
-    "10|0",
-    "10|5",
-    "15|10",
-    "20|10"  # Rapid
-    "30|0",
-    "30|30",
-    "60|0",
-    "60|60",  # Classical
-]
