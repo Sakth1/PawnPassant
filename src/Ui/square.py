@@ -5,7 +5,7 @@ from typing import Optional
 
 import flet as ft
 
-from Ui.chess_piece import ChessPiece
+from ui.chess_piece import ChessPiece
 
 
 class Square(ft.Container):

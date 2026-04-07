@@ -19,10 +19,10 @@ from chess import (
     Piece,
 )
 
-from Core.Engine import Game
-from Core.MoveType import MoveType
-from Ui.chess_piece import ChessPiece
-from Ui.square import Square
+from core.engine import Game
+from core.movetype import MoveType
+from ui.chess_piece import ChessPiece
+from ui.square import Square
 from Constants import CASTLING_ROOK_START_SQUARE, CASTLING_ROOK_END_SQUARE
 
 

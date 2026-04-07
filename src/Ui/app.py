@@ -5,7 +5,7 @@ import os
 import flet as ft
 from pathlib import Path
 
-from Ui.board import ChessBoard
+from ui.board import ChessBoard
 from Constants import ASSET_DIR
 
 

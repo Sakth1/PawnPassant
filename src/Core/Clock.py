@@ -1,12 +1,14 @@
 import threading
 from typing import Callable, Optional
 
-class Clock():
+
+class Clock:
     """
     The clock time control backend module.
     Courtesy of https://github.com/omamkaz/flet-timer for example.
     """
-    def __init__(self, interval: float=0.01, callback: Optional[Callable]=None):
+
+    def __init__(self, interval: float = 0.01, callback: Optional[Callable] = None):
         self.interval: float = interval
         self.callback: Optional[Callable] = callback
         self.active: bool = False

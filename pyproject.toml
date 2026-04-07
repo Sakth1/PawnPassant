@@ -32,3 +32,15 @@ path = "src"
 [tool.pawnpassant.release]
 binary_name = "Pawn-Passant"
 
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "N"]  # errors, pyflakes, naming
+
+# Optional but useful
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
