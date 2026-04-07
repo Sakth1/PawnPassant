@@ -73,6 +73,30 @@ class TestPromotionOverlayUi(unittest.TestCase):
             ],
         )
 
+    def test_showing_promotion_clears_active_interaction_state(self):
+        board = ChessBoard()
+        board.load_position("4k3/1P6/8/8/8/8/8/4K3 w - - 0 1")
+        board._handle_square_click(board.square_map["b7"], "b7")
+        board._safe_page = lambda: object()
+
+        board._show_promotion_dialog(Move(parse_square("b7"), parse_square("b8")))
+
+        self.assertIsNone(board.selected_square)
+        self.assertEqual(board.highlighted_squares, set())
+        self.assertEqual(board.enabled_drop_targets, set())
+
+    def test_promotion_pick_finishes_without_stale_drop_targets(self):
+        board = ChessBoard()
+        board.load_position("4k3/1P6/8/8/8/8/8/4K3 w - - 0 1")
+        board._safe_page = lambda: object()
+
+        board._show_promotion_dialog(Move(parse_square("b7"), parse_square("b8")))
+        board._handle_promotion_pick(QUEEN)
+
+        self.assertFalse(board.promotion_overlay.visible)
+        self.assertEqual(board.enabled_drop_targets, set())
+        self.assertEqual(board.highlighted_squares, set())
+
 
 if __name__ == "__main__":
     unittest.main()

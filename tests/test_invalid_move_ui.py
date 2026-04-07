@@ -22,6 +22,14 @@ class _ImmediatePage:
 class TestInvalidMoveUi(unittest.TestCase):
     """Verify invalid drag/drop attempts do not mutate visible or game state."""
 
+    def test_invalid_squares_are_not_enabled_as_drop_targets(self):
+        board = ChessBoard()
+
+        board._handle_piece_drag_start("e2")
+
+        self.assertFalse(board.square_map["e5"].drop_target_metadata["active"])
+        self.assertEqual(board.square_map["e3"].drop_target_metadata["source_square"], "e2")
+
     def test_invalid_animated_drop_keeps_piece_on_source_square(self):
         board = ChessBoard()
         board._safe_page = lambda: _ImmediatePage()

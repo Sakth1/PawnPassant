@@ -44,13 +44,14 @@ class ChessBoard(ft.Container):
         super().__init__()
         self.game = Game()
         self.highlighted_squares: set[str] = set()
+        self.enabled_drop_targets: set[str] = set()
         self.is_flipped = False
         self.square_size = 60
         self.board_side_px = self.square_size * 8
         self.promotion_lane_px = self.square_size
         self.pending_promotion_move: Optional[Move] = None
         self.pending_promotion_color_is_white: Optional[Color] = None
-        self.selected_square: Optional[str] = None
+        self.active_source_square: Optional[str] = None
         self.active_tap_feedback_square: Optional[str] = None
 
         self.board_frame = ft.GridView(
@@ -189,8 +190,21 @@ class ChessBoard(ft.Container):
         for coord in list(self.highlighted_squares):
             sq = self.square_map.get(coord)
             if sq is not None:
-                sq.set_highlight(False, None, refresh=refresh)
+                sq.set_highlight(False, None, refresh=False)
         self.highlighted_squares.clear()
+        if refresh:
+            self._safe_update(self.board_frame)
+
+    def _clear_enabled_drop_targets(self, refresh: bool = True):
+        """Disable all active drag targets on the board."""
+
+        for coord in list(self.enabled_drop_targets):
+            sq = self.square_map.get(coord)
+            if sq is not None:
+                sq.set_drop_target(False, None, refresh=False)
+        self.enabled_drop_targets.clear()
+        if refresh:
+            self._safe_update(self.board_frame)
 
     def _clear_tap_feedback(self, refresh: bool = True):
         """Remove transient feedback from the last interacted square."""
@@ -210,10 +224,13 @@ class ChessBoard(ft.Container):
     ):
         """Reset current selection and any move hints shown on the board."""
 
-        self.selected_square = None
-        self._clear_move_highlights(refresh=refresh)
+        self.active_source_square = None
+        self._clear_move_highlights(refresh=False)
+        self._clear_enabled_drop_targets(refresh=False)
         if clear_tap_feedback:
-            self._clear_tap_feedback(refresh=refresh)
+            self._clear_tap_feedback(refresh=False)
+        if refresh:
+            self._safe_update(self.board_frame)
 
     def _set_tap_feedback(self, square_cords: str, refresh: bool = True):
         """Apply fast local feedback to the tapped square before broader refreshes."""
@@ -250,16 +267,52 @@ class ChessBoard(ft.Container):
             if move.from_square == from_sq
         ]
 
-    def _select_square(self, square_cords: str):
-        """Select a piece square and reveal its current legal move targets."""
+    def _apply_legal_targets(self, from_cords: str, refresh: bool = True):
+        """Apply visual and drag-target state for the source square's legal moves."""
 
-        self.selected_square = square_cords
-        self._clear_move_highlights(refresh=True)
-        for target in self._get_legal_targets(square_cords):
-            sq = self.square_map.get(target)
-            if sq is not None:
-                sq.set_highlight(True, square_cords, refresh=True)
-                self.highlighted_squares.add(target)
+        legal_targets = set(self._get_legal_targets(from_cords))
+        squares_to_clear = self.highlighted_squares | self.enabled_drop_targets
+
+        for coord in squares_to_clear:
+            sq = self.square_map.get(coord)
+            if sq is None:
+                continue
+            if coord not in legal_targets:
+                sq.set_highlight(False, None, refresh=False)
+                sq.set_drop_target(False, None, refresh=False)
+
+        for coord in legal_targets:
+            sq = self.square_map.get(coord)
+            if sq is None:
+                continue
+            sq.set_highlight(True, from_cords, refresh=False)
+            sq.set_drop_target(True, from_cords, refresh=False)
+
+        self.highlighted_squares = legal_targets
+        self.enabled_drop_targets = set(legal_targets)
+        if refresh:
+            self._safe_update(self.board_frame)
+
+    def _set_active_source_square(self, square_cords: str, refresh: bool = True) -> bool:
+        """Select a source square and expose its legal moves for click and drag."""
+
+        if not self._is_selectable_square(square_cords):
+            return False
+
+        if self.active_source_square == square_cords:
+            return True
+
+        self.active_source_square = square_cords
+        self._apply_legal_targets(square_cords, refresh=False)
+        if refresh:
+            self._safe_update(self.board_frame)
+        return True
+
+    @property
+    def selected_square(self) -> Optional[str]:
+        """Backwards-compatible alias for the active source square."""
+
+        return self.active_source_square
 
     def _handle_square_click(self, square_instance: Square, click_cords: str):
         """Either play a highlighted move or reveal legal targets for the clicked square."""
@@ -277,17 +330,15 @@ class ChessBoard(ft.Container):
                 )
             return
 
-        if self.selected_square == click_cords:
-            self._clear_move_highlights(refresh=True)
-            self.selected_square = None
+        if self.active_source_square == click_cords:
+            self._clear_interaction_state(refresh=True)
             return
 
         if square_instance.has_piece and self._is_selectable_square(click_cords):
-            self._select_square(click_cords)
+            self._set_active_source_square(click_cords, refresh=True)
             return
 
-        self.selected_square = None
-        self._clear_move_highlights(refresh=True)
+        self._clear_interaction_state(refresh=True)
 
     def _handle_piece_drag_start(self, from_cords: str):
         """Show legal moves as soon as a draggable piece starts moving."""
@@ -296,12 +347,12 @@ class ChessBoard(ft.Container):
             return
 
         self._set_tap_feedback(from_cords)
-        self._select_square(from_cords)
+        self._set_active_source_square(from_cords, refresh=True)
 
     def _handle_piece_drag_complete(self, from_cords: str):
         """Clear drag-only selection state when a drag ends without a move."""
 
-        if self.selected_square == from_cords:
+        if self.active_source_square == from_cords:
             self._clear_interaction_state(clear_tap_feedback=True)
 
     def _handle_square_drop(self, from_cords: str, to_cords: str):
@@ -470,6 +521,7 @@ class ChessBoard(ft.Container):
 
         self.pending_promotion_move = move
         self.pending_promotion_color_is_white = piece_color_is_white
+        self._clear_interaction_state(clear_tap_feedback=True, refresh=False)
         self.promotion_overlay.content = ft.Row(
             spacing=0,
             controls=[
