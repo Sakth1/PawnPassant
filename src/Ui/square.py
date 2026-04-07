@@ -11,6 +11,8 @@ from Ui.chess_piece import ChessPiece
 class Square(ft.Container):
     """Represents one clickable chessboard square in the Flet UI."""
 
+    DRAG_GROUP = "chess-piece"
+
     def __init__(
         self,
         file,
@@ -70,16 +72,13 @@ class Square(ft.Container):
             "highlighted": False,
             "parent_piece_square": None,
         }
-        self.drop_target_metadata: dict[str, bool | str | None] = {
-            "active": False,
-            "source_square": None,
-        }
         self.stack = ft.Stack(controls=[], expand=True, alignment=ft.Alignment.CENTER)
         self.interactive_surface = ft.Container(
             content=self.stack,
             on_click=self._handle_click,
         )
         self.drag_target = ft.DragTarget(
+            group=self.DRAG_GROUP,
             on_accept=self._handle_drag_accept,
             content=self.interactive_surface,
         )
@@ -99,12 +98,8 @@ class Square(ft.Container):
         if self.on_square_drop is None or event.src is None:
             return
 
-        if not self.drop_target_metadata.get("active"):
-            return
-
         from_coordinate = event.src.data
-        expected_source = self.drop_target_metadata.get("source_square")
-        if isinstance(from_coordinate, str) and from_coordinate == expected_source:
+        if isinstance(from_coordinate, str):
             self.on_square_drop(from_coordinate, self.coordinate)
 
     def _handle_drag_start(self, _event=None):
@@ -132,27 +127,6 @@ class Square(ft.Container):
         self._rebuild_stack()
         if refresh:
             self._safe_update(self)
-
-    def set_drop_target(
-        self,
-        active: bool,
-        source_square: Optional[str],
-        refresh: bool = True,
-    ):
-        """Configure whether this square currently accepts a dragged piece."""
-
-        normalized_source = source_square if active else None
-        if (
-            self.drop_target_metadata["active"] == active
-            and self.drop_target_metadata["source_square"] == normalized_source
-        ):
-            return
-
-        self.drop_target_metadata["active"] = active
-        self.drop_target_metadata["source_square"] = normalized_source
-        self.drag_target.group = normalized_source if active else None
-        if refresh:
-            self._safe_update(self.drag_target)
 
     def update_content(self, piece: Optional[ChessPiece] = None):
         """Replace the visible piece control and refresh the square overlay."""
@@ -185,7 +159,7 @@ class Square(ft.Container):
         """Render the piece as a native drag source for smoother pointer tracking."""
 
         return ft.Draggable(
-            group=self.coordinate,
+            group=self.DRAG_GROUP,
             data=self.coordinate,
             max_simultaneous_drags=1,
             on_drag_start=self._handle_drag_start,
