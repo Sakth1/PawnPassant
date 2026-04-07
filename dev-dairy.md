@@ -1,4 +1,5 @@
 chat gpt's root cause analysis for the visual bug:
+
 **Root Cause**
 
 The visual glitch comes from split ownership of the same move.
