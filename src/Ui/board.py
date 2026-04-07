@@ -30,6 +30,7 @@ class ChessBoard(ft.Container):
     """Interactive chessboard widget with move highlighting and promotion UI."""
 
     PROMOTION_OPTIONS = [QUEEN, ROOK, BISHOP, KNIGHT]
+    MOVE_ANIMATION_DURATION_MS = 120
 
     TEST_POSITIONS: dict[str, Optional[str]] = {
         "Start Position": None,
@@ -49,6 +50,8 @@ class ChessBoard(ft.Container):
         self.promotion_lane_px = self.square_size
         self.pending_promotion_move: Optional[Move] = None
         self.pending_promotion_color_is_white: Optional[Color] = None
+        self.selected_square: Optional[str] = None
+        self.active_tap_feedback_square: Optional[str] = None
 
         self.board_frame = ft.GridView(
             runs_count=8,
@@ -95,7 +98,9 @@ class ChessBoard(ft.Container):
             top=0,
             width=self.square_size,
             height=self.square_size,
-            animate_position=ft.Animation(180, curve=ft.AnimationCurve.EASE_IN_OUT),
+            animate_position=ft.Animation(
+                self.MOVE_ANIMATION_DURATION_MS, curve=ft.AnimationCurve.EASE_IN_OUT
+            ),
         )
         self.content = ft.Stack(
             controls=[
@@ -113,7 +118,7 @@ class ChessBoard(ft.Container):
     def _render_board_state(self):
         """Repaint every square from the current board position."""
 
-        self._clear_move_highlights()
+        self._clear_interaction_state(clear_tap_feedback=True, refresh=False)
         for sq in self.squares:
             sq.update_content(None)
         self._setup_pieces()
@@ -150,6 +155,9 @@ class ChessBoard(ft.Container):
                     coordinate=coords,
                     color="b" if (file_idx + rank_idx) % 2 == 0 else "w",
                     on_square_click=self._handle_square_click,
+                    on_square_drop=self._handle_square_drop,
+                    on_piece_drag_start=self._handle_piece_drag_start,
+                    on_piece_drag_complete=self._handle_piece_drag_complete,
                     size=self.square_size,
                 )
                 self.squares.append(sq)
@@ -175,42 +183,154 @@ class ChessBoard(ft.Container):
         )
         self._safe_update(self.board_frame)
 
-    def _clear_move_highlights(self):
+    def _clear_move_highlights(self, refresh: bool = True):
         """Remove any currently shown legal-move markers."""
 
-        for coord in self.highlighted_squares:
+        for coord in list(self.highlighted_squares):
             sq = self.square_map.get(coord)
             if sq is not None:
-                sq.set_highlight(False, None)
+                sq.set_highlight(False, None, refresh=refresh)
         self.highlighted_squares.clear()
+
+    def _clear_tap_feedback(self, refresh: bool = True):
+        """Remove transient feedback from the last interacted square."""
+
+        if self.active_tap_feedback_square is None:
+            return
+
+        previous_square = self.square_map.get(self.active_tap_feedback_square)
+        self.active_tap_feedback_square = None
+        if previous_square is not None:
+            previous_square.set_tap_feedback(False, refresh=refresh)
+
+    def _clear_interaction_state(
+        self,
+        clear_tap_feedback: bool = False,
+        refresh: bool = True,
+    ):
+        """Reset current selection and any move hints shown on the board."""
+
+        self.selected_square = None
+        self._clear_move_highlights(refresh=refresh)
+        if clear_tap_feedback:
+            self._clear_tap_feedback(refresh=refresh)
+
+    def _set_tap_feedback(self, square_cords: str, refresh: bool = True):
+        """Apply fast local feedback to the tapped square before broader refreshes."""
+
+        if self.active_tap_feedback_square == square_cords:
+            return
+
+        previous_square = None
+        if self.active_tap_feedback_square is not None:
+            previous_square = self.square_map.get(self.active_tap_feedback_square)
+        if previous_square is not None:
+            previous_square.set_tap_feedback(False, refresh=refresh)
+
+        current_square = self.square_map.get(square_cords)
+        if current_square is not None:
+            current_square.set_tap_feedback(True, refresh=refresh)
+            self.active_tap_feedback_square = square_cords
+        else:
+            self.active_tap_feedback_square = None
+
+    def _is_selectable_square(self, square_cords: str) -> bool:
+        """Return whether the square holds a piece for the side to move."""
+
+        piece_color = self.game.color_of_piece_at_square(parse_square(square_cords))
+        return piece_color is not None and piece_color == self.game.board.turn
+
+    def _get_legal_targets(self, from_cords: str) -> list[str]:
+        """Collect legal destination coordinates for a piece on the given square."""
+
+        from_sq = parse_square(from_cords)
+        return [
+            square_name(move.to_square)
+            for move in self.game.board.legal_moves
+            if move.from_square == from_sq
+        ]
+
+    def _select_square(self, square_cords: str):
+        """Select a piece square and reveal its current legal move targets."""
+
+        self.selected_square = square_cords
+        self._clear_move_highlights(refresh=True)
+        for target in self._get_legal_targets(square_cords):
+            sq = self.square_map.get(target)
+            if sq is not None:
+                sq.set_highlight(True, square_cords, refresh=True)
+                self.highlighted_squares.add(target)
 
     def _handle_square_click(self, square_instance: Square, click_cords: str):
         """Either play a highlighted move or reveal legal targets for the clicked square."""
 
         if self.promotion_overlay.visible:
             return
-        
-        if square_instance.has_piece:
-            square_instance._animate_piece_bob_when_clicked()
+
+        self._set_tap_feedback(click_cords)
 
         if square_instance.highlighted_metadata.get("highlighted"):
             from_cords = square_instance.highlighted_metadata.get("parent_piece_square")
             if from_cords is not None:
-                self._animate_piece_and_move(from_cords=from_cords, to_cords=click_cords)
+                self._animate_piece_and_move(
+                    from_cords=from_cords, to_cords=click_cords
+                )
             return
 
-        self._clear_move_highlights()
-        from_sq = parse_square(click_cords)
-        legal_targets = [
-            square_name(move.to_square)
-            for move in self.game.board.legal_moves
-            if move.from_square == from_sq
-        ]
-        for target in legal_targets:
-            sq = self.square_map.get(target)
-            if sq is not None:
-                sq.set_highlight(True, click_cords)
-                self.highlighted_squares.add(target)
+        if self.selected_square == click_cords:
+            self._clear_move_highlights(refresh=True)
+            self.selected_square = None
+            return
+
+        if square_instance.has_piece and self._is_selectable_square(click_cords):
+            self._select_square(click_cords)
+            return
+
+        self.selected_square = None
+        self._clear_move_highlights(refresh=True)
+
+    def _handle_piece_drag_start(self, from_cords: str):
+        """Show legal moves as soon as a draggable piece starts moving."""
+
+        if self.promotion_overlay.visible or not self._is_selectable_square(from_cords):
+            return
+
+        self._set_tap_feedback(from_cords)
+        self._select_square(from_cords)
+
+    def _handle_piece_drag_complete(self, from_cords: str):
+        """Clear drag-only selection state when a drag ends without a move."""
+
+        if self.selected_square == from_cords:
+            self._clear_interaction_state(clear_tap_feedback=True)
+
+    def _handle_square_drop(self, from_cords: str, to_cords: str):
+        """Handle a piece being dropped onto a square."""
+
+        if self.promotion_overlay.visible:
+            return
+
+        self._clear_interaction_state(clear_tap_feedback=True)
+        if from_cords == to_cords:
+            return
+
+        self.move_piece(from_cords=from_cords, to_cords=to_cords)
+
+    def _is_legal_move(self, requested_move: Move) -> bool:
+        """Return whether a requested move is currently legal."""
+
+        if requested_move in self.game.board.legal_moves:
+            return True
+
+        if requested_move.promotion is None:
+            for legal_move in self.game.board.legal_moves:
+                if (
+                    legal_move.from_square == requested_move.from_square
+                    and legal_move.to_square == requested_move.to_square
+                ):
+                    return True
+
+        return False
 
     def _en_passant_capture(self):
         """Apply the extra board cleanup required for an en passant capture."""
@@ -303,11 +423,11 @@ class ChessBoard(ft.Container):
     def _complete_move(self, requested_move: Move, movement_type: MoveType):
         """Commit a legal move and update the UI according to its special behavior."""
 
-        if requested_move not in self.game.board.legal_moves:
+        if not self._is_legal_move(requested_move):
             return
 
+        self._clear_interaction_state(clear_tap_feedback=True, refresh=False)
         self._hide_promotion_overlay(refresh=False)
-        print(self.game.get_move_san(requested_move))
         self.game.move(requested_move)
         match movement_type:
             case MoveType.NORMAL | MoveType.CAPTURE:
@@ -371,13 +491,17 @@ class ChessBoard(ft.Container):
         target_square = self.square_map[square_cords]
         visual_idx = self.board_frame.controls.index(target_square)
         return visual_idx // 8, visual_idx % 8
-    
+
     def _get_center_pixel_of_square(self, square_cords: str) -> tuple[int, int]:
         """Get the center pixel of a square in the current visual grid position."""
 
         visual_row, visual_col = self._get_visual_row_col(square_cords)
         center_x = (visual_col * self.square_size) + (self.square_size / 2)
-        center_y = self.promotion_lane_px + (visual_row * self.square_size) + (self.square_size / 2)
+        center_y = (
+            self.promotion_lane_px
+            + (visual_row * self.square_size)
+            + (self.square_size / 2)
+        )
 
         return center_x, center_y
 
@@ -489,7 +613,7 @@ class ChessBoard(ft.Container):
             self.move_animation_overlay.top = to_pixel[1] - (self.square_size / 2)
             self._safe_update(self)
 
-            await asyncio.sleep(0.18)
+            await asyncio.sleep(self.MOVE_ANIMATION_DURATION_MS / 1000)
             self.move_animation_overlay.visible = False
             self.move_animation_overlay.content = None
             self._complete_move(requested_move, movement_type)
@@ -499,7 +623,9 @@ class ChessBoard(ft.Container):
 
     def _animate_piece_and_move(self, from_cords: str, to_cords: str):
         requested_move = Move(parse_square(from_cords), parse_square(to_cords))
-        self._clear_move_highlights()
+        self._clear_interaction_state(clear_tap_feedback=True)
+        if not self._is_legal_move(requested_move):
+            return
         movement_type = self.game.get_move_type(requested_move)
         if movement_type == MoveType.PROMOTION:
             self.move_piece(from_cords, to_cords)
@@ -517,7 +643,9 @@ class ChessBoard(ft.Container):
         """Create a move from board coordinates and dispatch it through the UI flow."""
 
         requested_move = Move(parse_square(from_cords), parse_square(to_cords))
-        self._clear_move_highlights()
+        self._clear_interaction_state(clear_tap_feedback=True)
+        if not self._is_legal_move(requested_move):
+            return
         movement_type = self.game.get_move_type(requested_move)
         if movement_type == MoveType.PROMOTION:
             self._show_promotion_dialog(requested_move)
