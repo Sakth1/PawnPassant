@@ -167,6 +167,7 @@ storage/
 practice
 devdairy.md
 tests.py
+out.txt
 
 # IDE
 .vscode/
