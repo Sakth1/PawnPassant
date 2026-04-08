@@ -1,5 +1,4 @@
 import threading
-from datetime import datetime
 from typing import Callable, Optional, Tuple
 
 
@@ -29,15 +28,15 @@ class Ticker:
     Courtesy of https://github.com/omamkaz/flet-timer for example.
     """
 
-    def __init__(self, starting_time: int = 0, increment: int = 0, tick_interval: float = 0.01, callback: Optional[Callable] = None):
-        self.remaining_time_sec: float = starting_time * 60.0
+    def __init__(self, starting_time: int = 0, increment: int = 0, tick_interval: int = 10, callback: Optional[Callable] = None):
+        self.remaining_time_ms: int = starting_time * 60000
         self.increment: int = increment
-        self.tick_interval: float = tick_interval
+        self.tick_interval: int = tick_interval
         self.callback: Optional[Callable] = callback
         self.active: bool = False
         self.paused: bool = False
         self.pause_condition: threading.Condition = threading.Condition()
-        self.ticker_thread = threading.Thread(target=self.tick, daemon=True)
+        self.ticker_thread = threading.Thread(target=self.tick)
 
     def start(self):
         self.active = True
@@ -48,10 +47,6 @@ class Ticker:
         with self.pause_condition:
             self.paused = True
 
-    def yeld_time(self):
-        while self.active:
-            yield 
-
     def resume(self):
         with self.pause_condition:
             self.paused = False
@@ -59,13 +54,25 @@ class Ticker:
             self.pause_condition.notify()
 
     def tick(self):
-        while self.active:
+        while self.active and self.remaining_time_ms > 0:
             with self.pause_condition:
                 if self.paused:
                     self.pause_condition.wait()
                 if not self.active:
                     break
             if self.callback is not None:
-                self.callback()
+                self.callback(*self._formated_time())
 
-            self.remaining_time_sec -= self.tick_interval
+            self.remaining_time_ms -= self.tick_interval
+
+    def _formated_time(self):
+        min = self.remaining_time_ms // 60000
+        sec = (self.remaining_time_ms % 60000) // 1000
+        return (min, sec, self.remaining_time_ms % 1000)
+
+if __name__ == "__main__":
+    def print_time(min, sec, ms):
+        print(f"{min}:{sec}.{ms}" if sec < 10 else f"{min}:{sec}")
+
+    clock = Ticker(starting_time=1, increment=0, callback=print_time)
+    clock.start()
