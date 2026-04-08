@@ -1,4 +1,5 @@
 import threading
+from datetime import datetime
 from typing import Callable, Optional, Tuple
 
 
@@ -9,12 +10,14 @@ class Clock:
 
     def __init__(self, time_control: Tuple[int, int]):
         self.time_control: Tuple[int, int] = time_control
-        self.ticker: Ticker = Ticker()
         self.setup_ticker()
 
     def setup_ticker(self):
         self.time_remaining: int = self.time_control[0]
         self.increment: int = self.time_control[1]
+
+        self.white_ticker: Ticker = Ticker()
+        self.black_ticker: Ticker = Ticker()
 
     def start(self):
         pass
@@ -26,8 +29,10 @@ class Ticker:
     Courtesy of https://github.com/omamkaz/flet-timer for example.
     """
 
-    def __init__(self, interval: float = 0.01, callback: Optional[Callable] = None):
-        self.interval: float = interval
+    def __init__(self, starting_time: int = 0, increment: int = 0, tick_interval: float = 0.01, callback: Optional[Callable] = None):
+        self.remaining_time_sec: float = starting_time * 60.0
+        self.increment: int = increment
+        self.tick_interval: float = tick_interval
         self.callback: Optional[Callable] = callback
         self.active: bool = False
         self.paused: bool = False
@@ -42,6 +47,10 @@ class Ticker:
     def pause(self):
         with self.pause_condition:
             self.paused = True
+
+    def yeld_time(self):
+        while self.active:
+            yield 
 
     def resume(self):
         with self.pause_condition:
@@ -59,4 +68,4 @@ class Ticker:
             if self.callback is not None:
                 self.callback()
 
-            threading.Event().wait(self.interval)
+            self.remaining_time_sec -= self.tick_interval
