@@ -221,7 +221,8 @@ class Square(ft.Container):
             self._safe_update(self)
 
     def _animate_piece_bob_when_clicked(self):
-        """Animate the piece when the square is clicked. only to be used on click events."""
+        """Animate the piece when the square is clicked. only to be used on
+        click events."""
 
         if not self.has_piece or self.piece_container is None:
             return

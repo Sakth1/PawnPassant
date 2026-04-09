@@ -262,7 +262,8 @@ class ChessBoard(ft.Container):
                 self.highlighted_squares.add(target)
 
     def _handle_square_click(self, square_instance: Square, click_cords: str):
-        """Either play a highlighted move or reveal legal targets for the clicked square."""
+        """Either play a highlighted move or reveal legal targets for the
+        clicked square."""
 
         if self.promotion_overlay.visible:
             return
@@ -350,7 +351,8 @@ class ChessBoard(ft.Container):
         self.square_map[squarename].update_content(None)
 
     def _update_last_move_on_board(self):
-        """Move the active piece control from the source square to the destination square."""
+        """Move the active piece control from the source square to the
+        destination square."""
 
         last_move = self.game.get_last_move()
         self.square_map[square_name(last_move.from_square)].update_content(None)
@@ -486,7 +488,8 @@ class ChessBoard(ft.Container):
         self._safe_update(self)
 
     def _get_visual_row_col(self, square_cords: str) -> tuple[int, int]:
-        """Translate algebraic square coordinates into the current visual grid position."""
+        """Translate algebraic square coordinates into the current visual
+        grid position."""
 
         target_square = self.square_map[square_cords]
         visual_idx = self.board_frame.controls.index(target_square)
@@ -572,7 +575,8 @@ class ChessBoard(ft.Container):
 
     @staticmethod
     def _safe_update(control: ft.Control):
-        """Update a control when attached to a page, ignoring detached-control errors."""
+        """Update a control when attached to a page, ignoring detached-control
+        errors."""
 
         try:
             control.update()

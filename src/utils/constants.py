@@ -2,10 +2,10 @@
 
 import os
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict
 
 # Map python-chess piece symbols to the bundled image asset names.
-SYMBOL_MAP = {
+SYMBOL_MAP: Dict[str, str] = {
     "P": "WHITE_PAWN",
     "N": "WHITE_KNIGHT",
     "B": "WHITE_BISHOP",

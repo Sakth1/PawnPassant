@@ -1,7 +1,5 @@
 from dataclasses import dataclass
 
-from chess.engine import T
-
 
 @dataclass(frozen=True)
 class TimeControl:
