@@ -37,4 +37,3 @@ CASTLING_ROOK_END_SQUARE: Dict[str, str] = {
     "QUEEN_SIDE_BLACK": "d8",
     "KING_SIDE_BLACK": "f8",
 }
-

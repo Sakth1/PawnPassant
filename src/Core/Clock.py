@@ -8,12 +8,18 @@ class ClockColor:
     white: str = "white"
     black: str = "black"
 
+
 class Clock:
     """
     The clock time control backend module. Returns two clock control for both players.
     """
 
-    def __init__(self, time_control: Tuple[int, int], white_clock_callback: Optional[Callable] = None, black_clock_callback: Optional[Callable] = None):
+    def __init__(
+        self,
+        time_control: Tuple[int, int],
+        white_clock_callback: Optional[Callable] = None,
+        black_clock_callback: Optional[Callable] = None,
+    ):
         self.time_control: Tuple[int, int] = time_control
         self.white_clock_callback: Optional[Callable] = white_clock_callback
         self.black_clock_callback: Optional[Callable] = black_clock_callback
@@ -24,8 +30,16 @@ class Clock:
         self.time_remaining: int = self.time_control[0]
         self.increment: int = self.time_control[1]
 
-        self.white_ticker: Ticker = Ticker(starting_time=self.time_remaining, increment=self.increment, callback=self.white_clock_callback)
-        self.black_ticker: Ticker = Ticker(starting_time=self.time_remaining, increment=self.increment, callback=self.black_clock_callback)
+        self.white_ticker: Ticker = Ticker(
+            starting_time=self.time_remaining,
+            increment=self.increment,
+            callback=self.white_clock_callback,
+        )
+        self.black_ticker: Ticker = Ticker(
+            starting_time=self.time_remaining,
+            increment=self.increment,
+            callback=self.black_clock_callback,
+        )
 
     def start(self):
         self.white_ticker.start()
@@ -41,15 +55,25 @@ class Clock:
             self.black_ticker._pause()
 
     def _switch_active_color(self):
-        self.active_color = ClockColor.black if self.active_color == ClockColor.white else ClockColor.white    
-        
+        self.active_color = (
+            ClockColor.black
+            if self.active_color == ClockColor.white
+            else ClockColor.white
+        )
+
 
 class Ticker:
     """
     Courtesy of https://github.com/omamkaz/flet-timer for example.
     """
 
-    def __init__(self, starting_time: int = 0, increment: int = 0, tick_interval: int = 10, callback: Optional[Callable] = None):
+    def __init__(
+        self,
+        starting_time: int = 0,
+        increment: int = 0,
+        tick_interval: int = 10,
+        callback: Optional[Callable] = None,
+    ):
         self.remaining_time_ms: int = starting_time * 60000
         self.increment: int = increment
         self.tick_interval: int = tick_interval
@@ -92,16 +116,23 @@ class Ticker:
         sec = (self.remaining_time_ms % 60000) // 1000
         return (min, sec, self.remaining_time_ms % 1000)
 
+
 if __name__ == "__main__":
+
     def white_clock_callback(min, sec, ms):
         print(f"White: {min}:{sec}.{ms}")
 
     def black_clock_callback(min, sec, ms):
         print(f"Black: {min}:{sec}.{ms}")
 
-    clock = Clock(time_control=(10, 0), white_clock_callback=white_clock_callback, black_clock_callback=black_clock_callback)
+    clock = Clock(
+        time_control=(10, 0),
+        white_clock_callback=white_clock_callback,
+        black_clock_callback=black_clock_callback,
+    )
     clock.start()
     import time
+
     time.sleep(5)
     clock.switch()
     time.sleep(3)
