@@ -56,8 +56,7 @@ source_packages = ["chess"]
 
 [tool.pawnpassant.release]
 binary_name = "Pawn-Passant"
-""".strip()
-                + "\n",
+""".strip() + "\n",
                 encoding="utf-8",
             )
 
@@ -87,8 +86,7 @@ version = "1.2.3"
 
 [tool.flet]
 source_packages = ["chess"]
-""".strip()
-                + "\n",
+""".strip() + "\n",
                 encoding="utf-8",
             )
 
