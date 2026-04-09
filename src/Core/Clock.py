@@ -79,7 +79,11 @@ class Clock:
                 return
 
             current_ticker = self._get_active_ticker()
-            next_ticker = self.black_ticker if current_ticker is self.white_ticker else self.white_ticker
+            next_ticker = (
+                self.black_ticker
+                if current_ticker is self.white_ticker
+                else self.white_ticker
+            )
 
             current_ticker.update_remaining_time(time.perf_counter())
             if current_ticker.remaining_time_ms > 0:
@@ -121,7 +125,9 @@ class Clock:
             self._worker_thread = None
 
     def _run_clock(self):
-        tick_seconds = min(self.white_ticker.tick_interval, self.black_ticker.tick_interval) / 1000
+        tick_seconds = (
+            min(self.white_ticker.tick_interval, self.black_ticker.tick_interval) / 1000
+        )
 
         while not self._stop_event.wait(tick_seconds):
             callback_ticker = None
