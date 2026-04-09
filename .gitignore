@@ -168,6 +168,7 @@ practice
 devdairy.md
 tests.py
 out.txt
+monkeytype.sqlite3
 
 # IDE
 .vscode/

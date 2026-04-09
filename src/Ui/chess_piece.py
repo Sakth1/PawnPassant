@@ -3,8 +3,9 @@
 import asyncio
 import traceback
 from pathlib import Path
+
 import flet as ft
-from chess import Piece, Color
+from chess import Color, Piece
 
 from utils.constants import SYMBOL_MAP
 

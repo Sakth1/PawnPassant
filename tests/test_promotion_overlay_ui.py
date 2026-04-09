@@ -1,10 +1,10 @@
 """UI tests for promotion overlay placement and fallback behavior."""
 
+import sys
 import unittest
 from pathlib import Path
-import sys
 
-from chess import QUEEN, ROOK, BISHOP, KNIGHT, parse_square, Move
+from chess import BISHOP, KNIGHT, QUEEN, ROOK, Move, parse_square
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
