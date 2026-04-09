@@ -2,12 +2,11 @@
 
 import json
 import os
+import flet as ft
 from pathlib import Path
 
-import flet as ft
-
-from Constants import ASSET_DIR
-from Ui.board import ChessBoard
+from ui.board import ChessBoard
+from utils.constants import ASSET_DIR
 
 
 class ChessApp:

@@ -126,9 +126,8 @@ def read_version_from_git_revision(revision: str, pyproject_relpath: str) -> str
     try:
         return data["project"]["version"]
     except KeyError as error:
-        raise KeyError(
-            f"{pyproject_relpath!r} at revision {revision!r} must define [project].version"
-        ) from error
+        raise KeyError(f"""{pyproject_relpath!r} at revision {revision!r} must define
+            [project].version""") from error
 
 
 def normalize_tag(tag: str) -> str:
