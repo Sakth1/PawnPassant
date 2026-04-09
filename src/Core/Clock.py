@@ -1,4 +1,5 @@
-import asyncio
+import threading
+import time
 from dataclasses import dataclass
 from typing import Callable, Optional, Tuple
 
@@ -11,7 +12,10 @@ class ClockColor:
 
 class Clock:
     """
-    The clock time control backend module. Returns two clock control for both players.
+    Threaded chess clock backend.
+
+    The clock state lives on a single worker thread so the UI thread only needs to
+    call `start()`, `switch()`, and `stop()` without managing its own timer loop.
     """
 
     def __init__(
@@ -24,6 +28,10 @@ class Clock:
         self.white_clock_callback: Optional[Callable] = white_clock_callback
         self.black_clock_callback: Optional[Callable] = black_clock_callback
         self.active_color: ClockColor = ClockColor.white
+        self._lock = threading.RLock()
+        self._stop_event = threading.Event()
+        self._worker_thread: Optional[threading.Thread] = None
+        self._active_started_at: Optional[float] = None
         self.setup_ticker()
 
     def setup_ticker(self):
@@ -41,22 +49,105 @@ class Clock:
             callback=self.black_clock_callback,
         )
 
-    async def start(self):
-        await self.white_ticker.start()
-        await self.black_ticker.start(wait_on_start=True)
+    def start(self):
+        with self._lock:
+            if self._worker_thread is not None and self._worker_thread.is_alive():
+                return
 
-    async def switch(self):
-        self._switch_active_color()
-        if self.active_color == ClockColor.white:
-            await self.black_ticker._pause()
-            await self.white_ticker._resume()
-        else:
-            await self.white_ticker._pause()
-            await self.black_ticker._resume()
+            self._stop_event.clear()
+            self.active_color = ClockColor.white
+            self.white_ticker.active = True
+            self.black_ticker.active = False
+            now = time.perf_counter()
+            self.white_ticker.last_update_ts = now
+            self.black_ticker.last_update_ts = None
+            self._active_started_at = now
 
-    async def stop(self):
-        await self.white_ticker.stop()
-        await self.black_ticker.stop()
+            self._worker_thread = threading.Thread(
+                target=self._run_clock,
+                name="pawnpassant-clock",
+                daemon=True,
+            )
+            self._worker_thread.start()
+
+        self.white_ticker.emit_callback()
+
+    def switch(self):
+        callbacks_to_emit: list[Ticker] = []
+        with self._lock:
+            if self._worker_thread is None or not self._worker_thread.is_alive():
+                return
+
+            current_ticker = self._get_active_ticker()
+            next_ticker = self.black_ticker if current_ticker is self.white_ticker else self.white_ticker
+
+            current_ticker.update_remaining_time(time.perf_counter())
+            if current_ticker.remaining_time_ms > 0:
+                current_ticker.remaining_time_ms += current_ticker.increment * 1000
+            current_ticker.active = False
+            current_ticker.last_update_ts = None
+
+            if next_ticker.remaining_time_ms > 0:
+                resume_at = time.perf_counter()
+                next_ticker.active = True
+                next_ticker.last_update_ts = resume_at
+                self._active_started_at = resume_at
+            else:
+                next_ticker.active = False
+                next_ticker.last_update_ts = None
+                self._active_started_at = None
+
+            self._switch_active_color()
+            callbacks_to_emit.extend([current_ticker, next_ticker])
+
+        for ticker in callbacks_to_emit:
+            ticker.emit_callback()
+
+    def stop(self):
+        worker_thread = None
+        with self._lock:
+            self._stop_event.set()
+            self.white_ticker.active = False
+            self.black_ticker.active = False
+            self.white_ticker.last_update_ts = None
+            self.black_ticker.last_update_ts = None
+            self._active_started_at = None
+            worker_thread = self._worker_thread
+
+        if worker_thread is not None:
+            worker_thread.join(timeout=1)
+
+        with self._lock:
+            self._worker_thread = None
+
+    def _run_clock(self):
+        tick_seconds = min(self.white_ticker.tick_interval, self.black_ticker.tick_interval) / 1000
+
+        while not self._stop_event.wait(tick_seconds):
+            callback_ticker = None
+            with self._lock:
+                active_ticker = self._get_active_ticker()
+                if active_ticker is None:
+                    continue
+
+                active_ticker.update_remaining_time(time.perf_counter())
+                callback_ticker = active_ticker
+
+                if active_ticker.remaining_time_ms <= 0:
+                    active_ticker.remaining_time_ms = 0
+                    active_ticker.active = False
+                    active_ticker.last_update_ts = None
+                    self._active_started_at = None
+
+            if callback_ticker is not None:
+                callback_ticker.emit_callback()
+
+    def _get_active_ticker(self) -> Optional["Ticker"]:
+        if self.white_ticker.active:
+            return self.white_ticker
+        if self.black_ticker.active:
+            return self.black_ticker
+        return None
 
     def _switch_active_color(self):
         self.active_color = (
@@ -67,10 +158,6 @@ class Clock:
 
 
 class Ticker:
-    """
-    Courtesy of https://github.com/omamkaz/flet-timer for example.
-    """
-
     def __init__(
         self,
         starting_time: int = 0,
@@ -83,122 +170,46 @@ class Ticker:
         self.tick_interval: int = tick_interval
         self.callback: Optional[Callable] = callback
         self.active: bool = False
-        self.pause_condition = asyncio.Event()
-        self.ticker_task: Optional[asyncio.Task] = None
-        self._last_update_ts: Optional[float] = None
+        self.last_update_ts: Optional[float] = None
 
-    async def start(self, wait_on_start: bool = False):
-        self.active = True
-        if self.ticker_task is None or self.ticker_task.done():
-            self.ticker_task = asyncio.create_task(self.tick())
-
-        if wait_on_start:
-            self.pause_condition.clear()
-            self._last_update_ts = None
+    def update_remaining_time(self, now: float):
+        if self.last_update_ts is None:
             return
 
-        await self._resume()
-
-    async def _pause(self):
-        if not self.active or not self.pause_condition.is_set():
-            return
-
-        self._update_remaining_time()
-        if self.remaining_time_ms > 0:
-            self.remaining_time_ms += self.increment * 1000
-
-        self.pause_condition.clear()
-        self._last_update_ts = None
-        self._emit_callback()
-
-    async def _resume(self):
-        if not self.active or self.pause_condition.is_set() or self.remaining_time_ms <= 0:
-            return
-
-        self._last_update_ts = asyncio.get_running_loop().time()
-        self.pause_condition.set()
-        self._emit_callback()
-
-    async def stop(self):
-        self.active = False
-        self.pause_condition.set()
-
-        if self.ticker_task is None:
-            return
-
-        self.ticker_task.cancel()
-        try:
-            await self.ticker_task
-        except asyncio.CancelledError:
-            pass
-        finally:
-            self.ticker_task = None
-            self._last_update_ts = None
-
-    async def tick(self):
-        try:
-            while self.active and self.remaining_time_ms > 0:
-                await self.pause_condition.wait()
-                if not self.active:
-                    break
-
-                await asyncio.sleep(self.tick_interval / 1000)
-                if not self.pause_condition.is_set():
-                    continue
-
-                self._update_remaining_time()
-                self._emit_callback()
-        except asyncio.CancelledError:
-            raise
-        finally:
-            if self.remaining_time_ms <= 0:
-                self.remaining_time_ms = 0
-                self.pause_condition.clear()
-                self._last_update_ts = None
-                self._emit_callback()
-
-    def _update_remaining_time(self):
-        if self._last_update_ts is None:
-            return
-
-        now = asyncio.get_running_loop().time()
-        elapsed_ms = int((now - self._last_update_ts) * 1000)
+        elapsed_ms = int((now - self.last_update_ts) * 1000)
         if elapsed_ms <= 0:
             return
 
         self.remaining_time_ms = max(0, self.remaining_time_ms - elapsed_ms)
-        self._last_update_ts = now
+        self.last_update_ts = now
 
-    def _emit_callback(self):
+    def emit_callback(self):
         if self.callback is not None:
-            self.callback(*self._formatted_time())
+            self.callback(*self.formatted_time())
 
-    def _formatted_time(self):
-        min = self.remaining_time_ms // 60000
-        sec = (self.remaining_time_ms % 60000) // 1000
-        return (min, sec, self.remaining_time_ms % 1000)
+    def formatted_time(self):
+        minutes = self.remaining_time_ms // 60000
+        seconds = (self.remaining_time_ms % 60000) // 1000
+        return (minutes, seconds, self.remaining_time_ms % 1000)
 
 
 if __name__ == "__main__":
 
-    def white_clock_callback(min, sec, ms):
-        print(f"White: {min}:{sec}.{ms}")
+    def white_clock_callback(minutes, seconds, milliseconds):
+        print(f"White: {minutes}:{seconds}.{milliseconds}")
 
-    def black_clock_callback(min, sec, ms):
-        print(f"Black: {min}:{sec}.{ms}")
+    def black_clock_callback(minutes, seconds, milliseconds):
+        print(f"Black: {minutes}:{seconds}.{milliseconds}")
 
-    async def main():
-        clock = Clock(
-            time_control=(10, 0),
-            white_clock_callback=white_clock_callback,
-            black_clock_callback=black_clock_callback,
-        )
-        await clock.start()
-        await asyncio.sleep(5)
-        await clock.switch()
-        await asyncio.sleep(3)
-        await clock.switch()
-        await asyncio.sleep(1)
-        await clock.stop()
-
-    asyncio.run(main())
+    clock = Clock(
+        time_control=(10, 0),
+        white_clock_callback=white_clock_callback,
+        black_clock_callback=black_clock_callback,
+    )
+    clock.start()
+    time.sleep(5)
+    clock.switch()
+    time.sleep(3)
+    clock.switch()
+    time.sleep(1)
+    clock.stop()
