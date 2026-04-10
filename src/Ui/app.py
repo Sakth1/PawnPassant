@@ -6,7 +6,7 @@ import flet as ft
 from pathlib import Path
 
 from ui.board import ChessBoard
-from ui.timeControl import ClockUI
+from ui.time_control import ClockUI
 from utils.constants import ASSET_DIR
 
 

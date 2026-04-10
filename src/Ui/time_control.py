@@ -1,8 +1,5 @@
 import flet as ft
 
-from core.clock import Clock
-from utils.models import TimeControl
-
 
 class ClockUI(ft.Container):
     def __init__(self):
