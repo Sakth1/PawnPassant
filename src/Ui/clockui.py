@@ -11,35 +11,34 @@ class ClockUI(ft.Container):
         super().__init__()
         self.black_timer = ft.Text(
             "01:00",
-            align=ft.Alignment.CENTER,
+            text_align=ft.TextAlign.CENTER,
             color=ft.Colors.GREY_400,
-            margin=20,
-            font_family="Roboto",
-            size=20,
+            #margin=20,
+            font_family="RobotoMono",
+            size=40,
             weight=ft.FontWeight.BOLD,
-            offset=ft.Offset(0, 0.27),
         )
         self.white_timer = ft.Text(
             "02:00",
-            align=ft.Alignment.CENTER,
+            text_align=ft.TextAlign.CENTER,
             color=ft.Colors.GREY_400,
-            margin=20,
-            font_family="Roboto",
-            size=20,
+            #margin=20,
+            font_family="RobotoMono",
+            size=40,
             weight=ft.FontWeight.BOLD,
-            offset=ft.Offset(0, -0.27),
         )
-        self.width = 150
         self.bgcolor = "#262626"
+        self.expand = True
         self.alignment = ft.Alignment.CENTER
-        self.blur = 1
         self.border_radius = 15
         self.content = ft.Column(
-            [
+            controls=[
                 self.black_timer,
-                ft.Divider(color=ft.Colors.BLACK),
+                ft.Container(height=3, bgcolor=ft.Colors.GREY_400, width=100, margin=ft.margin.Margin(20, 0, 20, 0)),  # fixed width
                 self.white_timer,
-            ]
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
         self.clock = Clock(
             TimeControl.THREE_PLUS_TWO,
