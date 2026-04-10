@@ -34,29 +34,7 @@ class Square(ft.Container):
         self.on_square_drop = on_square_drop
         self.on_piece_drag_start = on_piece_drag_start
         self.on_piece_drag_complete = on_piece_drag_complete
-
-        dot_size = size * 0.3
-        ring_size = size * 0.8
-
-        self.square_dot = ft.Container(
-            width=dot_size,
-            height=dot_size,
-            border_radius=dot_size / 2,
-            bgcolor=ft.Colors.BLACK_45,
-            shadow=ft.BoxShadow(
-                blur_radius=10,
-                color=ft.Colors.BLACK_45,
-                offset=ft.Offset(0, 0),
-            ),
-        )
-
-        self.square_ring = ft.Container(
-            width=ring_size,
-            height=ring_size,
-            border_radius=ring_size / 2,
-            border=ft.Border.all(3, ft.Colors.BLACK_54),
-            bgcolor=ft.Colors.TRANSPARENT,
-        )
+        self.size = size
 
         self.base_bgcolor = (
             ft.Colors.GREEN_100 if self.color == "w" else ft.Colors.GREEN_900
@@ -85,6 +63,7 @@ class Square(ft.Container):
         self.content = self.drag_target
         self.margin = 0
         self.animate = ft.Animation(90, curve=ft.AnimationCurve.EASE_OUT)
+        self._rebuild_indicators()
 
     def _handle_click(self, _event=None):
         """Forward click events to the board controller with square context."""
@@ -137,6 +116,7 @@ class Square(ft.Container):
                 self.has_piece = False
                 self.piece_container = None
             elif isinstance(piece, ChessPiece):
+                piece.set_square_size(self.size)
                 content = self._build_draggable_piece(piece)
                 self.piece_container = piece
                 self.has_piece = True
@@ -154,6 +134,45 @@ class Square(ft.Container):
 
         self.piece_control = content
         self._rebuild_stack()
+
+    def apply_size(self, size: int):
+        """Resize the square and refresh its piece/highlight geometry."""
+
+        self.size = size
+        self.width = size
+        self.height = size
+        self._rebuild_indicators()
+
+        if self.piece_container is not None:
+            self.piece_container.set_square_size(size)
+            self.update_content(self.piece_container)
+        else:
+            self._rebuild_stack()
+
+    def _rebuild_indicators(self):
+        dot_size = max(8, self.size * 0.3)
+        ring_size = max(18, self.size * 0.8)
+        ring_border = max(2, int(self.size * 0.05))
+
+        self.square_dot = ft.Container(
+            width=dot_size,
+            height=dot_size,
+            border_radius=dot_size / 2,
+            bgcolor=ft.Colors.BLACK_45,
+            shadow=ft.BoxShadow(
+                blur_radius=max(4, int(self.size * 0.16)),
+                color=ft.Colors.BLACK_45,
+                offset=ft.Offset(0, 0),
+            ),
+        )
+
+        self.square_ring = ft.Container(
+            width=ring_size,
+            height=ring_size,
+            border_radius=ring_size / 2,
+            border=ft.Border.all(ring_border, ft.Colors.BLACK_54),
+            bgcolor=ft.Colors.TRANSPARENT,
+        )
 
     def _build_draggable_piece(self, piece: ChessPiece) -> ft.Draggable:
         """Render the piece as a native drag source for smoother pointer tracking."""
@@ -177,13 +196,18 @@ class Square(ft.Container):
                 scale=1.08,
                 opacity=0.96,
                 shadow=ft.BoxShadow(
-                    blur_radius=12,
+                    blur_radius=max(8, int(self.size * 0.2)),
                     color=ft.Colors.BLACK_38,
                     offset=ft.Offset(0, 4),
                 ),
-                content=ChessPiece(piece.piece).to_control(),
+                content=self._build_feedback_piece(piece),
             ),
         )
+
+    def _build_feedback_piece(self, piece: ChessPiece) -> ft.Control:
+        ghost_piece = ChessPiece(piece.piece)
+        ghost_piece.set_square_size(self.size)
+        return ghost_piece.to_control()
 
     def _build_piece_shell(self, control: ft.Control) -> ft.Container:
         return ft.Container(

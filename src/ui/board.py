@@ -22,10 +22,11 @@ from chess import (
 from core.engine import Game
 from core.movetype import MoveType
 from ui.chess_piece import ChessPiece
+from ui.layout import AppLayout, resolve_app_layout
 from ui.square import Square
 from utils.constants import CASTLING_ROOK_START_SQUARE, CASTLING_ROOK_END_SQUARE
-from utils.signals import bus
 from utils.events import PieceModevedEvent
+from utils.signals import bus
 
 
 class ChessBoard(ft.Container):
@@ -47,7 +48,8 @@ class ChessBoard(ft.Container):
         self.game = Game()
         self.highlighted_squares: set[str] = set()
         self.is_flipped = False
-        self.square_size = 60
+        self.layout = resolve_app_layout(960, 800)
+        self.square_size = self.layout.board_square_size
         self.board_side_px = self.square_size * 8
         self.promotion_lane_px = self.square_size
         self.pending_promotion_move: Optional[Move] = None
@@ -117,6 +119,54 @@ class ChessBoard(ft.Container):
         )
         self.clip_behavior = ft.ClipBehavior.NONE
         self._setup_pieces()
+
+    def apply_layout(self, layout: AppLayout):
+        """Resize board surfaces in place for responsive layouts."""
+
+        self.layout = layout
+        self.square_size = layout.board_square_size
+        self.board_side_px = self.square_size * 8
+        self.promotion_lane_px = self.square_size
+
+        for board_square in self.squares:
+            board_square.apply_size(self.square_size)
+
+        self.board_frame.width = self.board_side_px
+        self.board_frame.height = self.board_side_px
+        self.width = self.board_side_px
+        self.height = self.board_side_px + self.promotion_lane_px
+        self.board_layer.width = self.board_side_px
+        self.board_layer.height = self.board_side_px
+        self.board_layer.top = self.promotion_lane_px
+        self.promotion_overlay.width = self.square_size * 4
+        self.promotion_overlay.height = self.square_size
+        self.promotion_overlay.border = ft.Border.all(
+            max(1, int(self.square_size * 0.03)), ft.Colors.BLACK_54
+        )
+        self.promotion_overlay.border_radius = max(6, int(self.square_size * 0.12))
+        self.promotion_overlay.shadow = ft.BoxShadow(
+            blur_radius=max(8, int(self.square_size * 0.24)),
+            color=ft.Colors.BLACK_38,
+            offset=ft.Offset(0, 2),
+        )
+        self.move_animation_overlay.width = self.square_size
+        self.move_animation_overlay.height = self.square_size
+        self.content.width = self.width
+        self.content.height = self.height
+
+        if self.pending_promotion_move is not None and self.promotion_overlay.visible:
+            self._position_promotion_overlay(
+                square_name(self.pending_promotion_move.to_square)
+            )
+            self.promotion_overlay.content = ft.Row(
+                spacing=0,
+                controls=[
+                    self._build_promotion_option_control(piece_type)
+                    for piece_type in self.PROMOTION_OPTIONS
+                ],
+            )
+
+        self._safe_update(self)
 
     def _render_board_state(self):
         """Repaint every square from the current board position."""
@@ -483,13 +533,16 @@ class ChessBoard(ft.Container):
                 for piece_type in self.PROMOTION_OPTIONS
             ],
         )
-
-        to_cords = square_name(move.to_square)
-        visual_row, visual_col = self._get_visual_row_col(to_cords)
-        self.promotion_overlay.left = self._get_promotion_left(visual_col)
-        self.promotion_overlay.top = self._get_promotion_top(visual_row)
+        self._position_promotion_overlay(square_name(move.to_square))
         self.promotion_overlay.visible = True
         self._safe_update(self)
+
+    def _position_promotion_overlay(self, square_cords: str):
+        """Place the promotion overlay relative to the target square."""
+
+        visual_row, visual_col = self._get_visual_row_col(square_cords)
+        self.promotion_overlay.left = self._get_promotion_left(visual_col)
+        self.promotion_overlay.top = self._get_promotion_top(visual_row)
 
     def _get_visual_row_col(self, square_cords: str) -> tuple[int, int]:
         """Translate algebraic square coordinates into the current visual
@@ -522,7 +575,7 @@ class ChessBoard(ft.Container):
     def _get_promotion_top(self, visual_row: int) -> int:
         """Place the promotion overlay one square above the promoted pawn."""
 
-        return self.promotion_lane_px + ((visual_row - 1) * self.square_size)
+        return max(0, self.promotion_lane_px + ((visual_row - 1) * self.square_size))
 
     def _hide_promotion_overlay(self, refresh: bool = True):
         """Dismiss the promotion picker and clear any pending promotion state."""
@@ -544,14 +597,21 @@ class ChessBoard(ft.Container):
         return ft.Container(
             width=self.square_size,
             height=self.square_size,
-            padding=4,
+            padding=max(2, int(self.square_size * 0.07)),
             bgcolor=ft.Colors.with_opacity(0.34, ft.Colors.GREEN_200),
-            border=ft.Border.all(1, ft.Colors.BLACK_38),
-            content=ChessPiece(option_piece).to_control(),
+            border=ft.Border.all(
+                max(1, int(self.square_size * 0.02)), ft.Colors.BLACK_38
+            ),
+            content=self._build_promotion_piece(option_piece),
             on_click=lambda _, promotion_piece=piece_type: self._handle_promotion_pick(
                 promotion_piece
             ),
         )
+
+    def _build_promotion_piece(self, piece: Piece) -> ft.Control:
+        promotion_piece = ChessPiece(piece)
+        promotion_piece.set_square_size(self.square_size)
+        return promotion_piece.to_control()
 
     def _handle_promotion_pick(self, promotion_piece: int):
         """Finish a pending promotion using the chosen piece type."""
