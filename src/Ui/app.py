@@ -6,6 +6,7 @@ import flet as ft
 from pathlib import Path
 
 from ui.board import ChessBoard
+from ui.timeControl import ClockUI
 from utils.constants import ASSET_DIR
 
 
@@ -17,6 +18,7 @@ class ChessApp:
         self.page.title = "Pawn Passant"
         self.page.window.icon = str(Path(ASSET_DIR, "PawnPassant.ico"))
         self.board_view = ChessBoard()
+        self.time_control_view = ClockUI()
         self.main_page_view = ft.Row(
             alignment=ft.MainAxisAlignment.CENTER,
             expand=True,
@@ -39,8 +41,16 @@ class ChessApp:
             self.main_page_view.controls = [
                 ft.Column(
                     controls=[
-                        ft.Row([self.position_selector]),
-                        self.board_view,
+                        self.position_selector,
+                        ft.Row(
+                            controls=[
+                                self.board_view,
+                                self.time_control_view,
+                            ],
+                            tight=True,
+                            spacing=12,
+                            alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
                     ],
                     tight=True,
                     spacing=12,
@@ -51,6 +61,7 @@ class ChessApp:
             self.main_page_view.controls = self.board_view
 
         self.page.add(self.main_page_view)
+        self.page.theme = ft.Theme(color_scheme_seed=ft.Colors.PURPLE)
 
     def _handle_position_change(self, e: ft.ControlEvent):
         """Load a canned board position selected from the developer dropdown."""
