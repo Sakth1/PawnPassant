@@ -19,3 +19,8 @@ class TimeControl:
     THIRTY_PLUS_THIRTY = (30, 30)
     SIXETY_PLUS_ZERO = (60, 0)
     SIXETY_PLUS_SIXETY = (60, 60)
+
+@dataclass(frozen=True)
+class ActiveColor:
+    WHITE: str = "white"
+    BLACK: str = "black"

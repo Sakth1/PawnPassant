@@ -75,6 +75,7 @@ class ChessBoard(ft.Container):
             width=self.board_side_px,
             height=self.board_side_px,
             content=self.board_frame,
+            border_radius=5,
         )
         self.promotion_overlay = ft.Container(
             visible=False,

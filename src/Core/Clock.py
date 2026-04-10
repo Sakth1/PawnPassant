@@ -3,11 +3,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Optional, Tuple
 
-
-@dataclass(frozen=True)
-class ClockColor:
-    white: str = "white"
-    black: str = "black"
+from utils.models import ActiveColor
 
 
 class Clock:
@@ -27,7 +23,7 @@ class Clock:
         self.time_control: Tuple[int, int] = time_control
         self.white_clock_callback: Optional[Callable] = white_clock_callback
         self.black_clock_callback: Optional[Callable] = black_clock_callback
-        self.active_color: ClockColor = ClockColor.white
+        self.active_color: ActiveColor = ActiveColor.WHITE
         self._lock = threading.RLock()
         self._stop_event = threading.Event()
         self._worker_thread: Optional[threading.Thread] = None
@@ -55,7 +51,7 @@ class Clock:
                 return
 
             self._stop_event.clear()
-            self.active_color = ClockColor.white
+            self.active_color = ActiveColor.WHITE
             self.white_ticker.active = True
             self.black_ticker.active = False
             now = time.perf_counter()
@@ -157,9 +153,9 @@ class Clock:
 
     def _switch_active_color(self):
         self.active_color = (
-            ClockColor.black
-            if self.active_color == ClockColor.white
-            else ClockColor.white
+            ActiveColor.BLACK
+            if self.active_color == ActiveColor.WHITE
+            else ActiveColor.WHITE
         )
 
 
@@ -193,9 +189,9 @@ class Ticker:
         if self.callback is not None:
             self.callback(*self.formatted_time())
 
-    def formatted_time(self):
-        minutes = self.remaining_time_ms // 60000
-        seconds = (self.remaining_time_ms % 60000) // 1000
+    def formatted_time(self) -> Tuple[int, int, int]:
+        minutes: int = self.remaining_time_ms // 60000
+        seconds: int = (self.remaining_time_ms % 60000) // 1000
         return (minutes, seconds, self.remaining_time_ms % 1000)
 
 
