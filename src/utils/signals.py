@@ -9,7 +9,7 @@ class SignalBus:
         event_type = type(event)
 
         for fn in self._listeners.get(event_type, []):
-            fn()
+            fn(event)
 
 
 bus = SignalBus()

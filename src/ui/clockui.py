@@ -1,7 +1,12 @@
 import flet as ft
 
 from utils.signals import bus
-from utils.events import PieceModevedEvent
+from utils.events import (
+    ClockTickEvent,
+    GameEndedEvent,
+    GameStartedEvent,
+    PieceModevedEvent,
+)
 from utils.models import ActiveColor, TimeControl
 from core.clock import Clock
 
@@ -13,7 +18,6 @@ class ClockUI(ft.Container):
             "01:00",
             text_align=ft.TextAlign.CENTER,
             color=ft.Colors.GREY_400,
-            #margin=20,
             font_family="RobotoMono",
             size=40,
             weight=ft.FontWeight.BOLD,
@@ -22,7 +26,6 @@ class ClockUI(ft.Container):
             "02:00",
             text_align=ft.TextAlign.CENTER,
             color=ft.Colors.GREY_400,
-            #margin=20,
             font_family="RobotoMono",
             size=40,
             weight=ft.FontWeight.BOLD,
@@ -42,17 +45,47 @@ class ClockUI(ft.Container):
         )
         self.clock = Clock(
             TimeControl.THREE_PLUS_TWO,
-            white_clock_callback=self.update_white_timer,
-            black_clock_callback=self.update_black_timer,
         )
         self.active_color: ActiveColor = ActiveColor.WHITE
+        bus.connect(ClockTickEvent, self._handle_clock_tick)
         bus.connect(PieceModevedEvent, self._handle_piece_moved)
+        bus.connect(GameStartedEvent, self._start_clock)
+        bus.connect(GameEndedEvent, self._handle_game_ended)
 
-    def update_white_timer(self, min, sec, ms):
-        self.white_timer.value = f"{min}:{sec}.{ms}"
+    def _safe_page(self):
+        try:
+            return self.page
+        except RuntimeError:
+            return None
 
-    def update_black_timer(self, min, sec, ms):
-        self.black_timer.value = f"{min}:{sec}.{ms}"
+    def _handle_clock_tick(self, event: ClockTickEvent):
+        page = self._safe_page()
+        if page is None:
+            return
+        page.run_task(self._update_ui_async, event)
 
-    def _handle_piece_moved(self):
-        print("received signal")
+    async def _update_ui_async(self, event: ClockTickEvent):
+        self._update_ui(event)
+
+    def _update_ui(self, event: ClockTickEvent):
+        target = (
+            self.white_timer
+            if event.color == ActiveColor.WHITE
+            else self.black_timer
+        )
+        if event.is_critical:
+            target.value = (
+                f"{event.minutes:02}:{event.seconds:02}.{event.milliseconds // 10:02}"
+            )
+        else:
+            target.value = f"{event.minutes:02}:{event.seconds:02}"
+        self.update()
+
+    def _start_clock(self, _event: GameStartedEvent):
+        self.clock.start()
+
+    def _handle_piece_moved(self, _event: PieceModevedEvent):
+        self.clock.switch()
+
+    def _handle_game_ended(self, _event: GameEndedEvent):
+        self.clock.stop()
