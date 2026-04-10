@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ui.board import ChessBoard
 from ui.clockui import ClockUI
-from utils.constants import ASSET_DIR
+from utils.constants import ASSET_DIR, FONT_DIR
 
 
 class ChessApp:
@@ -15,6 +15,7 @@ class ChessApp:
 
     def __init__(self, page: ft.Page, dev_mode: bool = False):
         self.page = page
+        self.page.fonts = {"RobotoMono": str(Path(FONT_DIR, "RobotoMono-VariableFont_wght.ttf"))}
         self.page.title = "Pawn Passant"
         self.page.window.icon = str(Path(ASSET_DIR, "PawnPassant.ico"))
         self.board_view = ChessBoard()
