@@ -80,15 +80,16 @@ class ClockUI(ft.Container):
         self.expand = True
         self.alignment = ft.Alignment.CENTER
         self.border_radius = 15
+        self.divider = ft.Container(
+            height=3,
+            bgcolor=ft.Colors.GREY_400,
+            width=100,
+            margin=ft.margin.Margin(20, 0, 20, 0),
+        )
         self.content = ft.Column(
             controls=[
                 self.black_timer,
-                ft.Container(
-                    height=3,
-                    bgcolor=ft.Colors.GREY_400,
-                    width=100,
-                    margin=ft.margin.Margin(20, 0, 20, 0),
-                ),  # fixed width
+                self.divider,
                 self.white_timer,
             ],
             alignment=ft.MainAxisAlignment.CENTER,
@@ -140,6 +141,12 @@ class ClockUI(ft.Container):
 
     def _handle_piece_moved(self, _event: PieceModevedEvent):
         self.clock.switch()
+        self._flip_clock()
+
+    def _flip_clock(self):
+        """Reverse the clock display orientation."""
+        self.content.controls.reverse()
+        self.update()
 
     def _handle_game_ended(self, _event: GameEndedEvent):
         self.clock.stop()
