@@ -170,7 +170,11 @@ class TestClock(unittest.TestCase):
             event for event in self.tick_events if event.color == ActiveColor.WHITE
         ][-1]
         self.assertEqual(
-            (last_white_tick.minutes, last_white_tick.seconds, last_white_tick.milliseconds),
+            (
+                last_white_tick.minutes,
+                last_white_tick.seconds,
+                last_white_tick.milliseconds,
+            ),
             (0, 0, 0),
         )
 

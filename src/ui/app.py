@@ -17,7 +17,9 @@ class ChessApp:
 
     def __init__(self, page: ft.Page, dev_mode: bool = False):
         self.page = page
-        self.page.fonts = {"RobotoMono": str(Path(FONT_DIR, "RobotoMono-VariableFont_wght.ttf"))}
+        self.page.fonts = {
+            "RobotoMono": str(Path(FONT_DIR, "RobotoMono-VariableFont_wght.ttf"))
+        }
         self.page.title = "Pawn Passant"
         self.page.window.icon = str(Path(ASSET_DIR, "PawnPassant.ico"))
         self.board_view = ChessBoard()
@@ -61,10 +63,18 @@ class ChessApp:
                 )
             ]
         else:
-            self.main_page_view.controls = self.board_view
-
+            self.main_page_view.controls = ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            self.board_view,
+                            self.time_control_view,
+                        ]
+                    ),
+                ]
+            )
         self.page.add(self.main_page_view)
-        #starting game trigger
+        # starting game trigger
         bus.emit(GameStartedEvent())
 
     def _handle_position_change(self, e: ft.ControlEvent):

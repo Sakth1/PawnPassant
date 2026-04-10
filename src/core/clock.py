@@ -110,7 +110,7 @@ class Clock:
             else:
                 next_ticker.active = False
                 next_ticker.last_update_ts = None
-                self._active_started_at = None 
+                self._active_started_at = None
 
             self._switch_active_color()
             emit_updates.extend(
@@ -211,9 +211,7 @@ class Clock:
         bus.emit(event)
         return True
 
-    def _build_tick_event(
-        self, ticker: "Ticker", color: ActiveColor
-    ) -> ClockTickEvent:
+    def _build_tick_event(self, ticker: "Ticker", color: ActiveColor) -> ClockTickEvent:
         minutes, seconds, milliseconds = ticker.formatted_time()
         return ClockTickEvent(
             color=color,
@@ -232,16 +230,12 @@ class Clock:
             return True
         return self._get_last_emitted_second(color) != (minutes, seconds)
 
-    def _get_last_emitted_second(
-        self, color: ActiveColor
-    ) -> Optional[Tuple[int, int]]:
+    def _get_last_emitted_second(self, color: ActiveColor) -> Optional[Tuple[int, int]]:
         if color == ActiveColor.WHITE:
             return self._last_emitted_second_white
         return self._last_emitted_second_black
 
-    def _mark_emitted_second(
-        self, color: ActiveColor, event: ClockTickEvent
-    ) -> None:
+    def _mark_emitted_second(self, color: ActiveColor, event: ClockTickEvent) -> None:
         second_key = (event.minutes, event.seconds)
         if color == ActiveColor.WHITE:
             self._last_emitted_second_white = second_key
