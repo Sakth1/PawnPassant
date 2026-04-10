@@ -24,6 +24,8 @@ from core.movetype import MoveType
 from ui.chess_piece import ChessPiece
 from ui.square import Square
 from utils.constants import CASTLING_ROOK_START_SQUARE, CASTLING_ROOK_END_SQUARE
+from utils.signals import bus
+from utils.events import PieceModevedEvent
 
 
 class ChessBoard(ft.Container):
@@ -75,6 +77,7 @@ class ChessBoard(ft.Container):
             width=self.board_side_px,
             height=self.board_side_px,
             content=self.board_frame,
+            border_radius=5,
         )
         self.promotion_overlay = ft.Container(
             visible=False,
@@ -445,6 +448,7 @@ class ChessBoard(ft.Container):
             case _:
                 pass
         self._flip_board()
+        bus.emit(PieceModevedEvent())
 
     def _show_promotion_dialog(self, move: Move):
         """Render the promotion picker near the destination square."""

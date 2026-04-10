@@ -19,9 +19,10 @@ SYMBOL_MAP: Dict[str, str] = {
     "q": "BLACK_QUEEN",
     "k": "BLACK_KING",
 }
-ROOT_DIR: str = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSET_DIR = Path(ROOT_DIR, "assets")
 PIECES_DIR = Path(ASSET_DIR, "pieces", "default")
+FONT_DIR = Path(ASSET_DIR, "fonts")
 
 # Keep rook source and destination squares centralized for castling UI updates.
 CASTLING_ROOK_START_SQUARE: Dict[str, str] = {

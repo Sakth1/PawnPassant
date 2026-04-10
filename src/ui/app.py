@@ -6,7 +6,10 @@ import flet as ft
 from pathlib import Path
 
 from ui.board import ChessBoard
-from utils.constants import ASSET_DIR
+from ui.clockui import ClockUI
+from utils.constants import ASSET_DIR, FONT_DIR
+from utils.events import GameStartedEvent
+from utils.signals import bus
 
 
 class ChessApp:
@@ -14,9 +17,13 @@ class ChessApp:
 
     def __init__(self, page: ft.Page, dev_mode: bool = False):
         self.page = page
+        self.page.fonts = {
+            "RobotoMono": str(Path(FONT_DIR, "RobotoMono-VariableFont_wght.ttf"))
+        }
         self.page.title = "Pawn Passant"
         self.page.window.icon = str(Path(ASSET_DIR, "PawnPassant.ico"))
         self.board_view = ChessBoard()
+        self.time_control_view = ClockUI()
         self.main_page_view = ft.Row(
             alignment=ft.MainAxisAlignment.CENTER,
             expand=True,
@@ -39,8 +46,16 @@ class ChessApp:
             self.main_page_view.controls = [
                 ft.Column(
                     controls=[
-                        ft.Row([self.position_selector]),
-                        self.board_view,
+                        self.position_selector,
+                        ft.Row(
+                            controls=[
+                                self.board_view,
+                                self.time_control_view,
+                            ],
+                            tight=True,
+                            spacing=12,
+                            alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
                     ],
                     tight=True,
                     spacing=12,
@@ -48,9 +63,19 @@ class ChessApp:
                 )
             ]
         else:
-            self.main_page_view.controls = self.board_view
-
+            self.main_page_view.controls = ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            self.board_view,
+                            self.time_control_view,
+                        ]
+                    ),
+                ]
+            )
         self.page.add(self.main_page_view)
+        # starting game trigger
+        bus.emit(GameStartedEvent())
 
     def _handle_position_change(self, e: ft.ControlEvent):
         """Load a canned board position selected from the developer dropdown."""

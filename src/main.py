@@ -1,6 +1,6 @@
 """Application entry point for launching the Flet chess interface."""
 
-from ui.gui import main
+from ui.app import main
 
 import flet as ft
 
