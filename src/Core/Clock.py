@@ -199,7 +199,7 @@ class Ticker:
         return (minutes, seconds, self.remaining_time_ms % 1000)
 
 
-if __name__ == "__main__":
+"""if __name__ == "__main__":
 
     def white_clock_callback(minutes, seconds, milliseconds):
         print(f"White: {minutes}:{seconds}.{milliseconds}")
@@ -218,4 +218,4 @@ if __name__ == "__main__":
     time.sleep(3)
     clock.switch()
     time.sleep(1)
-    clock.stop()
+    clock.stop()"""
