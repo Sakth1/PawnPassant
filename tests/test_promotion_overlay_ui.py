@@ -8,7 +8,7 @@ from chess import BISHOP, KNIGHT, QUEEN, ROOK, Move, parse_square
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from Ui.board import ChessBoard
+from ui.board import ChessBoard
 
 
 class TestPromotionOverlayUi(unittest.TestCase):
@@ -28,8 +28,10 @@ class TestPromotionOverlayUi(unittest.TestCase):
 
     def test_promotion_left_clamps_inside_board(self):
         board = ChessBoard()
-        self.assertEqual(board._get_promotion_left(1), 60)
-        self.assertEqual(board._get_promotion_left(7), 240)
+        self.assertEqual(board._get_promotion_left(1), board.square_size)
+        self.assertEqual(
+            board._get_promotion_left(7), board.board_side_px - (4 * board.square_size)
+        )
 
     def test_promotion_top_for_b8_is_one_square_above_board(self):
         board = ChessBoard()
@@ -58,7 +60,7 @@ class TestPromotionOverlayUi(unittest.TestCase):
         board._show_promotion_dialog(Move(parse_square("b7"), parse_square("b8")))
 
         self.assertTrue(board.promotion_overlay.visible)
-        self.assertEqual(board.promotion_overlay.left, 60)
+        self.assertEqual(board.promotion_overlay.left, board.square_size)
         self.assertEqual(board.promotion_overlay.top, 0)
 
         controls = board.promotion_overlay.content.controls

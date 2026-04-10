@@ -1,12 +1,16 @@
 """Top-level application wiring for the Pawn Passant interface."""
 
+from __future__ import annotations
+
 import json
 import os
-import flet as ft
 from pathlib import Path
+
+import flet as ft
 
 from ui.board import ChessBoard
 from ui.clockui import ClockUI
+from ui.layout import AppLayout, resolve_app_layout
 from utils.constants import ASSET_DIR, FONT_DIR
 from utils.events import GameStartedEvent
 from utils.signals import bus
@@ -17,25 +21,47 @@ class ChessApp:
 
     def __init__(self, page: ft.Page, dev_mode: bool = False):
         self.page = page
+        self.dev_mode = dev_mode
+        self.layout: AppLayout = resolve_app_layout(960, 800)
+
         self.page.fonts = {
             "RobotoMono": str(Path(FONT_DIR, "RobotoMono-VariableFont_wght.ttf"))
         }
         self.page.title = "Pawn Passant"
         self.page.window.icon = str(Path(ASSET_DIR, "PawnPassant.ico"))
+        self.page.padding = 0
+        self.page.spacing = 0
+        self.page.scroll = ft.ScrollMode.AUTO
+
         self.board_view = ChessBoard()
         self.time_control_view = ClockUI()
-        self.main_page_view = ft.Row(
+
+        self.content_row = ft.ResponsiveRow(
+            columns=12,
             alignment=ft.MainAxisAlignment.CENTER,
-            expand=True,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=self.layout.gap,
+            run_spacing=self.layout.gap,
+            controls=[],
         )
-        self.dev_mode = dev_mode
+
+        self.board_slot = ft.Container(
+            content=self.board_view,
+            alignment=ft.Alignment.CENTER,
+            col={"xs": 12, "md": 8},
+        )
+        self.clock_slot = ft.Container(
+            content=self.time_control_view,
+            alignment=ft.Alignment.CENTER,
+            col={"xs": 12, "md": 4},
+        )
+        self.content_row.controls = [self.board_slot, self.clock_slot]
 
         if self.dev_mode:
             self.position_selector = ft.Dropdown(
                 label="Board setup",
-                width=280,
                 value="Start Position",
+                width=self.layout.dev_control_width,
                 options=[
                     ft.dropdown.Option(key=position_name, text=position_name)
                     for position_name in ChessBoard.TEST_POSITIONS.keys()
@@ -43,39 +69,84 @@ class ChessApp:
                 on_select=self._handle_position_change,
                 on_text_change=self._handle_position_change,
             )
-            self.main_page_view.controls = [
-                ft.Column(
-                    controls=[
-                        self.position_selector,
-                        ft.Row(
-                            controls=[
-                                self.board_view,
-                                self.time_control_view,
-                            ],
-                            tight=True,
-                            spacing=12,
-                            alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
-                    ],
-                    tight=True,
-                    spacing=12,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                )
-            ]
+            root_controls = [self.position_selector, self.content_row]
         else:
-            self.main_page_view.controls = ft.Column(
-                controls=[
-                    ft.Row(
-                        controls=[
-                            self.board_view,
-                            self.time_control_view,
-                        ]
-                    ),
-                ]
-            )
+            self.position_selector = None
+            root_controls = [self.content_row]
+
+        self.root_column = ft.Column(
+            controls=root_controls,
+            tight=True,
+            spacing=self.layout.gap,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+        self.content_container = ft.Container(
+            expand=True,
+            alignment=ft.Alignment.CENTER,
+            padding=ft.Padding.all(self.layout.padding),
+            content=self.root_column,
+        )
+        self.safe_area = ft.SafeArea(
+            expand=True,
+            minimum_padding=self.layout.padding,
+            content=self.content_container,
+        )
+        self.main_page_view = ft.Container(
+            expand=True,
+            alignment=ft.Alignment.CENTER,
+            content=self.safe_area,
+        )
+
+        self.page.on_resize = self._handle_page_resize
+        self.page.on_media_change = self._handle_page_resize
         self.page.add(self.main_page_view)
-        # starting game trigger
+        self._apply_responsive_layout()
         bus.emit(GameStartedEvent())
+
+    def _resolve_page_dimensions(self) -> tuple[float, float]:
+        page_width = getattr(self.page, "width", 0) or 960
+        page_height = getattr(self.page, "height", 0) or 800
+
+        media = getattr(self.page, "media", None)
+        padding = getattr(media, "padding", None)
+        if padding is not None:
+            page_width = max(
+                320.0,
+                page_width
+                - (getattr(padding, "left", 0) or 0)
+                - (getattr(padding, "right", 0) or 0),
+            )
+            page_height = max(
+                480.0,
+                page_height
+                - (getattr(padding, "top", 0) or 0)
+                - (getattr(padding, "bottom", 0) or 0),
+            )
+        return page_width, page_height
+
+    def _apply_responsive_layout(self):
+        page_width, page_height = self._resolve_page_dimensions()
+        self.layout = resolve_app_layout(page_width, page_height)
+
+        self.board_view.apply_layout(self.layout)
+        self.time_control_view.apply_layout(self.layout)
+
+        self.content_row.spacing = self.layout.gap
+        self.content_row.run_spacing = self.layout.gap
+        self.board_slot.col = {"xs": 12, "md": self.layout.board_col}
+        self.clock_slot.col = {"xs": 12, "md": self.layout.clock_col}
+        self.root_column.spacing = self.layout.gap
+        self.safe_area.minimum_padding = self.layout.padding
+        self.content_container.padding = ft.Padding.all(self.layout.padding)
+
+        if self.position_selector is not None:
+            self.position_selector.width = self.layout.dev_control_width
+
+        self._safe_update(self.main_page_view)
+
+    def _handle_page_resize(self, _event):
+        self._apply_responsive_layout()
 
     def _handle_position_change(self, e: ft.ControlEvent):
         """Load a canned board position selected from the developer dropdown."""
@@ -84,7 +155,6 @@ class ChessApp:
 
         if isinstance(e.data, str) and e.data:
             payload = e.data.strip()
-            # Flet events can arrive as either raw strings or a JSON payload.
             if payload.startswith("{"):
                 try:
                     event_data = json.loads(payload)
@@ -94,18 +164,28 @@ class ChessApp:
             else:
                 selected_name = payload
 
-        if not selected_name:
+        if not selected_name and self.position_selector is not None:
             selected_name = e.control.value or self.position_selector.value
 
         if isinstance(selected_name, str):
             selected_name = selected_name.strip()
 
-        if selected_name not in ChessBoard.TEST_POSITIONS:
+        if (
+            selected_name not in ChessBoard.TEST_POSITIONS
+            or self.position_selector is None
+        ):
             return
 
         self.position_selector.value = selected_name
         selected_fen = ChessBoard.TEST_POSITIONS[selected_name]
         self.board_view.load_position(selected_fen)
+
+    @staticmethod
+    def _safe_update(control: ft.Control):
+        try:
+            control.update()
+        except RuntimeError:
+            pass
 
 
 def main(page: ft.Page):

@@ -217,7 +217,8 @@ class TestClockUi(unittest.TestCase):
         clock_ui._handle_clock_tick(event)
 
         self.assertEqual(len(fake_page.calls), 1)
-        self.assertEqual(clock_ui.black_timer.value, "00:09.87")
+        self.assertEqual(clock_ui.black_timer_main.value, "00:09")
+        self.assertEqual(clock_ui.black_timer_ms.value, ".87")
         self.assertEqual(updates, ["updated"])
 
     def test_bus_events_drive_start_switch_and_stop(self):

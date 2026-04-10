@@ -1,8 +1,8 @@
 """Application entry point for launching the Flet chess interface."""
 
-from ui.app import main
-
 import flet as ft
+
+from ui.app import main
 
 # Set $env:PAWNPASSANT_DEV = "true" to expose the development board-position selector.
 # Remove the variable to return to the normal player-facing experience.
