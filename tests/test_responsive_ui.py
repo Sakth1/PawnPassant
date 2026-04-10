@@ -12,6 +12,7 @@ from ui.app import ChessApp
 from ui.board import ChessBoard
 from ui.clockui import ClockUI
 from ui.layout import MAX_SQUARE_SIZE, MIN_SQUARE_SIZE, resolve_app_layout
+from utils.events import GameEndedEvent
 from utils.signals import bus
 
 
@@ -154,3 +155,18 @@ class TestResponsiveAppUi(unittest.TestCase):
             page.width - page.media.padding.left - page.media.padding.right
         )
         self.assertLessEqual(app.position_selector.width, available_width)
+
+    def test_game_end_event_shows_result_banner(self):
+        page = _FakePage(width=960, height=800)
+        app = ChessApp(page, dev_mode=False)
+
+        app._handle_game_ended(
+            GameEndedEvent(
+                winner="White",
+                reason="checkmate",
+                message="White wins by checkmate.",
+            )
+        )
+
+        self.assertTrue(app.result_banner.visible)
+        self.assertEqual(app.result_banner.content.value, "White wins by checkmate.")

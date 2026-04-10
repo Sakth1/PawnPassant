@@ -25,7 +25,7 @@ from ui.chess_piece import ChessPiece
 from ui.layout import AppLayout, resolve_app_layout
 from ui.square import Square
 from utils.constants import CASTLING_ROOK_START_SQUARE, CASTLING_ROOK_END_SQUARE
-from utils.events import PieceModevedEvent
+from utils.events import GameEndedEvent, GameStartedEvent, PieceModevedEvent
 from utils.signals import bus
 
 
@@ -40,7 +40,7 @@ class ChessBoard(ft.Container):
         "Castle Test": "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
         "En Passant Test": "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1",
         "Promotion Test": "4k3/4P3/8/8/8/8/3p4/4K3 w - - 0 1",
-        "Mate In One": "6k1/5ppp/8/8/8/8/6PP/5RK1 w - - 0 1",
+        "Mate In One": "k7/8/1K1R4/8/8/8/8/8 w - - 0 1",
     }
 
     def __init__(self):
@@ -56,6 +56,7 @@ class ChessBoard(ft.Container):
         self.pending_promotion_color_is_white: Optional[Color] = None
         self.selected_square: Optional[str] = None
         self.active_tap_feedback_square: Optional[str] = None
+        self.game_over = False
 
         self.board_frame = ft.GridView(
             runs_count=8,
@@ -118,6 +119,8 @@ class ChessBoard(ft.Container):
             clip_behavior=ft.ClipBehavior.NONE,
         )
         self.clip_behavior = ft.ClipBehavior.NONE
+        bus.connect(GameStartedEvent, self._handle_game_started)
+        bus.connect(GameEndedEvent, self._handle_game_ended)
         self._setup_pieces()
 
     def apply_layout(self, layout: AppLayout):
@@ -186,6 +189,7 @@ class ChessBoard(ft.Container):
             self.game.reset_board()
         self._hide_promotion_overlay(refresh=False)
         self.is_flipped = False
+        self.game_over = False
         self.board_frame.controls = self.squares
         self._render_board_state()
         self._safe_update(self)
@@ -318,7 +322,7 @@ class ChessBoard(ft.Container):
         """Either play a highlighted move or reveal legal targets for the
         clicked square."""
 
-        if self.promotion_overlay.visible:
+        if self.promotion_overlay.visible or self.game_over:
             return
 
         self._set_tap_feedback(click_cords)
@@ -346,7 +350,11 @@ class ChessBoard(ft.Container):
     def _handle_piece_drag_start(self, from_cords: str):
         """Show legal moves as soon as a draggable piece starts moving."""
 
-        if self.promotion_overlay.visible or not self._is_selectable_square(from_cords):
+        if (
+            self.promotion_overlay.visible
+            or self.game_over
+            or not self._is_selectable_square(from_cords)
+        ):
             return
 
         self._set_tap_feedback(from_cords)
@@ -361,7 +369,7 @@ class ChessBoard(ft.Container):
     def _handle_square_drop(self, from_cords: str, to_cords: str):
         """Handle a piece being dropped onto a square."""
 
-        if self.promotion_overlay.visible:
+        if self.promotion_overlay.visible or self.game_over:
             return
 
         self._clear_interaction_state(clear_tap_feedback=True)
@@ -498,7 +506,18 @@ class ChessBoard(ft.Container):
             case _:
                 pass
         self._flip_board()
+        self._emit_game_end_if_needed()
         bus.emit(PieceModevedEvent())
+
+    def _emit_game_end_if_needed(self):
+        """Publish a game-ended event once the board reaches a terminal state."""
+
+        if not self.game.is_game_over():
+            return
+
+        winner, reason, message = self.game.get_result_summary()
+        self.game_over = True
+        bus.emit(GameEndedEvent(winner=winner, reason=reason, message=message))
 
     def _show_promotion_dialog(self, move: Move):
         """Render the promotion picker near the destination square."""
@@ -636,6 +655,19 @@ class ChessBoard(ft.Container):
             return self.page
         except RuntimeError:
             return None
+
+    def _handle_game_started(self, _event: GameStartedEvent):
+        """Re-enable board interaction for a fresh game."""
+
+        self.game_over = False
+
+    def _handle_game_ended(self, _event: GameEndedEvent):
+        """Freeze the board once a game result has been declared."""
+
+        self.game_over = True
+        self._clear_interaction_state(clear_tap_feedback=True, refresh=False)
+        self._hide_promotion_overlay(refresh=False)
+        self._safe_update(self)
 
     @staticmethod
     def _safe_update(control: ft.Control):

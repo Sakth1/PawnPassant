@@ -2,6 +2,7 @@
 
 import asyncio
 import sys
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -182,6 +183,18 @@ class TestClock(unittest.TestCase):
         time.sleep(0.03)
         self.assertEqual(len(self.tick_events), tick_count_after_flag)
 
+    def test_stop_from_worker_thread_does_not_self_join(self):
+        self.clock = Clock(time_control=(1, 0))
+        self.clock._worker_thread = threading.current_thread()
+
+        self.clock.stop()
+
+        self.assertIsNone(self.clock._worker_thread)
+        self.assertTrue(self._clock_state_contains("stopped"))
+
+    def _clock_state_contains(self, state: str) -> bool:
+        return any(event.state == state for event in self.state_events)
+
 
 class TestClockUi(unittest.TestCase):
     """Verify the UI reacts to clock events without touching worker threads directly."""
@@ -227,11 +240,30 @@ class TestClockUi(unittest.TestCase):
 
         bus.emit(GameStartedEvent())
         bus.emit(PieceModevedEvent())
-        bus.emit(GameEndedEvent())
+        bus.emit(
+            GameEndedEvent(
+                winner="White",
+                reason="checkmate",
+                message="White wins by checkmate.",
+            )
+        )
 
         self.assertEqual(clock_ui.clock.start_calls, 1)
         self.assertEqual(clock_ui.clock.switch_calls, 1)
         self.assertEqual(clock_ui.clock.stop_calls, 1)
+
+    def test_flagged_clock_state_emits_time_win_event(self):
+        clock_ui = ClockUI()
+        ended_events = []
+        bus.connect(GameEndedEvent, ended_events.append)
+
+        clock_ui._handle_clock_state(
+            ClockStateEvent(state="flagged", active_color=ActiveColor.WHITE)
+        )
+
+        self.assertTrue(ended_events)
+        self.assertEqual(ended_events[-1].winner, "Black")
+        self.assertEqual(ended_events[-1].reason, "time")
 
 
 if __name__ == "__main__":

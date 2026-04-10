@@ -12,7 +12,7 @@ from ui.board import ChessBoard
 from ui.clockui import ClockUI
 from ui.layout import AppLayout, resolve_app_layout
 from utils.constants import ASSET_DIR, FONT_DIR
-from utils.events import GameStartedEvent
+from utils.events import GameEndedEvent, GameStartedEvent
 from utils.signals import bus
 
 
@@ -35,6 +35,18 @@ class ChessApp:
 
         self.board_view = ChessBoard()
         self.time_control_view = ClockUI()
+        self.result_banner = ft.Container(
+            visible=False,
+            bgcolor=ft.Colors.with_opacity(0.92, ft.Colors.BLUE_GREY_900),
+            border_radius=16,
+            padding=ft.Padding.symmetric(horizontal=18, vertical=12),
+            content=ft.Text(
+                "",
+                color=ft.Colors.WHITE,
+                text_align=ft.TextAlign.CENTER,
+                weight=ft.FontWeight.W_600,
+            ),
+        )
 
         self.content_row = ft.ResponsiveRow(
             columns=12,
@@ -69,10 +81,10 @@ class ChessApp:
                 on_select=self._handle_position_change,
                 on_text_change=self._handle_position_change,
             )
-            root_controls = [self.position_selector, self.content_row]
+            root_controls = [self.position_selector, self.result_banner, self.content_row]
         else:
             self.position_selector = None
-            root_controls = [self.content_row]
+            root_controls = [self.result_banner, self.content_row]
 
         self.root_column = ft.Column(
             controls=root_controls,
@@ -100,6 +112,8 @@ class ChessApp:
 
         self.page.on_resize = self._handle_page_resize
         self.page.on_media_change = self._handle_page_resize
+        bus.connect(GameStartedEvent, self._handle_game_started)
+        bus.connect(GameEndedEvent, self._handle_game_ended)
         self.page.add(self.main_page_view)
         self._apply_responsive_layout()
         bus.emit(GameStartedEvent())
@@ -139,6 +153,11 @@ class ChessApp:
         self.root_column.spacing = self.layout.gap
         self.safe_area.minimum_padding = self.layout.padding
         self.content_container.padding = ft.Padding.all(self.layout.padding)
+        self.result_banner.padding = ft.Padding.symmetric(
+            horizontal=max(14, self.layout.gap),
+            vertical=max(10, self.layout.gap // 2),
+        )
+        self.result_banner.content.size = max(14, int(self.layout.timer_ms_size * 1.05))
 
         if self.position_selector is not None:
             self.position_selector.width = self.layout.dev_control_width
@@ -179,6 +198,17 @@ class ChessApp:
         self.position_selector.value = selected_name
         selected_fen = ChessBoard.TEST_POSITIONS[selected_name]
         self.board_view.load_position(selected_fen)
+        bus.emit(GameStartedEvent())
+
+    def _handle_game_started(self, _event: GameStartedEvent):
+        self.result_banner.visible = False
+        self.result_banner.content.value = ""
+        self._safe_update(self.result_banner)
+
+    def _handle_game_ended(self, event: GameEndedEvent):
+        self.result_banner.content.value = event.message
+        self.result_banner.visible = True
+        self._safe_update(self.result_banner)
 
     @staticmethod
     def _safe_update(control: ft.Control):

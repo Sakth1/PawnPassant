@@ -126,6 +126,7 @@ class Clock:
     def stop(self):
         worker_thread = None
         should_emit_stopped = False
+        current_thread = threading.current_thread()
         with self._lock:
             if self._worker_thread is None:
                 return
@@ -138,7 +139,7 @@ class Clock:
             worker_thread = self._worker_thread
             should_emit_stopped = True
 
-        if worker_thread is not None:
+        if worker_thread is not None and worker_thread is not current_thread:
             worker_thread.join(timeout=1)
 
         with self._lock:
