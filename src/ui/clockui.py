@@ -11,24 +11,66 @@ from utils.models import ActiveColor, TimeControl
 from core.clock import Clock
 
 
+def time_control_to_string(time_control: TimeControl) -> str:
+    return f"{time_control[0]:02}:00"
+
 class ClockUI(ft.Container):
-    def __init__(self):
+    def __init__(self, time_control: TimeControl = TimeControl.ONE_PLUS_ONE):
         super().__init__()
-        self.black_timer = ft.Text(
-            "01:00",
+        self.black_timer_main = ft.Text(
+            time_control_to_string(time_control),
             text_align=ft.TextAlign.CENTER,
             color=ft.Colors.GREY_400,
+            bgcolor = "#262626",
             font_family="RobotoMono",
             size=40,
             weight=ft.FontWeight.BOLD,
+            margin=ft.margin.Margin(5, 5, 5, 5),
         )
-        self.white_timer = ft.Text(
-            "02:00",
+        self.black_timer_ms = ft.Text(
+            "",
             text_align=ft.TextAlign.CENTER,
             color=ft.Colors.GREY_400,
+            bgcolor = "#250E0E",
+            font_family="RobotoMono",
+            size=20,
+            weight=ft.FontWeight.BOLD,
+            offset=ft.Offset(0, 0.1),
+            margin=ft.margin.Margin(0, 0, 5, 0),
+        )
+        self.black_timer = ft.Row(
+            controls=[self.black_timer_main, self.black_timer_ms],
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.END,
+            spacing=2,
+            margin=ft.margin.Margin(5, 5, 5, 5),
+        )
+        self.white_timer_main = ft.Text(
+            time_control_to_string(time_control),
+            text_align=ft.TextAlign.CENTER,
+            color=ft.Colors.GREY_400,
+            bgcolor = "#262626",
             font_family="RobotoMono",
             size=40,
             weight=ft.FontWeight.BOLD,
+            margin=ft.margin.Margin(5, 5, 5, 5),
+        )
+        self.white_timer_ms = ft.Text(
+            "",
+            text_align=ft.TextAlign.CENTER,
+            color=ft.Colors.GREY_400,
+            bgcolor = "#250E0E",
+            font_family="RobotoMono",
+            size=20,
+            weight=ft.FontWeight.BOLD,
+            offset=ft.Offset(0, 0.1),
+        )
+        self.white_timer = ft.Row(
+            controls=[self.white_timer_main, self.white_timer_ms],
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.END,
+            spacing=2,
+            margin=ft.margin.Margin(5, 5, 5, 5),
         )
         self.bgcolor = "#262626"
         self.expand = True
@@ -44,7 +86,7 @@ class ClockUI(ft.Container):
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
         self.clock = Clock(
-            TimeControl.THREE_PLUS_TWO,
+            time_control=time_control,
         )
         self.active_color: ActiveColor = ActiveColor.WHITE
         bus.connect(ClockTickEvent, self._handle_clock_tick)
@@ -68,17 +110,18 @@ class ClockUI(ft.Container):
         self._update_ui(event)
 
     def _update_ui(self, event: ClockTickEvent):
-        target = (
-            self.white_timer
-            if event.color == ActiveColor.WHITE
-            else self.black_timer
-        )
+        is_white = event.color == ActiveColor.WHITE
+        target_main = self.white_timer_main if is_white else self.black_timer_main
+        target_ms = self.white_timer_ms if is_white else self.black_timer_ms
+        
+        target_main.value = f"{event.minutes:02}:{event.seconds:02}"
+        
         if event.is_critical:
-            target.value = (
-                f"{event.minutes:02}:{event.seconds:02}.{event.milliseconds // 10:02}"
-            )
+            target_ms.value = f".{event.milliseconds // 10:02}"
+            target_main.bgcolor = "#250E0E"
+            target_main.margin = ft.margin.Margin(5, 5, 0, 5)
         else:
-            target.value = f"{event.minutes:02}:{event.seconds:02}"
+            target_ms.value = ""
         self.update()
 
     def _start_clock(self, _event: GameStartedEvent):

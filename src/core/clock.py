@@ -110,7 +110,7 @@ class Clock:
             else:
                 next_ticker.active = False
                 next_ticker.last_update_ts = None
-                self._active_started_at = None
+                self._active_started_at = None 
 
             self._switch_active_color()
             emit_updates.extend(
