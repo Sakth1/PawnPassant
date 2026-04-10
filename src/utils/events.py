@@ -4,3 +4,6 @@ class BaseEvent:
 
 class PieceModevedEvent(BaseEvent):
     pass
+
+class GameStartedEvent(BaseEvent):
+    pass

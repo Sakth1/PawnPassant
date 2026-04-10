@@ -8,6 +8,8 @@ from pathlib import Path
 from ui.board import ChessBoard
 from ui.clockui import ClockUI
 from utils.constants import ASSET_DIR, FONT_DIR
+from utils.events import GameStartedEvent
+from utils.signals import bus
 
 
 class ChessApp:
@@ -62,7 +64,8 @@ class ChessApp:
             self.main_page_view.controls = self.board_view
 
         self.page.add(self.main_page_view)
-        self.page.theme = ft.Theme(color_scheme_seed=ft.Colors.PURPLE)
+        #starting game trigger
+        bus.emit(GameStartedEvent())
 
     def _handle_position_change(self, e: ft.ControlEvent):
         """Load a canned board position selected from the developer dropdown."""
