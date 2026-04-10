@@ -1,5 +1,7 @@
 import flet as ft
 
+from utils.signals import bus
+from utils.events import PieceModevedEvent
 from utils.models import ActiveColor, TimeControl
 from core.clock import Clock
 
@@ -39,11 +41,19 @@ class ClockUI(ft.Container):
                 self.white_timer,
             ]
         )
-        self.clock = Clock(TimeControl.THREE_PLUS_TWO, white_clock_callback=self.update_white_timer, black_clock_callback=self.update_black_timer)
+        self.clock = Clock(
+            TimeControl.THREE_PLUS_TWO,
+            white_clock_callback=self.update_white_timer,
+            black_clock_callback=self.update_black_timer,
+        )
         self.active_color: ActiveColor = ActiveColor.WHITE
+        bus.connect(PieceModevedEvent, self._handle_piece_moved)
 
     def update_white_timer(self, min, sec, ms):
         self.white_timer.value = f"{min}:{sec}.{ms}"
 
     def update_black_timer(self, min, sec, ms):
         self.black_timer.value = f"{min}:{sec}.{ms}"
+
+    def _handle_piece_moved(self):
+        print("received signal")
