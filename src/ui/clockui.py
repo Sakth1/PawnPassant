@@ -1,3 +1,9 @@
+"""Clock UI component supporting both combined and split display modes.
+
+- Combined mode (desktop/tablet): Both clocks stacked vertically
+- Split mode (mobile): Clocks positioned in opposite corners
+"""
+
 import flet as ft
 
 from ui.layout import AppLayout, resolve_app_layout
@@ -17,140 +23,225 @@ def time_control_to_string(time_control: TimeControl) -> str:
     return f"{time_control[0]:02}:00"
 
 
-class ClockUI(ft.Container):
-    def __init__(self, time_control: TimeControl = TimeControl.THREE_PLUS_TWO):
+class SingleClockDisplay(ft.Container):
+    """Reusable single clock display for one player.
+    
+    Can be used standalone or composed into CombinedClock or MobileClockSplit.
+    """
+
+    def __init__(self, color: str, time_control: TimeControl, size: int = 100):
+        """Initialize a single clock display.
+        
+        Args:
+            color: "white" or "black"
+            time_control: TimeControl tuple
+            size: Base size for font scaling
+        """
         super().__init__()
-        self.layout = resolve_app_layout(960, 800)
-        self.black_timer_main = ft.Text(
+        self.color = color
+        self.size_hint = size
+        
+        self.timer_main = ft.Text(
             time_control_to_string(time_control),
             text_align=ft.TextAlign.CENTER,
             color=ft.Colors.GREY_400,
             font_family="RobotoMono",
-            size=self.layout.timer_font_size,
+            size=24,
             weight=ft.FontWeight.BOLD,
             margin=ft.margin.Margin(5, 5, 5, 5),
         )
-        self.black_timer_ms = ft.Text(
+        
+        self.timer_ms = ft.Text(
             "",
             text_align=ft.TextAlign.CENTER,
-            color=ft.Colors.GREY_400, 
+            color=ft.Colors.GREY_400,
             font_family="RobotoMono",
-            size=self.layout.timer_ms_size,
+            size=12,
             weight=ft.FontWeight.BOLD,
             offset=ft.Offset(0, 0.1),
             margin=ft.margin.Margin(0, 0, 5, 0),
         )
-        self.black_timer = ft.Container(
-            content=ft.Row(
-                controls=[self.black_timer_main, self.black_timer_ms],
-                alignment=ft.MainAxisAlignment.CENTER,
-                vertical_alignment=ft.CrossAxisAlignment.END,
-                spacing=2,
-                margin=ft.margin.Margin(5, 5, 5, 5),
-            ),
-            bgcolor="#262626",
-        )
-        self.white_timer_main = ft.Text(
-            time_control_to_string(time_control),
-            text_align=ft.TextAlign.CENTER,
-            color=ft.Colors.GREY_400,
-            font_family="RobotoMono",
-            size=self.layout.timer_font_size,
-            weight=ft.FontWeight.BOLD,
+        
+        self.content = ft.Row(
+            controls=[self.timer_main, self.timer_ms],
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.END,
+            spacing=2,
             margin=ft.margin.Margin(5, 5, 5, 5),
         )
-        self.white_timer_ms = ft.Text(
-            "",
-            text_align=ft.TextAlign.CENTER,
-            color=ft.Colors.GREY_400,
-            font_family="RobotoMono",
-            size=self.layout.timer_ms_size,
-            weight=ft.FontWeight.BOLD,
-            offset=ft.Offset(0, -0.4),
-        )
-        self.white_timer = ft.Container(
-            content=ft.Row(
-                controls=[self.white_timer_main, self.white_timer_ms],
-                alignment=ft.MainAxisAlignment.CENTER,
-                vertical_alignment=ft.CrossAxisAlignment.END,
-                spacing=2,
-                margin=ft.margin.Margin(5, 5, 5, 5),
-            ),
-            bgcolor="#262626",
-        )
-
+        
         self.bgcolor = "#262626"
-        self.expand = False
-        self.alignment = ft.Alignment.CENTER
-        self.border_radius = self.layout.timer_radius
+        self.border_radius = 12
+        self.padding = 8
+
+    def update_time(self, minutes: int, seconds: int, milliseconds: int, is_critical: bool) -> None:
+        """Update the displayed time.
+        
+        Args:
+            minutes: Remaining minutes
+            seconds: Remaining seconds
+            milliseconds: Remaining milliseconds (for critical display)
+            is_critical: Whether time is critical (<10 seconds)
+        """
+        self.timer_main.value = f"{minutes:02}:{seconds:02}"
+        self.timer_main.color = ft.Colors.GREY_400
+        self.timer_ms.bgcolor = None
+        
+        if is_critical:
+            self.timer_ms.value = f".{milliseconds // 10:02}"
+            self.bgcolor = "#250E0E"
+            self.timer_ms.bgcolor = "#250E0E"
+        else:
+            self.timer_ms.value = ""
+            self.bgcolor = "#262626"
+        
+        self._safe_update(self)
+
+    def apply_size(self, timer_font_size: int, timer_ms_size: int, timer_padding: int, timer_radius: int) -> None:
+        """Apply responsive sizing.
+        
+        Args:
+            timer_font_size: Main time text size
+            timer_ms_size: Milliseconds text size
+            timer_padding: Internal padding
+            timer_radius: Border radius
+        """
+        self.timer_main.size = timer_font_size
+        self.timer_ms.size = timer_ms_size
+        self.padding = timer_padding
+        self.border_radius = timer_radius
+        self._safe_update(self)
+
+    @staticmethod
+    def _safe_update(control: ft.Control):
+        """Safely update a control."""
+        try:
+            control.update()
+        except RuntimeError:
+            pass
+
+
+class ClockUI(ft.Container):
+    """Main clock UI component supporting combined and split display modes.
+    
+    - Combined mode (desktop/tablet): Stacked black and white clocks
+    - Split mode (mobile): Corner-positioned clocks (handled by main app layout)
+    """
+
+    def __init__(self, time_control: TimeControl = TimeControl.THREE_PLUS_TWO):
+        super().__init__()
+        self.layout = resolve_app_layout(960, 800)
+        self.time_control = time_control
+        self.mode = "combined"  # Will be set to "split" for mobile
+        
+        # Create individual clock displays
+        self.black_clock = SingleClockDisplay("black", time_control)
+        self.white_clock = SingleClockDisplay("white", time_control)
+        
+        # Divider for combined mode
         self.divider = ft.Container(
             height=3,
             bgcolor=ft.Colors.GREY_400,
-            width=self.layout.divider_extent,
+            width=200,
             margin=ft.margin.Margin(20, 0, 20, 0),
         )
+        
+        # Combined layout (default for desktop/tablet)
         self.content = ft.Column(
             controls=[
-                self.black_timer,
+                self.black_clock,
                 self.divider,
-                self.white_timer,
+                self.white_clock,
             ],
             alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
-        self.clock = Clock(
-            time_control=time_control,
-        )
+        
+        self.bgcolor = "#262626"
+        self.expand = False
+        self.alignment = ft.Alignment.CENTER
+        self.border_radius = self.layout.timer_radius
+        
+        # Clock management
+        self.clock = Clock(time_control=time_control)
         self.active_color: ActiveColor = ActiveColor.WHITE
         self.game_over = False
+        
+        # Event subscriptions
         bus.connect(ClockStateEvent, self._handle_clock_state)
         bus.connect(ClockTickEvent, self._handle_clock_tick)
         bus.connect(PieceModevedEvent, self._handle_piece_moved)
         bus.connect(GameStartedEvent, self._start_clock)
         bus.connect(GameEndedEvent, self._handle_game_ended)
+        
         self.apply_layout(self.layout)
 
-    def apply_layout(self, layout: AppLayout):
-        """Resize the timer UI for the current responsive breakpoint."""
-
+    def apply_layout(self, layout: AppLayout) -> None:
+        """Apply responsive layout, switching modes if needed.
+        
+        Args:
+            layout: Resolved AppLayout with current metrics
+        """
         self.layout = layout
-        self.width = layout.clock_width
+        
+        # Determine display mode based on layout type
+        new_mode = "split" if layout.layout_type == "mobile" else "combined"
+        if new_mode != self.mode:
+            self.mode = new_mode
+            self._switch_display_mode()
+        
+        # Apply size metrics
+        self.width = layout.clock_width if self.mode == "combined" else None
         self.border_radius = layout.timer_radius
-
-        row_margin = ft.margin.Margin(
+        
+        # Update clock displays
+        self.black_clock.apply_size(
+            layout.timer_font_size,
+            layout.timer_ms_size,
             layout.timer_padding,
-            layout.timer_padding,
-            layout.timer_padding,
-            layout.timer_padding,
+            layout.timer_radius,
         )
-
-        for timer in (self.black_timer, self.white_timer):
-            timer.padding = layout.timer_padding
-            timer.border_radius = max(10, layout.timer_radius - 2)
-
-        for timer_row in (self.black_timer.content, self.white_timer.content):
-            timer_row.margin = row_margin
-
-        for timer_text in (self.black_timer_main, self.white_timer_main):
-            timer_text.size = layout.timer_font_size
-            timer_text.margin = ft.margin.Margin(4, 2, 0, 2)
-
-        for timer_ms in (self.black_timer_ms, self.white_timer_ms):
-            timer_ms.size = layout.timer_ms_size
-            timer_ms.margin = ft.margin.Margin(0, 0, 4, 2)
-
-        self.content.spacing = max(10, layout.gap)
+        self.white_clock.apply_size(
+            layout.timer_font_size,
+            layout.timer_ms_size,
+            layout.timer_padding,
+            layout.timer_radius,
+        )
+        
+        # Update divider
         self.divider.width = layout.divider_extent
-        self.divider.height = 3
+        self.content.spacing = max(10, layout.gap)
+        
         self._safe_update(self)
 
+    def _switch_display_mode(self) -> None:
+        """Switch between combined and split display modes."""
+        if self.mode == "combined":
+            # Combined: stacked vertically
+            self.content = ft.Column(
+                controls=[
+                    self.black_clock,
+                    self.divider,
+                    self.white_clock,
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+        else:
+            # Split mode: handled by main app layout
+            # This component only manages the individual clock displays
+            # The main app will position black_clock (top-right) and white_clock (bottom-right)
+            pass
+
     def _safe_page(self):
+        """Safely get the page reference."""
         try:
             return self.page
         except RuntimeError:
             return None
 
-    def _handle_clock_tick(self, event: ClockTickEvent):
+    def _handle_clock_tick(self, event: ClockTickEvent) -> None:
+        """Handle clock tick events."""
         if self.game_over:
             return
         page = self._safe_page()
@@ -158,45 +249,36 @@ class ClockUI(ft.Container):
             return
         page.run_task(self._update_ui_async, event)
 
-    async def _update_ui_async(self, event: ClockTickEvent):
+    async def _update_ui_async(self, event: ClockTickEvent) -> None:
+        """Async UI update wrapper."""
         self._update_ui(event)
 
-    def _update_ui(self, event: ClockTickEvent):
+    def _update_ui(self, event: ClockTickEvent) -> None:
+        """Update clock display with new time."""
         is_white = event.color == ActiveColor.WHITE
-        target_main = self.white_timer_main if is_white else self.black_timer_main
-        target_ms = self.white_timer_ms if is_white else self.black_timer_ms
+        target_clock = self.white_clock if is_white else self.black_clock
+        
+        target_clock.update_time(
+            event.minutes,
+            event.seconds,
+            event.milliseconds,
+            event.is_critical,
+        )
 
-        target_main.value = f"{event.minutes:02}:{event.seconds:02}"
-        target_main.color = ft.Colors.GREY_400
-        target_ms.bgcolor = None
-
-        if event.is_critical:
-            target_ms.value = f".{event.milliseconds // 10:02}"
-            container = self.white_timer if is_white else self.black_timer
-            container.bgcolor = "#250E0E"
-            target_main.margin = ft.margin.Margin(4, 2, 0, 2)
-            target_ms.bgcolor = "#250E0E"
-        else:
-            target_ms.value = ""
-            if is_white:
-                self.white_timer.bgcolor = "#262626"
-            else:
-                self.black_timer.bgcolor = "#262626"
-        self.update()
-
-    def _start_clock(self, _event: GameStartedEvent):
+    def _start_clock(self, _event: GameStartedEvent) -> None:
+        """Start the clock when game begins."""
         self.game_over = False
         self.clock.start()
 
-    def _handle_piece_moved(self, _event: PieceModevedEvent):
+    def _handle_piece_moved(self, _event: PieceModevedEvent) -> None:
+        """Switch clock when a piece is moved."""
         if self.game_over:
             return
         self.clock.switch()
         self._flip_clock()
 
-    def _handle_clock_state(self, event: ClockStateEvent):
-        """Translate a flag-fall into a game-ended result event."""
-
+    def _handle_clock_state(self, event: ClockStateEvent) -> None:
+        """Handle flag-fall (time expired)."""
         if event.state != "flagged" or event.active_color is None or self.game_over:
             return
 
@@ -209,18 +291,22 @@ class ClockUI(ft.Container):
             )
         )
 
-    def _flip_clock(self):
+    def _flip_clock(self) -> None:
         """Reverse the clock display orientation."""
-        self.content.controls.reverse()
-        self._safe_update(self)
+        if self.mode == "combined":
+            self.content.controls.reverse()
+            self._safe_update(self)
 
-    def _handle_game_ended(self, _event: GameEndedEvent):
+    def _handle_game_ended(self, _event: GameEndedEvent) -> None:
+        """Stop clock when game ends."""
         self.game_over = True
         self.clock.stop()
 
     @staticmethod
-    def _safe_update(control: ft.Control):
+    def _safe_update(control: ft.Control) -> None:
+        """Safely update a control, handling page detach."""
         try:
             control.update()
         except RuntimeError:
             pass
+

@@ -10,7 +10,6 @@ import flet as ft
 
 from ui.board import ChessBoard
 from ui.clockui import ClockUI
-from ui.captured_pieces import PieceDisplay
 from ui.layout import AppLayout, resolve_app_layout
 from utils.constants import ASSET_DIR, FONT_DIR
 from utils.events import GameEndedEvent, GameStartedEvent
@@ -24,6 +23,7 @@ class ChessApp:
         self.page = page
         self.dev_mode = dev_mode
         self.layout: AppLayout = resolve_app_layout(960, 800)
+        self.previous_layout_type: str | None = None  # Track layout type changes
 
         self.page.fonts = {
             "RobotoMono": str(Path(FONT_DIR, "RobotoMono-VariableFont_wght.ttf"))
@@ -36,7 +36,11 @@ class ChessApp:
 
         self.board_view = ChessBoard()
         self.time_control_view = ClockUI()
-        self.piece_display = PieceDisplay()
+        
+        # Create initial captured pieces display using factory
+        from ui.captured_pieces import create_captured_pieces_display
+        self.piece_display = create_captured_pieces_display(self.layout.layout_type)
+        
         self.result_dialog_title = ft.Text(weight=ft.FontWeight.BOLD)
         self.result_dialog_message = ft.Text(text_align=ft.TextAlign.CENTER)
         self.result_dialog = ft.AlertDialog(
@@ -146,11 +150,40 @@ class ChessApp:
         return page_width, page_height
 
     def _apply_responsive_layout(self):
+        """Apply responsive layout and handle layout type transitions."""
         page_width, page_height = self._resolve_page_dimensions()
-        self.layout = resolve_app_layout(page_width, page_height)
+        new_layout = resolve_app_layout(page_width, page_height)
 
+        # Check if layout type changed (desktop/tablet/mobile transition)
+        layout_type_changed = (
+            self.previous_layout_type is not None 
+            and self.previous_layout_type != new_layout.layout_type
+        )
+
+        if layout_type_changed:
+            # Emit layout change event
+            from utils.events import LayoutChangedEvent
+            bus.emit(
+                LayoutChangedEvent(
+                    from_layout=self.previous_layout_type,
+                    to_layout=new_layout.layout_type,
+                    layout_template=new_layout.layout_template,
+                )
+            )
+
+            # Replace piece display with appropriate variant for new layout
+            from ui.captured_pieces import create_captured_pieces_display
+            old_display = self.piece_display
+            self.piece_display = create_captured_pieces_display(new_layout.layout_type)
+            self.piece_display_slot.content = self.piece_display
+
+        self.layout = new_layout
+        self.previous_layout_type = new_layout.layout_type
+
+        # Apply layout metrics to all components
         self.board_view.apply_layout(self.layout)
         self.time_control_view.apply_layout(self.layout)
+        self.piece_display.apply_layout(self.layout)
 
         self.content_row.spacing = self.layout.gap
         self.content_row.run_spacing = self.layout.gap
