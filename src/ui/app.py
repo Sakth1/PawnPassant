@@ -10,6 +10,7 @@ import flet as ft
 
 from ui.board import ChessBoard
 from ui.clockui import ClockUI
+from ui.captured_pieces import PieceDisplay
 from ui.layout import AppLayout, resolve_app_layout
 from utils.constants import ASSET_DIR, FONT_DIR
 from utils.events import GameEndedEvent, GameStartedEvent
@@ -35,6 +36,7 @@ class ChessApp:
 
         self.board_view = ChessBoard()
         self.time_control_view = ClockUI()
+        self.piece_display = PieceDisplay()
         self.result_dialog_title = ft.Text(weight=ft.FontWeight.BOLD)
         self.result_dialog_message = ft.Text(text_align=ft.TextAlign.CENTER)
         self.result_dialog = ft.AlertDialog(
@@ -66,7 +68,12 @@ class ChessApp:
             alignment=ft.Alignment.CENTER,
             col={"xs": 12, "md": 4},
         )
-        self.content_row.controls = [self.board_slot, self.clock_slot]
+        self.piece_display_slot = ft.Container(
+            content=self.piece_display,
+            alignment=ft.Alignment.CENTER,
+            col={"xs": 12, "md": 8},
+        )
+        self.content_row.controls = [self.piece_display_slot, self.board_slot, self.clock_slot]
 
         if self.dev_mode:
             self.position_selector = ft.Dropdown(
@@ -80,7 +87,7 @@ class ChessApp:
                 on_select=self._handle_position_change,
                 on_text_change=self._handle_position_change,
             )
-            root_controls = [self.position_selector, self.content_row]
+            root_controls = [self.content_row]
         else:
             self.position_selector = None
             root_controls = [self.content_row]
