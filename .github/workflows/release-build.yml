@@ -236,7 +236,7 @@ jobs:
 
       - name: Build Android APK
         run: |
-          flet build apk --yes --split-per-abi --compile-packages --skip-flutter-doctor --no-rich-output
+          flet build apk --yes --compile-packages --skip-flutter-doctor --no-rich-output
 
       - name: Collect APK
         id: collect
@@ -255,24 +255,18 @@ jobs:
             throw "No .apk output found in build/ or dist/."
           }
 
-          # Copy all APKs to root directory
-          $apkPaths = @()
-          foreach ($apk in $apks) {
-            # Preserve original name if split-per-abi (includes arch in filename)
-            Copy-Item $apk.FullName -Destination . -Force
-            $apkPaths += $apk.Name
-          }
+          # Rename and copy the APK to root directory with proper naming
+          $apk = $apks | Select-Object -First 1
+          $newApkName = "${{ needs.metadata.outputs.artifact_stem }}.apk"
+          Copy-Item $apk.FullName -Destination $newApkName -Force
 
-          # Store comma-separated paths for upload
-          $pathList = ($apkPaths -join ",")
-          "paths=$pathList" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "path=$newApkName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ needs.metadata.outputs.artifact_stem }}-android
-          path: |
-            *.apk
+          path: ${{ steps.collect.outputs.path }}
 
   publish-release:
     runs-on: ubuntu-latest
