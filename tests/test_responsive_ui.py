@@ -12,6 +12,7 @@ from ui.app import ChessApp
 from ui.board import ChessBoard
 from ui.clockui import ClockUI
 from ui.layout import MAX_SQUARE_SIZE, MIN_SQUARE_SIZE, resolve_app_layout
+from utils.events import GameEndedEvent
 from utils.signals import bus
 
 
@@ -44,12 +45,27 @@ class _FakePage:
         self.padding = 0
         self.spacing = 0
         self.scroll = None
+        self.overlay = []
         self.on_resize = None
         self.on_media_change = None
         self.controls = []
 
     def add(self, control):
         self.controls.append(control)
+
+    def update(self):
+        return None
+
+    def show_dialog(self, dialog):
+        dialog.open = True
+        self.overlay.append(dialog)
+
+    def pop_dialog(self):
+        if not self.overlay:
+            return None
+        dialog = self.overlay.pop()
+        dialog.open = False
+        return dialog
 
 
 class TestResponsiveLayoutResolver(unittest.TestCase):
@@ -154,3 +170,32 @@ class TestResponsiveAppUi(unittest.TestCase):
             page.width - page.media.padding.left - page.media.padding.right
         )
         self.assertLessEqual(app.position_selector.width, available_width)
+
+    def test_game_end_event_opens_result_modal(self):
+        page = _FakePage(width=960, height=800)
+        app = ChessApp(page, dev_mode=False)
+
+        app._handle_game_ended(
+            GameEndedEvent(
+                winner="White",
+                reason="checkmate",
+                message="White wins by checkmate.",
+            )
+        )
+
+        self.assertTrue(app.result_dialog.open)
+        self.assertEqual(app.result_dialog_title.value, "White")
+        self.assertEqual(app.result_dialog_message.value, "White wins by checkmate.")
+        self.assertIn(app.result_dialog, page.overlay)
+
+    def test_closing_result_modal_resets_board(self):
+        page = _FakePage(width=960, height=800)
+        app = ChessApp(page, dev_mode=True)
+        app.board_view.load_position("k7/8/1K1R4/8/8/8/8/8 w - - 0 1")
+
+        app._handle_result_dialog_close()
+
+        self.assertFalse(app.result_dialog.open)
+        self.assertEqual(page.overlay, [])
+        self.assertEqual(app.position_selector.value, "Start Position")
+        self.assertEqual(app.board_view.game.get_board_fen(), ChessBoard().game.get_board_fen())

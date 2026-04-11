@@ -16,8 +16,11 @@ class GameStartedEvent(BaseEvent):
     pass
 
 
+@dataclass(frozen=True)
 class GameEndedEvent(BaseEvent):
-    pass
+    winner: Optional[str]
+    reason: str
+    message: str
 
 
 @dataclass(frozen=True)

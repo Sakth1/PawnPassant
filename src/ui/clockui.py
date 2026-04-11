@@ -4,6 +4,7 @@ from ui.layout import AppLayout, resolve_app_layout
 from core.clock import Clock
 from utils.signals import bus
 from utils.events import (
+    ClockStateEvent,
     ClockTickEvent,
     GameEndedEvent,
     GameStartedEvent,
@@ -17,7 +18,7 @@ def time_control_to_string(time_control: TimeControl) -> str:
 
 
 class ClockUI(ft.Container):
-    def __init__(self, time_control: TimeControl = TimeControl.ONE_PLUS_ONE):
+    def __init__(self, time_control: TimeControl = TimeControl.THREE_PLUS_TWO):
         super().__init__()
         self.layout = resolve_app_layout(960, 800)
         self.black_timer_main = ft.Text(
@@ -32,7 +33,7 @@ class ClockUI(ft.Container):
         self.black_timer_ms = ft.Text(
             "",
             text_align=ft.TextAlign.CENTER,
-            color=ft.Colors.GREY_400,
+            color=ft.Colors.GREY_400, 
             font_family="RobotoMono",
             size=self.layout.timer_ms_size,
             weight=ft.FontWeight.BOLD,
@@ -101,6 +102,8 @@ class ClockUI(ft.Container):
             time_control=time_control,
         )
         self.active_color: ActiveColor = ActiveColor.WHITE
+        self.game_over = False
+        bus.connect(ClockStateEvent, self._handle_clock_state)
         bus.connect(ClockTickEvent, self._handle_clock_tick)
         bus.connect(PieceModevedEvent, self._handle_piece_moved)
         bus.connect(GameStartedEvent, self._start_clock)
@@ -148,6 +151,8 @@ class ClockUI(ft.Container):
             return None
 
     def _handle_clock_tick(self, event: ClockTickEvent):
+        if self.game_over:
+            return
         page = self._safe_page()
         if page is None:
             return
@@ -180,11 +185,29 @@ class ClockUI(ft.Container):
         self.update()
 
     def _start_clock(self, _event: GameStartedEvent):
+        self.game_over = False
         self.clock.start()
 
     def _handle_piece_moved(self, _event: PieceModevedEvent):
+        if self.game_over:
+            return
         self.clock.switch()
         self._flip_clock()
+
+    def _handle_clock_state(self, event: ClockStateEvent):
+        """Translate a flag-fall into a game-ended result event."""
+
+        if event.state != "flagged" or event.active_color is None or self.game_over:
+            return
+
+        winner = "Black" if event.active_color == ActiveColor.WHITE else "White"
+        bus.emit(
+            GameEndedEvent(
+                winner=winner,
+                reason="time",
+                message=f"{winner} wins on time.",
+            )
+        )
 
     def _flip_clock(self):
         """Reverse the clock display orientation."""
@@ -192,6 +215,7 @@ class ClockUI(ft.Container):
         self._safe_update(self)
 
     def _handle_game_ended(self, _event: GameEndedEvent):
+        self.game_over = True
         self.clock.stop()
 
     @staticmethod

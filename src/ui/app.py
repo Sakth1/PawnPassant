@@ -12,7 +12,7 @@ from ui.board import ChessBoard
 from ui.clockui import ClockUI
 from ui.layout import AppLayout, resolve_app_layout
 from utils.constants import ASSET_DIR, FONT_DIR
-from utils.events import GameStartedEvent
+from utils.events import GameEndedEvent, GameStartedEvent
 from utils.signals import bus
 
 
@@ -35,6 +35,17 @@ class ChessApp:
 
         self.board_view = ChessBoard()
         self.time_control_view = ClockUI()
+        self.result_dialog_title = ft.Text(weight=ft.FontWeight.BOLD)
+        self.result_dialog_message = ft.Text(text_align=ft.TextAlign.CENTER)
+        self.result_dialog = ft.AlertDialog(
+            modal=True,
+            title=self.result_dialog_title,
+            content=self.result_dialog_message,
+            actions=[
+                ft.TextButton("New Game", on_click=self._handle_result_dialog_close)
+            ],
+            actions_alignment=ft.MainAxisAlignment.CENTER,
+        )
 
         self.content_row = ft.ResponsiveRow(
             columns=12,
@@ -100,6 +111,8 @@ class ChessApp:
 
         self.page.on_resize = self._handle_page_resize
         self.page.on_media_change = self._handle_page_resize
+        bus.connect(GameStartedEvent, self._handle_game_started)
+        bus.connect(GameEndedEvent, self._handle_game_ended)
         self.page.add(self.main_page_view)
         self._apply_responsive_layout()
         bus.emit(GameStartedEvent())
@@ -139,6 +152,8 @@ class ChessApp:
         self.root_column.spacing = self.layout.gap
         self.safe_area.minimum_padding = self.layout.padding
         self.content_container.padding = ft.Padding.all(self.layout.padding)
+        self.result_dialog_title.size = max(18, int(self.layout.timer_font_size * 0.5))
+        self.result_dialog_message.size = max(14, int(self.layout.timer_ms_size * 1.05))
 
         if self.position_selector is not None:
             self.position_selector.width = self.layout.dev_control_width
@@ -179,6 +194,29 @@ class ChessApp:
         self.position_selector.value = selected_name
         selected_fen = ChessBoard.TEST_POSITIONS[selected_name]
         self.board_view.load_position(selected_fen)
+        bus.emit(GameStartedEvent())
+
+    def _handle_game_started(self, _event: GameStartedEvent):
+        self.page.pop_dialog()
+        self.result_dialog.open = False
+        self.result_dialog_title.value = ""
+        self.result_dialog_message.value = ""
+        self._safe_update(self.page)
+
+    def _handle_game_ended(self, event: GameEndedEvent):
+        self.result_dialog_title.value = event.winner or "Game Over"
+        self.result_dialog_message.value = event.message
+        self.page.show_dialog(self.result_dialog)
+        self._safe_update(self.page)
+
+    def _handle_result_dialog_close(self, _event=None):
+        self.page.pop_dialog()
+        self.result_dialog.open = False
+        if self.position_selector is not None:
+            self.position_selector.value = "Start Position"
+        self.board_view.load_position()
+        bus.emit(GameStartedEvent())
+        self._safe_update(self.page)
 
     @staticmethod
     def _safe_update(control: ft.Control):

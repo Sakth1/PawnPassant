@@ -29,20 +29,30 @@ class Clock:
         self._active_started_at: Optional[float] = None
         self._last_emitted_second_white: Optional[Tuple[int, int]] = None
         self._last_emitted_second_black: Optional[Tuple[int, int]] = None
+        self._tickers_initialized = False
         self.setup_ticker()
 
     def setup_ticker(self):
-        self.time_remaining: int = self.time_control[0]
-        self.increment: int = self.time_control[1]
-
-        self.white_ticker: Ticker = Ticker(
-            starting_time=self.time_remaining,
-            increment=self.increment,
-        )
-        self.black_ticker: Ticker = Ticker(
-            starting_time=self.time_remaining,
-            increment=self.increment,
-        )
+        initial_time_ms = self.time_control[0] * 60000
+        increment = self.time_control[1]
+        
+        # Create tickers on first call
+        if not self._tickers_initialized:
+            self.white_ticker: Ticker = Ticker(
+                starting_time=self.time_control[0],
+                increment=increment,
+            )
+            self.black_ticker: Ticker = Ticker(
+                starting_time=self.time_control[0],
+                increment=increment,
+            )
+            self._tickers_initialized = True
+        else:
+            # Reset ticker times on subsequent calls (new game)
+            self.white_ticker.remaining_time_ms = initial_time_ms
+            self.black_ticker.remaining_time_ms = initial_time_ms
+            
+        self.increment: int = increment
 
     def start(self):
         should_emit_initial = False
@@ -50,6 +60,7 @@ class Clock:
             if self._worker_thread is not None and self._worker_thread.is_alive():
                 return
 
+            self.setup_ticker()
             self._stop_event.clear()
             self.active_color = ActiveColor.WHITE
             self._last_emitted_second_white = None
@@ -126,6 +137,7 @@ class Clock:
     def stop(self):
         worker_thread = None
         should_emit_stopped = False
+        current_thread = threading.current_thread()
         with self._lock:
             if self._worker_thread is None:
                 return
@@ -138,7 +150,7 @@ class Clock:
             worker_thread = self._worker_thread
             should_emit_stopped = True
 
-        if worker_thread is not None:
+        if worker_thread is not None and worker_thread is not current_thread:
             worker_thread.join(timeout=1)
 
         with self._lock:

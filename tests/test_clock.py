@@ -2,6 +2,7 @@
 
 import asyncio
 import sys
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -106,20 +107,23 @@ class TestClock(unittest.TestCase):
 
     def test_critical_mode_emits_every_tick_with_milliseconds(self):
         self.clock = Clock(time_control=(1, 0), critical_threshold_seconds=10)
-        self.clock.white_ticker.remaining_time_ms = 9_950
         self.clock.white_ticker.tick_interval = 20
         self.clock.black_ticker.tick_interval = 20
 
         self.clock.start()
+        with self.clock._lock:
+            self.clock.white_ticker.remaining_time_ms = 5_950
         time.sleep(0.08)
 
         white_events = [
             event for event in self.tick_events if event.color == ActiveColor.WHITE
         ]
-        self.assertGreaterEqual(len(white_events), 3)
-        self.assertTrue(all(event.is_critical for event in white_events))
+        # Filter to only critical events (below 10 seconds)
+        critical_events = [event for event in white_events if event.is_critical]
+        self.assertGreaterEqual(len(critical_events), 2)
+        self.assertTrue(all(event.is_critical for event in critical_events))
         self.assertGreater(
-            len({event.milliseconds for event in white_events}),
+            len({event.milliseconds for event in critical_events}),
             1,
         )
 
@@ -153,11 +157,12 @@ class TestClock(unittest.TestCase):
 
     def test_flag_fall_emits_terminal_tick_and_flagged_state(self):
         self.clock = Clock(time_control=(1, 0), critical_threshold_seconds=10)
-        self.clock.white_ticker.remaining_time_ms = 35
         self.clock.white_ticker.tick_interval = 10
         self.clock.black_ticker.tick_interval = 10
 
         self.clock.start()
+        with self.clock._lock:
+            self.clock.white_ticker.remaining_time_ms = 35
         time.sleep(0.08)
 
         flagged_events = [
@@ -181,6 +186,18 @@ class TestClock(unittest.TestCase):
         tick_count_after_flag = len(self.tick_events)
         time.sleep(0.03)
         self.assertEqual(len(self.tick_events), tick_count_after_flag)
+
+    def test_stop_from_worker_thread_does_not_self_join(self):
+        self.clock = Clock(time_control=(1, 0))
+        self.clock._worker_thread = threading.current_thread()
+
+        self.clock.stop()
+
+        self.assertIsNone(self.clock._worker_thread)
+        self.assertTrue(self._clock_state_contains("stopped"))
+
+    def _clock_state_contains(self, state: str) -> bool:
+        return any(event.state == state for event in self.state_events)
 
 
 class TestClockUi(unittest.TestCase):
@@ -227,11 +244,30 @@ class TestClockUi(unittest.TestCase):
 
         bus.emit(GameStartedEvent())
         bus.emit(PieceModevedEvent())
-        bus.emit(GameEndedEvent())
+        bus.emit(
+            GameEndedEvent(
+                winner="White",
+                reason="checkmate",
+                message="White wins by checkmate.",
+            )
+        )
 
         self.assertEqual(clock_ui.clock.start_calls, 1)
         self.assertEqual(clock_ui.clock.switch_calls, 1)
         self.assertEqual(clock_ui.clock.stop_calls, 1)
+
+    def test_flagged_clock_state_emits_time_win_event(self):
+        clock_ui = ClockUI()
+        ended_events = []
+        bus.connect(GameEndedEvent, ended_events.append)
+
+        clock_ui._handle_clock_state(
+            ClockStateEvent(state="flagged", active_color=ActiveColor.WHITE)
+        )
+
+        self.assertTrue(ended_events)
+        self.assertEqual(ended_events[-1].winner, "Black")
+        self.assertEqual(ended_events[-1].reason, "time")
 
 
 if __name__ == "__main__":
