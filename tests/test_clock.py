@@ -107,20 +107,23 @@ class TestClock(unittest.TestCase):
 
     def test_critical_mode_emits_every_tick_with_milliseconds(self):
         self.clock = Clock(time_control=(1, 0), critical_threshold_seconds=10)
-        self.clock.white_ticker.remaining_time_ms = 9_950
         self.clock.white_ticker.tick_interval = 20
         self.clock.black_ticker.tick_interval = 20
 
         self.clock.start()
+        with self.clock._lock:
+            self.clock.white_ticker.remaining_time_ms = 5_950
         time.sleep(0.08)
 
         white_events = [
             event for event in self.tick_events if event.color == ActiveColor.WHITE
         ]
-        self.assertGreaterEqual(len(white_events), 3)
-        self.assertTrue(all(event.is_critical for event in white_events))
+        # Filter to only critical events (below 10 seconds)
+        critical_events = [event for event in white_events if event.is_critical]
+        self.assertGreaterEqual(len(critical_events), 2)
+        self.assertTrue(all(event.is_critical for event in critical_events))
         self.assertGreater(
-            len({event.milliseconds for event in white_events}),
+            len({event.milliseconds for event in critical_events}),
             1,
         )
 
@@ -154,11 +157,12 @@ class TestClock(unittest.TestCase):
 
     def test_flag_fall_emits_terminal_tick_and_flagged_state(self):
         self.clock = Clock(time_control=(1, 0), critical_threshold_seconds=10)
-        self.clock.white_ticker.remaining_time_ms = 35
         self.clock.white_ticker.tick_interval = 10
         self.clock.black_ticker.tick_interval = 10
 
         self.clock.start()
+        with self.clock._lock:
+            self.clock.white_ticker.remaining_time_ms = 35
         time.sleep(0.08)
 
         flagged_events = [

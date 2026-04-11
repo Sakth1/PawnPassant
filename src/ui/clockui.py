@@ -18,7 +18,7 @@ def time_control_to_string(time_control: TimeControl) -> str:
 
 
 class ClockUI(ft.Container):
-    def __init__(self, time_control: TimeControl = TimeControl.ZERO_PLUS_ZERO):
+    def __init__(self, time_control: TimeControl = TimeControl.THREE_PLUS_TWO):
         super().__init__()
         self.layout = resolve_app_layout(960, 800)
         self.black_timer_main = ft.Text(
@@ -33,7 +33,7 @@ class ClockUI(ft.Container):
         self.black_timer_ms = ft.Text(
             "",
             text_align=ft.TextAlign.CENTER,
-            color=ft.Colors.GREY_400,
+            color=ft.Colors.GREY_400, 
             font_family="RobotoMono",
             size=self.layout.timer_ms_size,
             weight=ft.FontWeight.BOLD,

@@ -35,17 +35,16 @@ class ChessApp:
 
         self.board_view = ChessBoard()
         self.time_control_view = ClockUI()
-        self.result_banner = ft.Container(
-            visible=False,
-            bgcolor=ft.Colors.with_opacity(0.92, ft.Colors.BLUE_GREY_900),
-            border_radius=16,
-            padding=ft.Padding.symmetric(horizontal=18, vertical=12),
-            content=ft.Text(
-                "",
-                color=ft.Colors.WHITE,
-                text_align=ft.TextAlign.CENTER,
-                weight=ft.FontWeight.W_600,
-            ),
+        self.result_dialog_title = ft.Text(weight=ft.FontWeight.BOLD)
+        self.result_dialog_message = ft.Text(text_align=ft.TextAlign.CENTER)
+        self.result_dialog = ft.AlertDialog(
+            modal=True,
+            title=self.result_dialog_title,
+            content=self.result_dialog_message,
+            actions=[
+                ft.TextButton("New Game", on_click=self._handle_result_dialog_close)
+            ],
+            actions_alignment=ft.MainAxisAlignment.CENTER,
         )
 
         self.content_row = ft.ResponsiveRow(
@@ -81,10 +80,10 @@ class ChessApp:
                 on_select=self._handle_position_change,
                 on_text_change=self._handle_position_change,
             )
-            root_controls = [self.position_selector, self.result_banner, self.content_row]
+            root_controls = [self.position_selector, self.content_row]
         else:
             self.position_selector = None
-            root_controls = [self.result_banner, self.content_row]
+            root_controls = [self.content_row]
 
         self.root_column = ft.Column(
             controls=root_controls,
@@ -153,11 +152,8 @@ class ChessApp:
         self.root_column.spacing = self.layout.gap
         self.safe_area.minimum_padding = self.layout.padding
         self.content_container.padding = ft.Padding.all(self.layout.padding)
-        self.result_banner.padding = ft.Padding.symmetric(
-            horizontal=max(14, self.layout.gap),
-            vertical=max(10, self.layout.gap // 2),
-        )
-        self.result_banner.content.size = max(14, int(self.layout.timer_ms_size * 1.05))
+        self.result_dialog_title.size = max(18, int(self.layout.timer_font_size * 0.5))
+        self.result_dialog_message.size = max(14, int(self.layout.timer_ms_size * 1.05))
 
         if self.position_selector is not None:
             self.position_selector.width = self.layout.dev_control_width
@@ -201,14 +197,26 @@ class ChessApp:
         bus.emit(GameStartedEvent())
 
     def _handle_game_started(self, _event: GameStartedEvent):
-        self.result_banner.visible = False
-        self.result_banner.content.value = ""
-        self._safe_update(self.result_banner)
+        self.page.pop_dialog()
+        self.result_dialog.open = False
+        self.result_dialog_title.value = ""
+        self.result_dialog_message.value = ""
+        self._safe_update(self.page)
 
     def _handle_game_ended(self, event: GameEndedEvent):
-        self.result_banner.content.value = event.message
-        self.result_banner.visible = True
-        self._safe_update(self.result_banner)
+        self.result_dialog_title.value = event.winner or "Game Over"
+        self.result_dialog_message.value = event.message
+        self.page.show_dialog(self.result_dialog)
+        self._safe_update(self.page)
+
+    def _handle_result_dialog_close(self, _event=None):
+        self.page.pop_dialog()
+        self.result_dialog.open = False
+        if self.position_selector is not None:
+            self.position_selector.value = "Start Position"
+        self.board_view.load_position()
+        bus.emit(GameStartedEvent())
+        self._safe_update(self.page)
 
     @staticmethod
     def _safe_update(control: ft.Control):
