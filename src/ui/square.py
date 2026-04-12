@@ -269,13 +269,18 @@ class Square(ft.Container):
             pass
 
 
-class InvisibleSquare():
+class InvisibleSquare(ft.Container):
     DRAG_GROUP = "captured-chess-piece"
 
-    def __init__(self, coordinate: int,on_square_drop=None,
+    def __init__(
+        self,
+        coordinate: int,
+        on_square_drop=None,
         on_piece_drag_start=None,
-        on_piece_drag_complete=None,):
-        super().__init__(coordinate)
+        on_piece_drag_complete=None,
+        size=60,
+    ):
+        super().__init__(expand=True)
         self.coordinate = coordinate
         self.piece_container: Optional[ChessPiece] = None
         self.stack = ft.Stack(controls=[], expand=True, alignment=ft.Alignment.CENTER)
@@ -342,12 +347,12 @@ class InvisibleSquare():
                 content=self._build_feedback_piece(piece),
             ),
         )
-    
+
     def _build_feedback_piece(self, piece: ChessPiece) -> ft.Control:
         ghost_piece = ChessPiece(piece.piece)
         ghost_piece.set_square_size(self.size)
         return ghost_piece.to_control()
-    
+
     def apply_size(self, size: int):
         """Resize the square and refresh its piece/highlight geometry."""
 
@@ -397,4 +402,3 @@ class InvisibleSquare():
             controls.append(self.piece_control)
 
         self.stack.controls = controls
-    

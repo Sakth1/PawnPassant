@@ -198,4 +198,6 @@ class TestResponsiveAppUi(unittest.TestCase):
         self.assertFalse(app.result_dialog.open)
         self.assertEqual(page.overlay, [])
         self.assertEqual(app.position_selector.value, "Start Position")
-        self.assertEqual(app.board_view.game.get_board_fen(), ChessBoard().game.get_board_fen())
+        self.assertEqual(
+            app.board_view.game.get_board_fen(), ChessBoard().game.get_board_fen()
+        )
