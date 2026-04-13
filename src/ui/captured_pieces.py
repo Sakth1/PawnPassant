@@ -1,84 +1,140 @@
 import flet as ft
+from chess import PAWN, Piece
 
 from ui.chess_piece import ChessPiece
 from ui.layout import AppLayout, resolve_app_layout
 from ui.square import InvisibleSquare
+from utils.events import PieceCapturedEvent
+from utils.signals import bus
 
 
-class PieceDisplay(ft.Container):
+class CaputredPieces(ft.Container):
     def __init__(self):
         super().__init__()
         self.layout = resolve_app_layout(960, 800)
-        self.black_pieces = ft.Container(
-            content=self._create_invisible_squares(),
-        )
-        self.white_pieces = ft.Container(
-            content=self._create_invisible_squares(),
-        )
+        self.bgcolor = "#1F1F1F"
+        self.border_radius = 16
+        self.padding = 12
+        self.alignment = ft.Alignment.CENTER
+
+        self.black_squares = self._create_invisible_squares("b")
+        self.white_squares = self._create_invisible_squares("w")
+        self.black_label = ft.Text("Black Captures", color=ft.Colors.GREY_300, size=14)
+        self.white_label = ft.Text("White Captures", color=ft.Colors.GREY_300, size=14)
+        self.black_grid: ft.Column = self._build_square_grid(self.black_squares)
+        self.white_grid: ft.Column = self._build_square_grid(self.white_squares)
         self.divider = ft.Container(
-            height=3,
-            bgcolor=ft.Colors.GREY_400,
-            width=100,
-            margin=ft.margin.Margin(20, 0, 20, 0),
+            height=1,
+            bgcolor=ft.Colors.WHITE_24,
+            border_radius=999,
         )
-        self.content = ft.Row(
-            controls=[self.black_pieces, self.divider, self.white_pieces],
+        self.content = ft.Column(
+            controls=[
+                #self.black_label,
+                self.black_grid,
+                self.divider,
+                #self.white_label,
+                self.white_grid,
+            ],
+            spacing=10,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             alignment=ft.MainAxisAlignment.CENTER,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            tight=True,
         )
+        bus.connect(PieceCapturedEvent, lambda event: self._handle_piece_captured(event))
+        self.apply_layout(self.layout)
 
-    def _create_invisible_squares(self) -> list[InvisibleSquare]:
-        """Create the board squares in top-to-bottom visual order."""
-
-        self.squares: list[InvisibleSquare] = []
-        self.square_map: dict[str, InvisibleSquare] = {}
-
+    def _create_invisible_squares(self, prefix: str) -> list[InvisibleSquare]:
+        squares: list[InvisibleSquare] = []
         for i in range(16):
-            coords = f"{i}"
-            sq = InvisibleSquare(
-                coordinate=coords,
-                on_square_drop=self._handle_square_drop,
-                on_piece_drag_start=self._handle_piece_drag_start,
-                on_piece_drag_complete=self._handle_piece_drag_complete,
-                size=60,
+            squares.append(
+                InvisibleSquare(
+                    coordinate=f"{prefix}{i}",
+                    on_square_drop=self._handle_square_drop,
+                    on_piece_drag_start=self._handle_piece_drag_start,
+                    on_piece_drag_complete=self._handle_piece_drag_complete,
+                    size=60,
+                )
             )
-            self.squares.append(sq)
-            self.square_map[coords] = sq
-        return self.squares
+        return squares
+
+    def _build_square_grid(self, squares: list[InvisibleSquare]) -> ft.Column:
+        rows = []
+        for sq in squares:
+            sq.update_content(f"{sq.coordinate}")
+        
+        for row_start in range(0, len(squares), 8):
+            rows.append(
+                ft.Row(
+                    controls=squares[row_start : row_start + 8],
+                    spacing=4,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                )
+            )
+        return ft.Column(
+            controls=rows,
+            spacing=4,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            tight=True,
+        )
 
     def apply_layout(self, layout: AppLayout):
-        pass  # TODO UI responsiveness
+        self.layout = layout
+        self.width = layout.piece_panel_width
+        self.padding = max(8, int(layout.gap * 0.75))
+        self.border_radius = max(12, int(layout.timer_radius * 0.8))
 
-    def _handle_piece_drag_start(self, from_cords: str):
-        """Show legal moves as soon as a draggable piece starts moving."""
+        capture_square_size = max(24, int(layout.board_square_size))
+        print(f"{capture_square_size=}")
+        for square in self.black_squares + self.white_squares:
+            square.apply_size(capture_square_size)
 
-        self._select_square(from_cords)
+        label_size = max(12, int(layout.timer_ms_size * 0.95))
+        self.black_label.size = label_size
+        self.white_label.size = label_size
+        grid_spacing: int = max(4, int(layout.gap * 0.35))
+        for grid in (self.black_grid, self.white_grid):
+            grid.spacing = grid_spacing
+            for row in grid.controls:
+                row.spacing = grid_spacing
+        self.divider.width = max(80, int(layout.piece_panel_width * 0.72))
+        self.content.spacing = max(10, int(layout.gap * 0.65))
+        self._safe_update(self)
 
-    def _handle_piece_drag_complete(self, from_cords: str):
-        """Clear drag-only selection state when a drag ends without a move."""
+    def _handle_piece_captured(self, event: PieceCapturedEvent):
+        self.white_squares[0].update_content(event.piece.to_control())
+
+    def _handle_piece_drag_start(self, _from_cords: str):
+        pass
+
+    def _handle_piece_drag_complete(self, _from_cords: str):
         pass
 
     def _handle_square_drop(self, from_cords: str, to_cords: str):
-        """Handle a piece being dropped onto a square."""
-
         if from_cords == to_cords:
             return
-
         self.move_piece(from_cords=from_cords, to_cords=to_cords)
 
-    def _select_square(self, square_cords: str):
-        """Select a piece square and reveal its current legal move targets."""
-        self.selected_square = square_cords
-
-    def _get_legal_targets(self) -> list[str]:
-        """Collect legal destination coordinates for a piece on the given square."""
-        return [str(i) for i in range(16)]
-
     def move_piece(self, from_cords: str, to_cords: str):
-        """Create a move from board coordinates and dispatch it through the UI flow."""
+        source_square = self._find_square(from_cords)
+        target_square = self._find_square(to_cords)
+        if source_square is None or target_square is None:
+            return
 
-        from_square = self.square_map[from_cords]
-        to_square = self.square_map[to_cords]
-        chess_piece = from_square.piece_container
-        from_square.update_content(None)
-        to_square.update_content(chess_piece)
+        chess_piece = source_square.piece_container
+        source_square.update_content(None)
+        target_square.update_content(chess_piece)
+
+    def _find_square(self, coordinate: str) -> InvisibleSquare | None:
+        for square in self.black_squares + self.white_squares:
+            if square.coordinate == coordinate:
+                return square
+        return None
+
+    @staticmethod
+    def _safe_update(control: ft.Control):
+        try:
+            control.update()
+        except RuntimeError:
+            pass

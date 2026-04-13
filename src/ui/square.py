@@ -144,6 +144,7 @@ class Square(ft.Container):
         self._rebuild_indicators()
 
         if self.piece_container is not None:
+            print(f"{size=}")
             self.piece_container.set_square_size(size)
             self.update_content(self.piece_container)
         else:
@@ -282,10 +283,19 @@ class InvisibleSquare(ft.Container):
     ):
         super().__init__(expand=True)
         self.coordinate = coordinate
+        self.size = size
+        self.width = size
+        self.height = size
+        self.bgcolor = ft.Colors.TRANSPARENT
+        self.has_piece = False
+        self.piece_control: Optional[ft.Control] = None
         self.piece_container: Optional[ChessPiece] = None
         self.stack = ft.Stack(controls=[], expand=True, alignment=ft.Alignment.CENTER)
         self.interactive_surface = ft.Container(
             content=self.stack,
+            width=size,
+            height=size,
+            alignment=ft.Alignment.CENTER,
         )
         self.drag_target = ft.DragTarget(
             group=self.DRAG_GROUP,
@@ -295,6 +305,15 @@ class InvisibleSquare(ft.Container):
         self.on_square_drop = on_square_drop
         self.on_piece_drag_start = on_piece_drag_start
         self.on_piece_drag_complete = on_piece_drag_complete
+        self.content = self.drag_target
+
+    def _build_piece_shell(self, control: ft.Control) -> ft.Container:
+        return ft.Container(
+            width=self.width,
+            height=self.height,
+            alignment=ft.Alignment.CENTER,
+            content=control,
+        )
 
     def _handle_drag_accept(self, event: ft.DragTargetEvent):
         """Forward accepted drops to the board controller."""
@@ -359,6 +378,8 @@ class InvisibleSquare(ft.Container):
         self.size = size
         self.width = size
         self.height = size
+        self.interactive_surface.width = size
+        self.interactive_surface.height = size
 
         if self.piece_container is not None:
             self.piece_container.set_square_size(size)
@@ -379,6 +400,12 @@ class InvisibleSquare(ft.Container):
                 content = self._build_draggable_piece(piece)
                 self.piece_container = piece
                 self.has_piece = True
+            elif isinstance(piece, str):
+                content = ft.Text(
+                    piece, align=ft.Alignment.CENTER, color=ft.Colors.RED
+                )
+                self.has_piece = False
+                self.piece_container = None
             else:
                 content = ft.Text(
                     "ERROR", align=ft.Alignment.CENTER, color=ft.Colors.RED

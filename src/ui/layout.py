@@ -23,8 +23,10 @@ class AppLayout:
     stacked: bool
     board_square_size: int
     board_side: int
+    piece_col: int
     board_col: int
     clock_col: int
+    piece_panel_width: int
     clock_width: int
     timer_font_size: int
     timer_ms_size: int
@@ -69,10 +71,14 @@ def resolve_app_layout(page_width: float, page_height: float) -> AppLayout:
     if stacked:
         board_space_width = available_width
         board_space_height = available_height * 0.62
+        piece_panel_width = int(min(max(available_width, 220.0), 420.0))
         clock_width = int(min(max(available_width, 220.0), 420.0))
     else:
+        piece_panel_width = int(min(max(available_width * 0.16, 140.0), 220.0))
         clock_width = int(min(max(available_width * 0.24, 220.0), 320.0))
-        board_space_width = max(220.0, available_width - clock_width - gap)
+        board_space_width = max(
+            220.0, available_width - piece_panel_width - clock_width - (gap * 2)
+        )
         board_space_height = available_height
 
     board_square_size = int(
@@ -104,8 +110,10 @@ def resolve_app_layout(page_width: float, page_height: float) -> AppLayout:
         stacked=stacked,
         board_square_size=board_square_size,
         board_side=board_side,
-        board_col=12 if stacked else 8,
-        clock_col=12 if stacked else 4,
+        piece_col=12 if stacked else 2,
+        board_col=12 if stacked else 7,
+        clock_col=12 if stacked else 3,
+        piece_panel_width=piece_panel_width,
         clock_width=clock_width,
         timer_font_size=timer_font_size,
         timer_ms_size=timer_ms_size,
