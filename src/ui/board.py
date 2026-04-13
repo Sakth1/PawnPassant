@@ -491,7 +491,7 @@ class ChessBoard(ft.Container):
 
         self._clear_interaction_state(clear_tap_feedback=True, refresh=False)
         self._hide_promotion_overlay(refresh=False)
-        to_piece = self.square_map[square_name(requested_move.to_square)].piece_container
+        to_piece: ChessPiece | None = self.square_map[square_name(requested_move.to_square)].piece_container
         self.game.move(requested_move)
         match movement_type:
             case MoveType.NORMAL:

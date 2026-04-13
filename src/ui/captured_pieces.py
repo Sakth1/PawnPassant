@@ -15,31 +15,28 @@ class CaputredPieces(ft.Container):
         self.bgcolor = "#1F1F1F"
         self.border_radius = 16
         self.padding = 12
-        self.alignment = ft.Alignment.CENTER
+        self.alignment = ft.Alignment.CENTER 
 
         self.black_squares = self._create_invisible_squares("b")
         self.white_squares = self._create_invisible_squares("w")
         self.black_label = ft.Text("Black Captures", color=ft.Colors.GREY_300, size=14)
         self.white_label = ft.Text("White Captures", color=ft.Colors.GREY_300, size=14)
-        self.black_grid: ft.Column = self._build_square_grid(self.black_squares)
-        self.white_grid: ft.Column = self._build_square_grid(self.white_squares)
+        self.black_grid: ft.GridView = self._build_square_grid(self.black_squares)
+        self.white_grid: ft.GridView = self._build_square_grid(self.white_squares)
         self.divider = ft.Container(
             height=1,
             bgcolor=ft.Colors.WHITE_24,
-            border_radius=999,
         )
         self.content = ft.Column(
             controls=[
-                #self.black_label,
                 self.black_grid,
                 self.divider,
-                #self.white_label,
                 self.white_grid,
             ],
             spacing=10,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             alignment=ft.MainAxisAlignment.CENTER,
-            tight=True,
+            expand=True,
         )
         bus.connect(PieceCapturedEvent, lambda event: self._handle_piece_captured(event))
         self.apply_layout(self.layout)
@@ -58,12 +55,20 @@ class CaputredPieces(ft.Container):
             )
         return squares
 
-    def _build_square_grid(self, squares: list[InvisibleSquare]) -> ft.Column:
-        rows = []
+    def _build_square_grid(self, squares: list[InvisibleSquare]) -> ft.GridView:
         for sq in squares:
             sq.update_content(f"{sq.coordinate}")
+
+        return ft.GridView(
+            runs_count=4,
+            controls=squares,
+            expand=False,
+            spacing=4,
+            run_spacing=4,
+            padding=4,
+        )
         
-        for row_start in range(0, len(squares), 8):
+        """for row_start in range(0, len(squares), 8):
             rows.append(
                 ft.Row(
                     controls=squares[row_start : row_start + 8],
@@ -77,7 +82,7 @@ class CaputredPieces(ft.Container):
             spacing=4,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             tight=True,
-        )
+        )"""
 
     def apply_layout(self, layout: AppLayout):
         self.layout = layout
@@ -85,25 +90,27 @@ class CaputredPieces(ft.Container):
         self.padding = max(8, int(layout.gap * 0.75))
         self.border_radius = max(12, int(layout.timer_radius * 0.8))
 
-        capture_square_size = max(24, int(layout.board_square_size))
-        print(f"{capture_square_size=}")
+        # Use same square size as main board
+        capture_square_size = layout.board_square_size *0.97
         for square in self.black_squares + self.white_squares:
             square.apply_size(capture_square_size)
 
-        label_size = max(12, int(layout.timer_ms_size * 0.95))
-        self.black_label.size = label_size
-        self.white_label.size = label_size
-        grid_spacing: int = max(4, int(layout.gap * 0.35))
+        # Use 4x4 grid layout for captured pieces
+        grid_spacing = max(4, int(layout.gap * 0.35))
+        runs_count = 4
+        
         for grid in (self.black_grid, self.white_grid):
+            grid.runs_count = runs_count
             grid.spacing = grid_spacing
-            for row in grid.controls:
-                row.spacing = grid_spacing
+            grid.run_spacing = grid_spacing
+        
         self.divider.width = max(80, int(layout.piece_panel_width * 0.72))
         self.content.spacing = max(10, int(layout.gap * 0.65))
         self._safe_update(self)
 
     def _handle_piece_captured(self, event: PieceCapturedEvent):
         self.white_squares[0].update_content(event.piece.to_control())
+        self._safe_update(self)
 
     def _handle_piece_drag_start(self, _from_cords: str):
         pass

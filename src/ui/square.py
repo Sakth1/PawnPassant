@@ -291,6 +291,7 @@ class InvisibleSquare(ft.Container):
         self.piece_control: Optional[ft.Control] = None
         self.piece_container: Optional[ChessPiece] = None
         self.stack = ft.Stack(controls=[], expand=True, alignment=ft.Alignment.CENTER)
+        self.border = ft.Border.all(0, ft.Colors.BLUE)
         self.interactive_surface = ft.Container(
             content=self.stack,
             width=size,

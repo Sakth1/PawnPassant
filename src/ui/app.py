@@ -66,12 +66,12 @@ class ChessApp:
         self.clock_slot = ft.Container(
             content=self.time_control_view,
             alignment=ft.Alignment.CENTER,
-            col={"xs": 12, "md": 3},
+            col={"xs": 12, "md": 2},
         )
         self.piece_display_slot = ft.Container(
             content=self.piece_display,
             alignment=ft.Alignment.CENTER,
-            col={"xs": 12, "md": 2},
+            col={"xs": 12, "md": 3},
         )
         self.content_row.controls = [
             self.piece_display_slot,
