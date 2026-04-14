@@ -5,6 +5,7 @@ from ui.chess_piece import ChessPiece
 from ui.layout import AppLayout, resolve_app_layout
 from ui.square import InvisibleSquare
 from utils.events import PieceCapturedEvent
+from utils.models import ActiveColor
 from utils.signals import bus
 
 
@@ -108,8 +109,18 @@ class CaputredPieces(ft.Container):
         self.content.spacing = max(10, int(layout.gap * 0.65))
         self._safe_update(self)
 
+    def _get_random_available_position(self, is_white_capture: ActiveColor):
+        #TODO
+        pass
+
     def _handle_piece_captured(self, event: PieceCapturedEvent):
-        self.white_squares[0].update_content(event.piece.to_control())
+        is_white_capture: ActiveColor = event.color
+        random_available_pos = self._get_random_available_position(is_white_capture)
+        if is_white_capture:
+            self.white_squares.append(event.piece)
+        else:
+            self.black_squares.append(event.piece)
+
         self._safe_update(self)
 
     def _handle_piece_drag_start(self, _from_cords: str):

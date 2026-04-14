@@ -144,7 +144,6 @@ class Square(ft.Container):
         self._rebuild_indicators()
 
         if self.piece_container is not None:
-            print(f"{size=}")
             self.piece_container.set_square_size(size)
             self.update_content(self.piece_container)
         else:

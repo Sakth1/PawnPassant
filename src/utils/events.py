@@ -42,3 +42,4 @@ class ClockStateEvent(BaseEvent):
 @dataclass(frozen=True)
 class PieceCapturedEvent(BaseEvent):
     piece: ChessPiece
+    color: ActiveColor
