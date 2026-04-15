@@ -35,7 +35,7 @@ class Clock:
     def setup_ticker(self):
         initial_time_ms = self.time_control[0] * 60000
         increment = self.time_control[1]
-        
+
         # Create tickers on first call
         if not self._tickers_initialized:
             self.white_ticker: Ticker = Ticker(
@@ -51,7 +51,7 @@ class Clock:
             # Reset ticker times on subsequent calls (new game)
             self.white_ticker.remaining_time_ms = initial_time_ms
             self.black_ticker.remaining_time_ms = initial_time_ms
-            
+
         self.increment: int = increment
 
     def start(self):

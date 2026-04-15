@@ -25,7 +25,8 @@ from ui.chess_piece import ChessPiece
 from ui.layout import AppLayout, resolve_app_layout
 from ui.square import Square
 from utils.constants import CASTLING_ROOK_START_SQUARE, CASTLING_ROOK_END_SQUARE
-from utils.events import GameEndedEvent, GameStartedEvent, PieceModevedEvent
+from utils.events import GameEndedEvent, GameStartedEvent, PieceModevedEvent, PieceCapturedEvent
+from utils.models import ActiveColor
 from utils.signals import bus
 
 
@@ -491,12 +492,17 @@ class ChessBoard(ft.Container):
 
         self._clear_interaction_state(clear_tap_feedback=True, refresh=False)
         self._hide_promotion_overlay(refresh=False)
+        to_piece: ChessPiece | None = self.square_map[square_name(requested_move.to_square)].piece_container
+        active_color = self.game.get_active_color()
         self.game.move(requested_move)
         match movement_type:
-            case MoveType.NORMAL | MoveType.CAPTURE:
+            case MoveType.NORMAL:
                 self._update_last_move_on_board()
             case MoveType.EN_PASSANT:
                 self._en_passant_capture()
+            case MoveType.CAPTURE:
+                self._update_last_move_on_board()
+                bus.emit(PieceCapturedEvent(to_piece, active_color))
             case MoveType.QUEEN_SIDE_CASTLING:
                 self._queen_side_castling()
             case MoveType.KING_SIDE_CASTLING:

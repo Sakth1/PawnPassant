@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from typing import Tuple
+from enum import StrEnum
+import chess
 
 
 @dataclass(frozen=True)
@@ -25,5 +27,5 @@ class TimeControl:
 
 @dataclass(frozen=True)
 class ActiveColor:
-    WHITE: str = "white"
-    BLACK: str = "black"
+    WHITE: str = chess.WHITE
+    BLACK: str = chess.BLACK

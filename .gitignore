@@ -169,6 +169,7 @@ devdairy.md
 tests.py
 out.txt
 monkeytype.sqlite3
+.codex
 
 # IDE
 .vscode/

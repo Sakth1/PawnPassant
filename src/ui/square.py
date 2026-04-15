@@ -267,3 +267,165 @@ class Square(ft.Container):
             control.update()
         except RuntimeError:
             pass
+
+
+class InvisibleSquare(ft.Container):
+    DRAG_GROUP = "captured-chess-piece"
+
+    def __init__(
+        self,
+        coordinate: int,
+        on_square_drop=None,
+        on_piece_drag_start=None,
+        on_piece_drag_complete=None,
+        size=60,
+    ):
+        super().__init__(expand=True)
+        self.coordinate = coordinate
+        self.size = size
+        self.width = size
+        self.height = size
+        self.bgcolor = ft.Colors.TRANSPARENT
+        self.has_piece = False
+        self.piece_control: Optional[ft.Control] = None
+        self.piece_container: Optional[ChessPiece] = None
+        self.stack = ft.Stack(controls=[], expand=True, alignment=ft.Alignment.CENTER)
+        self.border = ft.Border.all(0, ft.Colors.BLUE)
+        self.interactive_surface = ft.Container(
+            content=self.stack,
+            width=size,
+            height=size,
+            alignment=ft.Alignment.CENTER,
+        )
+        self.drag_target = ft.DragTarget(
+            group=self.DRAG_GROUP,
+            on_accept=self._handle_drag_accept,
+            content=self.interactive_surface,
+        )
+        self.on_square_drop = on_square_drop
+        self.on_piece_drag_start = on_piece_drag_start
+        self.on_piece_drag_complete = on_piece_drag_complete
+        self.content = self.drag_target
+
+    def _build_piece_shell(self, control: ft.Control) -> ft.Container:
+        return ft.Container(
+            width=self.width,
+            height=self.height,
+            alignment=ft.Alignment.CENTER,
+            content=control,
+        )
+
+    def _handle_drag_accept(self, event: ft.DragTargetEvent):
+        """Forward accepted drops to the board controller."""
+
+        if self.on_square_drop is None or event.src is None:
+            return
+
+        from_coordinate = event.src.data
+        if isinstance(from_coordinate, str):
+            self.on_square_drop(from_coordinate, self.coordinate)
+
+    def _handle_drag_start(self, _event=None):
+        """Notify the board when a drag gesture begins from this square."""
+
+        if self.on_piece_drag_start is not None and self.has_piece:
+            self.on_piece_drag_start(self.coordinate)
+
+    def _handle_drag_complete(self, _event=None):
+        """Notify the board when a drag gesture completes from this square."""
+
+        if self.on_piece_drag_complete is not None:
+            self.on_piece_drag_complete(self.coordinate)
+
+    def _build_draggable_piece(self, piece: ChessPiece) -> ft.Draggable:
+        """Render the piece as a native drag source for smoother pointer tracking."""
+
+        return ft.Draggable(
+            group=self.DRAG_GROUP,
+            data=self.coordinate,
+            max_simultaneous_drags=1,
+            on_drag_start=self._handle_drag_start,
+            on_drag_complete=self._handle_drag_complete,
+            content=self._build_piece_shell(piece.to_control()),
+            content_when_dragging=ft.Container(
+                width=self.width,
+                height=self.height,
+                opacity=0.18,
+            ),
+            content_feedback=ft.Container(
+                width=self.width,
+                height=self.height,
+                alignment=ft.Alignment.CENTER,
+                scale=1.08,
+                opacity=0.96,
+                shadow=ft.BoxShadow(
+                    blur_radius=max(8, int(self.size * 0.2)),
+                    color=ft.Colors.BLACK_38,
+                    offset=ft.Offset(0, 4),
+                ),
+                content=self._build_feedback_piece(piece),
+            ),
+        )
+
+    def _build_feedback_piece(self, piece: ChessPiece) -> ft.Control:
+        ghost_piece = ChessPiece(piece.piece)
+        ghost_piece.set_square_size(self.size)
+        return ghost_piece.to_control()
+
+    def apply_size(self, size: int):
+        """Resize the square and refresh its piece/highlight geometry."""
+
+        self.size = size
+        self.width = size
+        self.height = size
+        self.interactive_surface.width = size
+        self.interactive_surface.height = size
+
+        if self.piece_container is not None:
+            self.piece_container.set_square_size(size)
+            self.update_content(self.piece_container)
+        else:
+            self._rebuild_stack()
+
+    def update_content(self, piece: Optional[ChessPiece] = None):
+        """Replace the visible piece control and refresh the square overlay."""
+
+        try:
+            if piece is None:
+                content = None
+                self.has_piece = False
+                self.piece_container = None
+            elif isinstance(piece, ChessPiece):
+                piece.set_square_size(self.size)
+                content = self._build_draggable_piece(piece)
+                self.piece_container = piece
+                self.has_piece = True
+            elif isinstance(piece, str):
+                content = ft.Text(
+                    piece, align=ft.Alignment.CENTER, color=ft.Colors.RED
+                )
+                self.has_piece = False
+                self.piece_container = None
+            else:
+                content = ft.Text(
+                    "ERROR", align=ft.Alignment.CENTER, color=ft.Colors.RED
+                )
+                self.has_piece = False
+                self.piece_container = None
+        except Exception:
+            traceback.print_exc()
+            content = ft.Text("ERROR", align=ft.Alignment.CENTER, color=ft.Colors.RED)
+            self.has_piece = False
+            self.piece_container = None
+
+        self.piece_control = content
+        self._rebuild_stack()
+
+    def _rebuild_stack(self):
+        """Recompose the square so highlights sit above the base board color."""
+
+        controls: list[ft.Control] = []
+        if self.piece_control is not None:
+            controls.append(self.piece_control)
+
+        self.stack.controls = controls
