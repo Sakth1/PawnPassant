@@ -1,4 +1,5 @@
 import flet as ft
+import random
 from chess import PAWN, Piece
 
 from ui.chess_piece import ChessPiece
@@ -18,10 +19,10 @@ class CaputredPieces(ft.Container):
         self.padding = 12
         self.alignment = ft.Alignment.CENTER 
 
-        self.black_squares = self._create_invisible_squares("b")
-        self.white_squares = self._create_invisible_squares("w")
-        self.black_label = ft.Text("Black Captures", color=ft.Colors.GREY_300, size=14)
-        self.white_label = ft.Text("White Captures", color=ft.Colors.GREY_300, size=14)
+        self.black_squares: list[InvisibleSquare] = self._create_invisible_squares("b")
+        self.white_squares: list[InvisibleSquare] = self._create_invisible_squares("w")
+        self.available_white_squares: list[int] = list(range(16))
+        self.available_black_squares: list[int] = list(range(16))
         self.black_grid: ft.GridView = self._build_square_grid(self.black_squares)
         self.white_grid: ft.GridView = self._build_square_grid(self.white_squares)
         self.divider = ft.Container(
@@ -110,16 +111,16 @@ class CaputredPieces(ft.Container):
         self._safe_update(self)
 
     def _get_random_available_position(self, is_white_capture: ActiveColor):
-        #TODO
-        pass
+        available_squares: list[int] = self.available_white_squares if is_white_capture else self.available_black_squares
+        return random.choice(available_squares)
 
     def _handle_piece_captured(self, event: PieceCapturedEvent):
         is_white_capture: ActiveColor = event.color
-        random_available_pos = self._get_random_available_position(is_white_capture)
+        random_available_pos:int = self._get_random_available_position(is_white_capture)
         if is_white_capture:
-            self.white_squares.append(event.piece)
+            self.white_squares[random_available_pos].update_content(event.piece)
         else:
-            self.black_squares.append(event.piece)
+            self.black_squares[random_available_pos].update_content(event.piece)
 
         self._safe_update(self)
 
