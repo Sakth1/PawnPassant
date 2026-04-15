@@ -10,7 +10,6 @@ from chess import Move, parse_square
 
 from ui.app import ChessApp
 from ui.board import ChessBoard
-from ui.captured_pieces import CaputredPieces
 from ui.clockui import ClockUI
 from ui.layout import MAX_SQUARE_SIZE, MIN_SQUARE_SIZE, resolve_app_layout
 from utils.events import GameEndedEvent
@@ -139,18 +138,6 @@ class TestResponsiveClockUi(unittest.TestCase):
         self.assertEqual(clock_ui.divider.width, layout.divider_extent)
 
 
-class TestResponsivePieceDisplayUi(unittest.TestCase):
-    def test_apply_layout_updates_sidebar_dimensions(self):
-        piece_display = CaputredPieces()
-        layout = resolve_app_layout(1400, 900)
-
-        piece_display.apply_layout(layout)
-
-        self.assertEqual(piece_display.width, layout.piece_panel_width)
-        self.assertEqual(piece_display.black_squares[0].width, max(24, int(layout.board_square_size * 0.45)))
-        self.assertEqual(piece_display.divider.width, max(80, int(layout.piece_panel_width * 0.72)))
-
-
 class TestResponsiveAppUi(unittest.TestCase):
     def setUp(self):
         self._original_emit = bus.emit
@@ -164,7 +151,6 @@ class TestResponsiveAppUi(unittest.TestCase):
         app = ChessApp(page, dev_mode=False)
 
         self.assertEqual(app.layout.breakpoint, "mobile")
-        self.assertEqual(app.piece_display_slot.col, {"xs": 12, "md": 12})
         self.assertEqual(app.board_slot.col, {"xs": 12, "md": 12})
         self.assertEqual(app.clock_slot.col, {"xs": 12, "md": 12})
 
@@ -173,9 +159,8 @@ class TestResponsiveAppUi(unittest.TestCase):
         app = ChessApp(page, dev_mode=False)
 
         self.assertEqual(app.layout.breakpoint, "desktop")
-        self.assertEqual(app.piece_display_slot.col, {"xs": 12, "md": 2})
-        self.assertEqual(app.board_slot.col, {"xs": 12, "md": 7})
-        self.assertEqual(app.clock_slot.col, {"xs": 12, "md": 3})
+        self.assertEqual(app.board_slot.col, {"xs": 12, "md": 8})
+        self.assertEqual(app.clock_slot.col, {"xs": 12, "md": 4})
 
     def test_dev_dropdown_stays_within_available_width(self):
         page = _FakePage(width=420, height=780, padding=_FakePadding(left=20, right=20))
@@ -213,6 +198,4 @@ class TestResponsiveAppUi(unittest.TestCase):
         self.assertFalse(app.result_dialog.open)
         self.assertEqual(page.overlay, [])
         self.assertEqual(app.position_selector.value, "Start Position")
-        self.assertEqual(
-            app.board_view.game.get_board_fen(), ChessBoard().game.get_board_fen()
-        )
+        self.assertEqual(app.board_view.game.get_board_fen(), ChessBoard().game.get_board_fen())

@@ -26,9 +26,6 @@ class Game:
         """Return the current board position as FEN."""
 
         return self.board.fen()
-    
-    def get_active_color(self) -> Color:
-        return self.board.turn
 
     def get_move_type(self, move: Move) -> MoveType:
         """Classify a move so the UI can apply the correct visual update path."""

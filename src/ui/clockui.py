@@ -33,7 +33,7 @@ class ClockUI(ft.Container):
         self.black_timer_ms = ft.Text(
             "",
             text_align=ft.TextAlign.CENTER,
-            color=ft.Colors.GREY_400,
+            color=ft.Colors.GREY_400, 
             font_family="RobotoMono",
             size=self.layout.timer_ms_size,
             weight=ft.FontWeight.BOLD,

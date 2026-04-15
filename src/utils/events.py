@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from typing import Optional
 
 from utils.models import ActiveColor
-from ui.chess_piece import ChessPiece
 
 
 class BaseEvent:
@@ -37,9 +36,3 @@ class ClockTickEvent(BaseEvent):
 class ClockStateEvent(BaseEvent):
     state: str
     active_color: Optional[ActiveColor]
-
-
-@dataclass(frozen=True)
-class PieceCapturedEvent(BaseEvent):
-    piece: ChessPiece
-    color: ActiveColor

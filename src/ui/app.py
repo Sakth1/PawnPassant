@@ -10,7 +10,6 @@ import flet as ft
 
 from ui.board import ChessBoard
 from ui.clockui import ClockUI
-from ui.captured_pieces import CaputredPieces
 from ui.layout import AppLayout, resolve_app_layout
 from utils.constants import ASSET_DIR, FONT_DIR
 from utils.events import GameEndedEvent, GameStartedEvent
@@ -36,7 +35,6 @@ class ChessApp:
 
         self.board_view = ChessBoard()
         self.time_control_view = ClockUI()
-        self.piece_display = CaputredPieces()
         self.result_dialog_title = ft.Text(weight=ft.FontWeight.BOLD)
         self.result_dialog_message = ft.Text(text_align=ft.TextAlign.CENTER)
         self.result_dialog = ft.AlertDialog(
@@ -61,23 +59,14 @@ class ChessApp:
         self.board_slot = ft.Container(
             content=self.board_view,
             alignment=ft.Alignment.CENTER,
-            col={"xs": 12, "md": 7},
+            col={"xs": 12, "md": 8},
         )
         self.clock_slot = ft.Container(
             content=self.time_control_view,
             alignment=ft.Alignment.CENTER,
-            col={"xs": 12, "md": 2},
+            col={"xs": 12, "md": 4},
         )
-        self.piece_display_slot = ft.Container(
-            content=self.piece_display,
-            alignment=ft.Alignment.CENTER,
-            col={"xs": 12, "md": 3},
-        )
-        self.content_row.controls = [
-            self.piece_display_slot,
-            self.board_slot,
-            self.clock_slot,
-        ]
+        self.content_row.controls = [self.board_slot, self.clock_slot]
 
         if self.dev_mode:
             self.position_selector = ft.Dropdown(
@@ -91,7 +80,7 @@ class ChessApp:
                 on_select=self._handle_position_change,
                 on_text_change=self._handle_position_change,
             )
-            root_controls = [self.content_row]
+            root_controls = [self.position_selector, self.content_row]
         else:
             self.position_selector = None
             root_controls = [self.content_row]
@@ -154,12 +143,10 @@ class ChessApp:
         self.layout = resolve_app_layout(page_width, page_height)
 
         self.board_view.apply_layout(self.layout)
-        self.piece_display.apply_layout(self.layout)
         self.time_control_view.apply_layout(self.layout)
 
         self.content_row.spacing = self.layout.gap
         self.content_row.run_spacing = self.layout.gap
-        self.piece_display_slot.col = {"xs": 12, "md": self.layout.piece_col}
         self.board_slot.col = {"xs": 12, "md": self.layout.board_col}
         self.clock_slot.col = {"xs": 12, "md": self.layout.clock_col}
         self.root_column.spacing = self.layout.gap
