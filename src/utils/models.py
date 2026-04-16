@@ -27,5 +27,5 @@ class TimeControl:
 
 @dataclass(frozen=True)
 class ActiveColor:
-    WHITE: str = chess.WHITE
-    BLACK: str = chess.BLACK
+    WHITE: chess.Color = chess.WHITE
+    BLACK: chess.Color = chess.BLACK

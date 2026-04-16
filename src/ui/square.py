@@ -4,6 +4,7 @@ import traceback
 from typing import Optional
 
 import flet as ft
+import chess
 
 from ui.chess_piece import ChessPiece
 
@@ -18,7 +19,7 @@ class Square(ft.Container):
         file,
         rank,
         coordinate,
-        color,
+        color: chess.Color,
         on_square_click=None,
         on_square_drop=None,
         on_piece_drag_start=None,
@@ -37,7 +38,7 @@ class Square(ft.Container):
         self.size = size
 
         self.base_bgcolor = (
-            ft.Colors.GREEN_100 if self.color == "w" else ft.Colors.GREEN_900
+            ft.Colors.GREEN_100 if self.color == chess.WHITE else ft.Colors.GREEN_900
         )
         self.bgcolor = self.base_bgcolor
         self.width = size
@@ -275,6 +276,7 @@ class InvisibleSquare(ft.Container):
     def __init__(
         self,
         coordinate: int,
+        color: str,
         on_square_drop=None,
         on_piece_drag_start=None,
         on_piece_drag_complete=None,
@@ -283,14 +285,15 @@ class InvisibleSquare(ft.Container):
         super().__init__(expand=True)
         self.coordinate = coordinate
         self.size = size
+        self.color: chess.Color = color
         self.width = size
         self.height = size
-        self.bgcolor = ft.Colors.TRANSPARENT
+        self.bgcolor = "#343434"
+        self.border_radius = 2
         self.has_piece = False
         self.piece_control: Optional[ft.Control] = None
         self.piece_container: Optional[ChessPiece] = None
         self.stack = ft.Stack(controls=[], expand=True, alignment=ft.Alignment.CENTER)
-        self.border = ft.Border.all(0, ft.Colors.BLUE)
         self.interactive_surface = ft.Container(
             content=self.stack,
             width=size,
@@ -323,7 +326,7 @@ class InvisibleSquare(ft.Container):
 
         from_coordinate = event.src.data
         if isinstance(from_coordinate, str):
-            self.on_square_drop(from_coordinate, self.coordinate)
+            self.on_square_drop(from_coordinate, self.coordinate, self.color)
 
     def _handle_drag_start(self, _event=None):
         """Notify the board when a drag gesture begins from this square."""
@@ -335,7 +338,7 @@ class InvisibleSquare(ft.Container):
         """Notify the board when a drag gesture completes from this square."""
 
         if self.on_piece_drag_complete is not None:
-            self.on_piece_drag_complete(self.coordinate)
+            self.on_piece_drag_complete(self.coordinate, self.color)
 
     def _build_draggable_piece(self, piece: ChessPiece) -> ft.Draggable:
         """Render the piece as a native drag source for smoother pointer tracking."""

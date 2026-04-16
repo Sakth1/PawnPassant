@@ -17,6 +17,8 @@ from chess import (
     KNIGHT,
     BISHOP,
     Piece,
+    WHITE,
+    BLACK,
 )
 
 from core.engine import Game
@@ -216,7 +218,7 @@ class ChessBoard(ft.Container):
                     file=file_idx,
                     rank=rank_idx,
                     coordinate=coords,
-                    color="b" if (file_idx + rank_idx) % 2 == 0 else "w",
+                    color= BLACK if (file_idx + rank_idx) % 2 == 0 else WHITE,
                     on_square_click=self._handle_square_click,
                     on_square_drop=self._handle_square_drop,
                     on_piece_drag_start=self._handle_piece_drag_start,
