@@ -310,6 +310,20 @@ class InvisibleSquare(ft.Container):
         self.on_piece_drag_complete = on_piece_drag_complete
         self.content = self.drag_target
 
+    def _drag_data(self) -> str:
+        return f"{int(self.color)}:{self.coordinate}"
+
+    @staticmethod
+    def parse_drag_data(data: str) -> tuple[int | None, str]:
+        if ":" not in data:
+            return None, data
+                
+        color_text, coordinate = data.split(":", 1)
+        try:
+            return int(color_text), coordinate
+        except ValueError:
+            return None, coordinate
+
     def _build_piece_shell(self, control: ft.Control) -> ft.Container:
         return ft.Container(
             width=self.width,
@@ -326,7 +340,13 @@ class InvisibleSquare(ft.Container):
 
         from_coordinate = event.src.data
         if isinstance(from_coordinate, str):
-            self.on_square_drop(from_coordinate, self.coordinate, self.color)
+            source_color, source_coordinate = self.parse_drag_data(from_coordinate)
+            self.on_square_drop(
+                source_coordinate,
+                self.coordinate,
+                self.color,
+                source_color=source_color,
+            )
 
     def _handle_drag_start(self, _event=None):
         """Notify the board when a drag gesture begins from this square."""
@@ -345,7 +365,7 @@ class InvisibleSquare(ft.Container):
 
         return ft.Draggable(
             group=self.DRAG_GROUP,
-            data=self.coordinate,
+            data=self._drag_data(),
             max_simultaneous_drags=1,
             on_drag_start=self._handle_drag_start,
             on_drag_complete=self._handle_drag_complete,

@@ -138,11 +138,31 @@ class CaputredPieces(ft.Container):
     def _handle_piece_drag_complete(self, _from_cords: str, piece_color):
         pass
 
-    def _handle_square_drop(self, from_cords: str, to_cords: str, piece_color):
+    def _handle_square_drop(
+        self,
+        from_cords: str,
+        to_cords: str,
+        piece_color,
+        source_color: int | None = None,
+    ):
         try:
+            if ":" in str(from_cords):
+                parsed_source_color, parsed_from_cords = InvisibleSquare.parse_drag_data(
+                    str(from_cords)
+                )
+                from_cords = parsed_from_cords
+                if source_color is None:
+                    source_color = parsed_source_color
+
             if from_cords == to_cords:
                 return
-            self.move_piece(from_cords=str(from_cords), to_cords=str(to_cords))
+            moved = self.move_piece(
+                from_cords=str(from_cords),
+                to_cords=str(to_cords),
+                source_color=source_color,
+            )
+            if not moved:
+                return
             from_cords = int(from_cords)
             to_cords = int(to_cords)
             if piece_color:
@@ -155,19 +175,32 @@ class CaputredPieces(ft.Container):
             import traceback
             traceback.print_exc()
 
-    def move_piece(self, from_cords: str, to_cords: str):
-        source_square = self._find_square(from_cords)
-        target_square = self._find_square(to_cords)
+    def move_piece(
+        self, from_cords: str, to_cords: str, source_color: int | None = None
+    ) -> bool:
+        source_square = self._find_square(from_cords, color=source_color)
+        target_square = self._find_square(to_cords, color=source_color)
         if source_square is None or target_square is None:
-            return
+            return False
 
         chess_piece = source_square.piece_container
-        print(f"{source_square.piece_container=}")
+        if chess_piece is None:
+            return False
         source_square.update_content(None)
         target_square.update_content(chess_piece)
+        return True
 
-    def _find_square(self, coordinate: str) -> InvisibleSquare | None:
-        for square in self.black_squares + self.white_squares:
+    def _find_square(
+        self, coordinate: str, color: int | None = None
+    ) -> InvisibleSquare | None:
+        if color == WHITE:
+            squares = self.white_squares
+        elif color == BLACK:
+            squares = self.black_squares
+        else:
+            squares = self.black_squares + self.white_squares
+
+        for square in squares:
             if square.coordinate == coordinate:
                 return square
         return None
