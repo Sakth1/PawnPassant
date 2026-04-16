@@ -17,7 +17,7 @@ class CaputredPieces(ft.Container):
         self.bgcolor = "#1F1F1F"
         self.border_radius = 16
         self.padding = 12
-        self.alignment = ft.Alignment.CENTER 
+        self.alignment = ft.Alignment.CENTER
 
         self.black_squares: list[InvisibleSquare] = self._create_invisible_squares("b")
         self.white_squares: list[InvisibleSquare] = self._create_invisible_squares("w")
@@ -40,7 +40,9 @@ class CaputredPieces(ft.Container):
             alignment=ft.MainAxisAlignment.CENTER,
             expand=True,
         )
-        bus.connect(PieceCapturedEvent, lambda event: self._handle_piece_captured(event))
+        bus.connect(
+            PieceCapturedEvent, lambda event: self._handle_piece_captured(event)
+        )
         self.apply_layout(self.layout)
 
     def _create_invisible_squares(self, prefix: str) -> list[InvisibleSquare]:
@@ -69,7 +71,7 @@ class CaputredPieces(ft.Container):
             run_spacing=4,
             padding=4,
         )
-        
+
         """for row_start in range(0, len(squares), 8):
             rows.append(
                 ft.Row(
@@ -93,30 +95,36 @@ class CaputredPieces(ft.Container):
         self.border_radius = max(12, int(layout.timer_radius * 0.8))
 
         # Use same square size as main board
-        capture_square_size = layout.board_square_size *0.97
+        capture_square_size = layout.board_square_size * 0.97
         for square in self.black_squares + self.white_squares:
             square.apply_size(capture_square_size)
 
         # Use 4x4 grid layout for captured pieces
         grid_spacing = max(4, int(layout.gap * 0.35))
         runs_count = 4
-        
+
         for grid in (self.black_grid, self.white_grid):
             grid.runs_count = runs_count
             grid.spacing = grid_spacing
             grid.run_spacing = grid_spacing
-        
+
         self.divider.width = max(80, int(layout.piece_panel_width * 0.72))
         self.content.spacing = max(10, int(layout.gap * 0.65))
         self._safe_update(self)
 
     def _get_random_available_position(self, is_white_capture: ActiveColor):
-        available_squares: list[int] = self.available_white_squares if is_white_capture else self.available_black_squares
+        available_squares: list[int] = (
+            self.available_white_squares
+            if is_white_capture
+            else self.available_black_squares
+        )
         return random.choice(available_squares)
 
     def _handle_piece_captured(self, event: PieceCapturedEvent):
         is_white_capture: ActiveColor = event.color
-        random_available_pos:int = self._get_random_available_position(is_white_capture)
+        random_available_pos: int = self._get_random_available_position(
+            is_white_capture
+        )
         if is_white_capture:
             self.white_squares[random_available_pos].update_content(event.piece)
         else:

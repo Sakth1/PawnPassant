@@ -147,8 +147,13 @@ class TestResponsivePieceDisplayUi(unittest.TestCase):
         piece_display.apply_layout(layout)
 
         self.assertEqual(piece_display.width, layout.piece_panel_width)
-        self.assertEqual(piece_display.black_squares[0].width, max(24, int(layout.board_square_size * 0.45)))
-        self.assertEqual(piece_display.divider.width, max(80, int(layout.piece_panel_width * 0.72)))
+        self.assertEqual(
+            piece_display.black_squares[0].width,
+            max(24, int(layout.board_square_size * 0.45)),
+        )
+        self.assertEqual(
+            piece_display.divider.width, max(80, int(layout.piece_panel_width * 0.72))
+        )
 
 
 class TestResponsiveAppUi(unittest.TestCase):

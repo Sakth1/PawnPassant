@@ -401,9 +401,7 @@ class InvisibleSquare(ft.Container):
                 self.piece_container = piece
                 self.has_piece = True
             elif isinstance(piece, str):
-                content = ft.Text(
-                    piece, align=ft.Alignment.CENTER, color=ft.Colors.RED
-                )
+                content = ft.Text(piece, align=ft.Alignment.CENTER, color=ft.Colors.RED)
                 self.has_piece = False
                 self.piece_container = None
             else:

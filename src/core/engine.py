@@ -26,7 +26,7 @@ class Game:
         """Return the current board position as FEN."""
 
         return self.board.fen()
-    
+
     def get_active_color(self) -> Color:
         return self.board.turn
 
