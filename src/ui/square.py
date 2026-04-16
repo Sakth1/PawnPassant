@@ -317,7 +317,7 @@ class InvisibleSquare(ft.Container):
     def parse_drag_data(data: str) -> tuple[int | None, str]:
         if ":" not in data:
             return None, data
-                
+
         color_text, coordinate = data.split(":", 1)
         try:
             return int(color_text), coordinate

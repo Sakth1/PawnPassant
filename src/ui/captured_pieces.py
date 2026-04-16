@@ -19,8 +19,12 @@ class CaputredPieces(ft.Container):
         self.padding = 12
         self.alignment = ft.Alignment.CENTER
 
-        self.black_squares: list[InvisibleSquare] = self._create_invisible_squares("black", BLACK)
-        self.white_squares: list[InvisibleSquare] = self._create_invisible_squares("white", WHITE)
+        self.black_squares: list[InvisibleSquare] = self._create_invisible_squares(
+            "black", BLACK
+        )
+        self.white_squares: list[InvisibleSquare] = self._create_invisible_squares(
+            "white", WHITE
+        )
         self.available_white_squares: list[int] = list(range(len(self.white_squares)))
         self.available_black_squares: list[int] = list(range(len(self.black_squares)))
         self.black_grid: ft.GridView = self._build_square_grid(self.black_squares)
@@ -54,12 +58,13 @@ class CaputredPieces(ft.Container):
             on_piece_drag_complete=self._handle_piece_drag_complete,
             size=60,
         )
-    def _create_invisible_squares(self, prefix: str, piece_colors) -> list[InvisibleSquare]:
+
+    def _create_invisible_squares(
+        self, prefix: str, piece_colors
+    ) -> list[InvisibleSquare]:
         squares: list[InvisibleSquare] = []
         for i in range(16):
-            squares.append(
-                self._invisible_square(prefix, i, piece_colors)
-            )
+            squares.append(self._invisible_square(prefix, i, piece_colors))
         return squares
 
     def _build_square_grid(self, squares: list[InvisibleSquare]) -> ft.GridView:
@@ -120,14 +125,18 @@ class CaputredPieces(ft.Container):
                 self.white_squares[random_available_pos].update_content(event.piece)
                 self.available_white_squares.remove(random_available_pos)
             except IndexError:
-                self.white_squares.append(self._invisible_square("white", random_available_pos, WHITE))
+                self.white_squares.append(
+                    self._invisible_square("white", random_available_pos, WHITE)
+                )
                 self.white_squares[-1].update_content(event.piece)
         else:
             try:
                 self.black_squares[random_available_pos].update_content(event.piece)
                 self.available_black_squares.remove(random_available_pos)
             except IndexError:
-                self.black_squares.append(self._invisible_square("black", random_available_pos, BLACK))
+                self.black_squares.append(
+                    self._invisible_square("black", random_available_pos, BLACK)
+                )
                 self.black_squares[-1].update_content(event.piece)
 
         self._safe_update(self)
@@ -147,8 +156,8 @@ class CaputredPieces(ft.Container):
     ):
         try:
             if ":" in str(from_cords):
-                parsed_source_color, parsed_from_cords = InvisibleSquare.parse_drag_data(
-                    str(from_cords)
+                parsed_source_color, parsed_from_cords = (
+                    InvisibleSquare.parse_drag_data(str(from_cords))
                 )
                 from_cords = parsed_from_cords
                 if source_color is None:
@@ -171,8 +180,9 @@ class CaputredPieces(ft.Container):
             else:
                 self.available_black_squares.append(from_cords)
                 self.available_black_squares.remove(to_cords)
-        except Exception as e: 
+        except Exception as e:
             import traceback
+
             traceback.print_exc()
 
     def move_piece(
