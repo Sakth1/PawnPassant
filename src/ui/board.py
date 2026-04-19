@@ -321,7 +321,7 @@ class ChessBoard(ft.Container):
         self.selected_square = square_cords
         self._clear_move_highlights(refresh=True)
         for target in self._get_legal_targets(square_cords):
-            sq = self.square_map.get(target)
+            sq: Square | None = self.square_map.get(target)
             if sq is not None:
                 sq.set_highlight(True, square_cords, refresh=True)
                 self.highlighted_squares.add(target)
@@ -446,7 +446,7 @@ class ChessBoard(ft.Container):
                 self.square_map.get(CASTLING_ROOK_START_SQUARE.get("QUEEN_SIDE_WHITE"))
             )
             king: Optional[ChessPiece] = self._get_piece_at_square(
-                self.square_map.get(CASTLING_KING_START_SQUARE)
+                self.square_map.get(CASTLING_KING_START_SQUARE.get("QUEEN_SIDE_WHITE"))
             )
             
             self.square_map[
@@ -560,7 +560,6 @@ class ChessBoard(ft.Container):
                 self._queen_side_castling()
             case MoveType.KING_SIDE_CASTLING:
                 self._king_side_castling()
-                self.game.display_board()
             case MoveType.PROMOTION:
                 self._update_last_move_on_board()
             case _:
