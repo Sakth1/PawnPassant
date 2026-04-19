@@ -53,6 +53,7 @@ class CaputredPieces(ft.Container):
         return InvisibleSquare(
             coordinate=str(position),
             color=piece_colors,
+            drag_drop_group= "captured-chess-piece-white" if piece_colors else "captured-chess-piece-black",
             on_square_drop=self._handle_square_drop,
             on_piece_drag_start=self._handle_piece_drag_start,
             on_piece_drag_complete=self._handle_piece_drag_complete,
@@ -190,8 +191,11 @@ class CaputredPieces(ft.Container):
     ) -> bool:
         source_square = self._find_square(from_cords, color=source_color)
         target_square = self._find_square(to_cords, color=source_color)
-        if source_square is None or target_square is None:
+        if source_square is None or target_square is None or target_square.has_piece:
             return False
+        
+        print(source_square.coordinate)
+        print(target_square.coordinate)
 
         chess_piece = source_square.piece_container
         if chess_piece is None:

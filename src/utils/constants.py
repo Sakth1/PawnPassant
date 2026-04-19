@@ -38,3 +38,17 @@ CASTLING_ROOK_END_SQUARE: Dict[str, str] = {
     "QUEEN_SIDE_BLACK": "d8",
     "KING_SIDE_BLACK": "f8",
 }
+
+CASTLING_KING_START_SQUARE: Dict[str, str] = {
+    "QUEEN_SIDE_WHITE": "e1",
+    "KING_SIDE_WHITE": "e1",
+    "QUEEN_SIDE_BLACK": "e8",
+    "KING_SIDE_BLACK": "e8",
+}
+
+CASTLING_KING_END_SQUARE: Dict[str, str] = {
+    "QUEEN_SIDE_WHITE": "c1",
+    "KING_SIDE_WHITE": "g1",
+    "QUEEN_SIDE_BLACK": "c8",
+    "KING_SIDE_BLACK": "g8",
+}

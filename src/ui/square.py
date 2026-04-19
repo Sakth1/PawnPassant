@@ -271,12 +271,12 @@ class Square(ft.Container):
 
 
 class InvisibleSquare(ft.Container):
-    DRAG_GROUP = "captured-chess-piece"
 
     def __init__(
         self,
         coordinate: int,
         color: str,
+        drag_drop_group: str,
         on_square_drop=None,
         on_piece_drag_start=None,
         on_piece_drag_complete=None,
@@ -300,6 +300,7 @@ class InvisibleSquare(ft.Container):
             height=size,
             alignment=ft.Alignment.CENTER,
         )
+        self.DRAG_GROUP: str = drag_drop_group
         self.drag_target = ft.DragTarget(
             group=self.DRAG_GROUP,
             on_accept=self._handle_drag_accept,

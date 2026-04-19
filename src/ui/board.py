@@ -26,7 +26,7 @@ from core.movetype import MoveType
 from ui.chess_piece import ChessPiece
 from ui.layout import AppLayout, resolve_app_layout
 from ui.square import Square
-from utils.constants import CASTLING_ROOK_START_SQUARE, CASTLING_ROOK_END_SQUARE
+from utils.constants import CASTLING_ROOK_START_SQUARE, CASTLING_ROOK_END_SQUARE, CASTLING_KING_START_SQUARE, CASTLING_KING_END_SQUARE
 from utils.events import (
     GameEndedEvent,
     GameStartedEvent,
@@ -321,7 +321,7 @@ class ChessBoard(ft.Container):
         self.selected_square = square_cords
         self._clear_move_highlights(refresh=True)
         for target in self._get_legal_targets(square_cords):
-            sq = self.square_map.get(target)
+            sq: Square | None = self.square_map.get(target)
             if sq is not None:
                 sq.set_highlight(True, square_cords, refresh=True)
                 self.highlighted_squares.add(target)
@@ -445,15 +445,31 @@ class ChessBoard(ft.Container):
             rook = self._get_piece_at_square(
                 self.square_map.get(CASTLING_ROOK_START_SQUARE.get("QUEEN_SIDE_WHITE"))
             )
+            king: Optional[ChessPiece] = self._get_piece_at_square(
+                self.square_map.get(CASTLING_KING_START_SQUARE.get("QUEEN_SIDE_WHITE"))
+            )
+            
             self.square_map[
                 CASTLING_ROOK_START_SQUARE.get("QUEEN_SIDE_WHITE")
             ].update_content(None)
             self.square_map[
                 CASTLING_ROOK_END_SQUARE.get("QUEEN_SIDE_WHITE")
             ].update_content(rook)
+
+            self.square_map[CASTLING_KING_START_SQUARE.get("QUEEN_SIDE_WHITE")].update_content(
+                None
+            )
+            self.square_map[CASTLING_KING_END_SQUARE.get("QUEEN_SIDE_WHITE")].update_content(
+                king
+            )
+
+
         else:
             rook = self._get_piece_at_square(
                 self.square_map.get(CASTLING_ROOK_START_SQUARE.get("QUEEN_SIDE_BLACK"))
+            )
+            king: Optional[ChessPiece] = self._get_piece_at_square(
+                self.square_map.get(CASTLING_KING_START_SQUARE.get("QUEEN_SIDE_BLACK"))
             )
             self.square_map[
                 CASTLING_ROOK_START_SQUARE.get("QUEEN_SIDE_BLACK")
@@ -461,6 +477,13 @@ class ChessBoard(ft.Container):
             self.square_map[
                 CASTLING_ROOK_END_SQUARE.get("QUEEN_SIDE_BLACK")
             ].update_content(rook)
+
+            self.square_map[CASTLING_KING_START_SQUARE.get("QUEEN_SIDE_BLACK")].update_content(
+                None
+            )
+            self.square_map[CASTLING_KING_END_SQUARE.get("QUEEN_SIDE_BLACK")].update_content(
+                king
+            )
 
     def _king_side_castling(self):
         """Reposition the rook after a king-side castle."""
@@ -473,6 +496,9 @@ class ChessBoard(ft.Container):
             rook = self._get_piece_at_square(
                 self.square_map.get(CASTLING_ROOK_START_SQUARE.get("KING_SIDE_WHITE"))
             )
+            king: Optional[ChessPiece] = self._get_piece_at_square(
+                self.square_map.get(CASTLING_KING_START_SQUARE.get("KING_SIDE_WHITE"))
+            )
             self.square_map[
                 CASTLING_ROOK_START_SQUARE.get("KING_SIDE_WHITE")
             ].update_content(None)
@@ -480,9 +506,19 @@ class ChessBoard(ft.Container):
                 CASTLING_ROOK_END_SQUARE.get("KING_SIDE_WHITE")
             ].update_content(rook)
 
+            self.square_map[
+                CASTLING_KING_START_SQUARE.get("KING_SIDE_WHITE")
+            ].update_content(None)
+            self.square_map[
+                CASTLING_KING_END_SQUARE.get("KING_SIDE_WHITE")
+            ].update_content(king)
+
         else:
             rook = self._get_piece_at_square(
                 self.square_map.get(CASTLING_ROOK_START_SQUARE.get("KING_SIDE_BLACK"))
+            )
+            king: Optional[ChessPiece] = self._get_piece_at_square(
+                self.square_map.get(CASTLING_KING_START_SQUARE.get("KING_SIDE_BLACK"))
             )
             self.square_map[
                 CASTLING_ROOK_START_SQUARE.get("KING_SIDE_BLACK")
@@ -490,6 +526,13 @@ class ChessBoard(ft.Container):
             self.square_map[
                 CASTLING_ROOK_END_SQUARE.get("KING_SIDE_BLACK")
             ].update_content(rook)
+
+            self.square_map[
+                CASTLING_KING_START_SQUARE.get("KING_SIDE_BLACK")
+            ].update_content(None)
+            self.square_map[
+                CASTLING_KING_END_SQUARE.get("KING_SIDE_BLACK")
+            ].update_content(king)
 
     def _complete_move(self, requested_move: Move, movement_type: MoveType):
         """Commit a legal move and update the UI according to its special behavior."""
@@ -509,6 +552,7 @@ class ChessBoard(ft.Container):
                 self._update_last_move_on_board()
             case MoveType.EN_PASSANT:
                 self._en_passant_capture()
+                bus.emit(PieceCapturedEvent(to_piece, active_color))
             case MoveType.CAPTURE:
                 self._update_last_move_on_board()
                 bus.emit(PieceCapturedEvent(to_piece, active_color))
