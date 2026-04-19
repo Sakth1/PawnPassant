@@ -552,6 +552,7 @@ class ChessBoard(ft.Container):
                 self._update_last_move_on_board()
             case MoveType.EN_PASSANT:
                 self._en_passant_capture()
+                bus.emit(PieceCapturedEvent(to_piece, active_color))
             case MoveType.CAPTURE:
                 self._update_last_move_on_board()
                 bus.emit(PieceCapturedEvent(to_piece, active_color))
