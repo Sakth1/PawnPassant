@@ -234,10 +234,6 @@ jobs:
         run: |
           echo "source_packages=${{ needs.metadata.outputs.source_packages }}"
 
-      - name: Build Android APK
-        run: |
-          flet build apk --yes --compile-packages --skip-flutter-doctor --no-rich-output
-
       - name: Decode Android keystore
         shell: bash
         env:
@@ -245,56 +241,41 @@ jobs:
         run: |
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > keystore.jks
 
-      - name: Install Android build tools
-        shell: bash
+      - name: Build Android APK
+        env:
+          FLET_ANDROID_SIGNING_KEY_STORE: keystore.jks
+          FLET_ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          FLET_ANDROID_SIGNING_KEY_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          FLET_ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" "build-tools;35.0.0"
+          flet build apk --yes --output build/apk --compile-packages --skip-flutter-doctor --no-rich-output
 
       - name: Locate APK
         id: locate_apk
         shell: pwsh
         run: |
-          $candidateDirs = @("build", "dist")
-          $apks = @()
+          $apkOutputDir = "build/apk"
 
-          foreach ($dir in $candidateDirs) {
-            if (Test-Path $dir) {
-              $apks += Get-ChildItem -Path $dir -Recurse -Filter *.apk -File
-            }
+          if (-not (Test-Path $apkOutputDir)) {
+            throw "Expected Flet APK output directory not found: $apkOutputDir"
           }
 
+          $apks = Get-ChildItem -Path $apkOutputDir -Recurse -Filter *.apk -File
+
+          $apks = $apks | Sort-Object FullName -Unique
+
           if ($apks.Count -eq 0) {
-            throw "No .apk output found in build/ or dist/."
+            throw "No .apk output found in $apkOutputDir."
+          }
+
+          if ($apks.Count -ne 1) {
+            $apkList = ($apks | ForEach-Object { $_.FullName }) -join "`n"
+            throw "Expected exactly one universal APK, found $($apks.Count):`n$apkList"
           }
 
           $apk = $apks | Select-Object -First 1
           Write-Host "Discovered APK: $($apk.FullName)"
           "apk_path=$($apk.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-
-      - name: Align APK
-        shell: bash
-        run: |
-          "${ANDROID_SDK_ROOT}/build-tools/35.0.0/zipalign" -f -p 4 "${{ steps.locate_apk.outputs.apk_path }}" aligned.apk
-
-      - name: Sign APK
-        shell: bash
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          cp aligned.apk signed.apk
-          "${ANDROID_SDK_ROOT}/build-tools/35.0.0/apksigner" sign \
-            --ks keystore.jks \
-            --ks-key-alias "$KEY_ALIAS" \
-            --ks-pass "pass:$KEYSTORE_PASSWORD" \
-            --key-pass "pass:$KEY_PASSWORD" \
-            signed.apk
-
-      - name: Verify signed APK
-        shell: bash
-        run: |
-          "${ANDROID_SDK_ROOT}/build-tools/35.0.0/apksigner" verify signed.apk
 
       - name: Collect APK
         id: collect
@@ -302,11 +283,11 @@ jobs:
         run: |
           $newApkName = "${{ needs.metadata.outputs.artifact_stem }}.apk"
 
-          if (-not (Test-Path "signed.apk")) {
-            throw "Signed APK not found."
+          if (-not (Test-Path "${{ steps.locate_apk.outputs.apk_path }}")) {
+            throw "Built APK not found."
           }
 
-          Move-Item -Path "signed.apk" -Destination $newApkName -Force
+          Move-Item -Path "${{ steps.locate_apk.outputs.apk_path }}" -Destination $newApkName -Force
 
           "path=$newApkName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 

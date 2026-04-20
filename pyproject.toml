@@ -28,7 +28,7 @@ source_packages = ["chess"]
 
 [tool.flet.android]
 permissions = ["android.permission.INTERNET"]
-split_per_abi = true
+split_per_abi = false
 compile_packages = true
 
 [tool.flet.app]
