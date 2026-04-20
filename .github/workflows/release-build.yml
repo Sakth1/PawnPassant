@@ -238,8 +238,20 @@ jobs:
         run: |
           flet build apk --yes --compile-packages --skip-flutter-doctor --no-rich-output
 
-      - name: Collect APK
-        id: collect
+      - name: Decode Android keystore
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > keystore.jks
+
+      - name: Install Android build tools
+        shell: bash
+        run: |
+          yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" "build-tools;35.0.0"
+
+      - name: Locate APK
+        id: locate_apk
         shell: pwsh
         run: |
           $candidateDirs = @("build", "dist")
@@ -255,10 +267,46 @@ jobs:
             throw "No .apk output found in build/ or dist/."
           }
 
-          # Rename and copy the APK to root directory with proper naming
           $apk = $apks | Select-Object -First 1
+          Write-Host "Discovered APK: $($apk.FullName)"
+          "apk_path=$($apk.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Align APK
+        shell: bash
+        run: |
+          "${ANDROID_SDK_ROOT}/build-tools/35.0.0/zipalign" -f -p 4 "${{ steps.locate_apk.outputs.apk_path }}" aligned.apk
+
+      - name: Sign APK
+        shell: bash
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          cp aligned.apk signed.apk
+          "${ANDROID_SDK_ROOT}/build-tools/35.0.0/apksigner" sign \
+            --ks keystore.jks \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass "pass:$KEYSTORE_PASSWORD" \
+            --key-pass "pass:$KEY_PASSWORD" \
+            signed.apk
+
+      - name: Verify signed APK
+        shell: bash
+        run: |
+          "${ANDROID_SDK_ROOT}/build-tools/35.0.0/apksigner" verify signed.apk
+
+      - name: Collect APK
+        id: collect
+        shell: pwsh
+        run: |
           $newApkName = "${{ needs.metadata.outputs.artifact_stem }}.apk"
-          Copy-Item $apk.FullName -Destination $newApkName -Force
+
+          if (-not (Test-Path "signed.apk")) {
+            throw "Signed APK not found."
+          }
+
+          Move-Item -Path "signed.apk" -Destination $newApkName -Force
 
           "path=$newApkName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
