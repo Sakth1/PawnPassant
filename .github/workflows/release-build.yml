@@ -248,7 +248,7 @@ jobs:
       - name: Install Android build tools
         shell: bash
         run: |
-          yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" "build-tools;35.0.0"
+          "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" "build-tools;35.0.0"
 
       - name: Locate APK
         id: locate_apk
