@@ -119,14 +119,40 @@ class ChessApp:
             alignment=ft.Alignment.CENTER,
             content=self.safe_area,
         )
+        self.page.add(self.main_page_view)
+
+        # Create multiple views/pages
+        self.home_view = ft.Container(content=ft.Text("Home Page"))
+        self.settings_view = ft.Container(content=ft.Text("Settings Page"))
+
+        # Add main container that will hold current view
+        self.view_container = ft.Container(expand=True, content=self.home_view)
+        self.page.add(self.view_container)
+
+        # Add NavigationBar with at least 2 destinations
+        self.page.navigation_bar = ft.NavigationBar(
+            destinations=[
+                ft.NavigationBarDestination(icon=ft.icons.Icons.HOME, label="Home"),
+                ft.NavigationBarDestination(icon=ft.icons.Icons.SETTINGS, label="Settings"),
+            ],
+            on_change=self._handle_navigation_change,
+        )
 
         self.page.on_resize = self._handle_page_resize
         self.page.on_media_change = self._handle_page_resize
         bus.connect(GameStartedEvent, self._handle_game_started)
         bus.connect(GameEndedEvent, self._handle_game_ended)
-        self.page.add(self.main_page_view)
+        
         self._apply_responsive_layout()
         bus.emit(GameStartedEvent())
+
+    async def _handle_navigation_change(self, event):
+        """Handle navigation bar tab changes."""
+        selected_index = event.control.selected_index
+        if selected_index == 0:
+            await self.page.push_route("/home")
+        elif selected_index == 1:
+            await self.page.push_route("/settings")
 
     def _resolve_page_dimensions(self) -> tuple[float, float]:
         page_width = getattr(self.page, "width", 0) or 960
