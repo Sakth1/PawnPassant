@@ -9,10 +9,11 @@ from pathlib import Path
 
 import flet as ft
 
-from ui.home import HomeView
+from ui.home_page import HomeView
 from ui.board import ChessBoard
 from ui.clockui import ClockUI
 from ui.captured_pieces import CaputredPieces
+from ui.settings_page import SettingsView
 from ui.layout import AppLayout, resolve_app_layout
 from utils.constants import ASSET_DIR, FONT_DIR
 from utils.events import GameEndedEvent, GameStartedEvent
@@ -124,7 +125,7 @@ class ChessApp:
             content=self.safe_area,
         )
 
-        self.settings_view = ft.Container(content=ft.Text("Settings Page"))
+        self.settings_view = SettingsView()
         self.view_container = ft.Container(expand=True)
 
         self.route_views = {
