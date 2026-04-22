@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from pathlib import Path
 
 import flet as ft
 
+from ui.home import HomeView
 from ui.board import ChessBoard
 from ui.clockui import ClockUI
 from ui.captured_pieces import CaputredPieces
@@ -33,6 +35,8 @@ class ChessApp:
         self.page.padding = 0
         self.page.spacing = 0
         self.page.scroll = ft.ScrollMode.AUTO
+
+        self.home_view = HomeView()
 
         self.board_view = ChessBoard()
         self.time_control_view = ClockUI()
@@ -114,45 +118,71 @@ class ChessApp:
             minimum_padding=self.layout.padding,
             content=self.content_container,
         )
-        self.main_page_view = ft.Container(
+        self.game_page_view = ft.Container(
             expand=True,
             alignment=ft.Alignment.CENTER,
             content=self.safe_area,
         )
-        self.page.add(self.main_page_view)
 
-        # Create multiple views/pages
-        self.home_view = ft.Container(content=ft.Text("Home Page"))
         self.settings_view = ft.Container(content=ft.Text("Settings Page"))
+        self.view_container = ft.Container(expand=True)
 
-        # Add main container that will hold current view
-        self.view_container = ft.Container(expand=True, content=self.home_view)
-        self.page.add(self.view_container)
+        self.route_views = {
+            "/home": self.home_view,
+            "/game": self.game_page_view,
+            "/settings": self.settings_view,
+        }
 
         # Add NavigationBar with at least 2 destinations
         self.page.navigation_bar = ft.NavigationBar(
             destinations=[
-                ft.NavigationBarDestination(icon=ft.icons.Icons.HOME, label="Home"),
-                ft.NavigationBarDestination(icon=ft.icons.Icons.SETTINGS, label="Settings"),
+                ft.NavigationBarDestination(icon=ft.icons.Icons.HOME, label="Home", visible=True),
+                ft.NavigationBarDestination(icon=ft.icons.Icons.GAMES, label="Game", visible=True),
+                ft.NavigationBarDestination(icon=ft.icons.Icons.SETTINGS, label="Settings", visible=True),
             ],
             on_change=self._handle_navigation_change,
         )
+        self.page.on_route_change = self._handle_route_change
 
         self.page.on_resize = self._handle_page_resize
         self.page.on_media_change = self._handle_page_resize
         bus.connect(GameStartedEvent, self._handle_game_started)
         bus.connect(GameEndedEvent, self._handle_game_ended)
-        
+
+        self.page.add(self.view_container)
         self._apply_responsive_layout()
-        bus.emit(GameStartedEvent())
+        self.page.run_task(self._push_initial_route)
 
     async def _handle_navigation_change(self, event):
         """Handle navigation bar tab changes."""
         selected_index = event.control.selected_index
-        if selected_index == 0:
-            await self.page.push_route("/home")
-        elif selected_index == 1:
-            await self.page.push_route("/settings")
+
+        match selected_index:
+            case 0:
+                await self.page.push_route("/home")
+            case 1:
+                await self.page.push_route("/game")
+            case 2:
+                await self.page.push_route("/settings")
+            case _:
+                raise ValueError(f"Invalid index {selected_index}")
+
+    async def _push_initial_route(self):
+        await asyncio.sleep(0)
+        await self.page.push_route("/home")
+
+    def _handle_route_change(self, event: ft.RouteChangeEvent):
+        route = event.route or "/home"
+        self.view_container.content = self.route_views.get(route, self.home_view)
+
+        route_to_index = {
+            "/home": 0,
+            "/game": 1,
+            "/settings": 2,
+        }
+        self.page.navigation_bar.selected_index = route_to_index.get(route, 0)
+        self._safe_update(self.view_container)
+        self._safe_update(self.page)
 
     def _resolve_page_dimensions(self) -> tuple[float, float]:
         page_width = getattr(self.page, "width", 0) or 960
@@ -196,8 +226,6 @@ class ChessApp:
 
         if self.position_selector is not None:
             self.position_selector.width = self.layout.dev_control_width
-
-        self._safe_update(self.main_page_view)
 
     def _handle_page_resize(self, _event):
         self._apply_responsive_layout()
