@@ -37,10 +37,9 @@ class ChessApp:
         self.page.spacing = 0
         self.page.scroll = ft.ScrollMode.AUTO
 
-        self.home_view = HomeView()
-
         self.board_view = ChessBoard()
         self.time_control_view = ClockUI()
+        self.home_view = HomeView(on_time_control_selected=self._start_game_with_time_control)
         self.piece_display = CaputredPieces()
         self.result_dialog_title = ft.Text(weight=ft.FontWeight.BOLD)
         self.result_dialog_message = ft.Text(text_align=ft.TextAlign.CENTER)
@@ -213,6 +212,7 @@ class ChessApp:
         self.board_view.apply_layout(self.layout)
         self.piece_display.apply_layout(self.layout)
         self.time_control_view.apply_layout(self.layout)
+        self.home_view.apply_layout(self.layout)
 
         self.content_row.spacing = self.layout.gap
         self.content_row.run_spacing = self.layout.gap
@@ -283,7 +283,17 @@ class ChessApp:
         if self.position_selector is not None:
             self.position_selector.value = "Start Position"
         self.board_view.load_position()
+        self.time_control_view.set_time_control(self.time_control_view.time_control)
         bus.emit(GameStartedEvent())
+        self._safe_update(self.page)
+
+    def _start_game_with_time_control(self, time_control: tuple[int, int]) -> None:
+        self.time_control_view.set_time_control(time_control)
+        if self.position_selector is not None:
+            self.position_selector.value = "Start Position"
+        self.board_view.load_position()
+        bus.emit(GameStartedEvent())
+        self.page.go("/game")
         self._safe_update(self.page)
 
     @staticmethod
