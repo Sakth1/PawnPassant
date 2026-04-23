@@ -1,7 +1,9 @@
 """Responsive UI tests for shared layout math and resize application."""
 
+import asyncio
 import sys
 import unittest
+from dataclasses import fields
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -12,8 +14,10 @@ from ui.app import ChessApp
 from ui.board import ChessBoard
 from ui.captured_pieces import CaputredPieces
 from ui.clockui import ClockUI
+from ui.home_page import HomeView
 from ui.layout import MAX_SQUARE_SIZE, MIN_SQUARE_SIZE, resolve_app_layout
 from utils.events import GameEndedEvent
+from utils.models import TimeControl
 from utils.signals import bus
 
 
@@ -50,6 +54,8 @@ class _FakePage:
         self.on_resize = None
         self.on_media_change = None
         self.controls = []
+        self.route = "/home"
+        self.navigation_bar = None
 
     def add(self, control):
         self.controls.append(control)
@@ -67,6 +73,19 @@ class _FakePage:
         dialog = self.overlay.pop()
         dialog.open = False
         return dialog
+
+    def run_task(self, fn, *args):
+        return asyncio.run(fn(*args))
+
+    async def push_route(self, route):
+        self.route = route
+        if self.on_route_change is not None:
+            self.on_route_change(type("RouteEvent", (), {"route": route})())
+
+    def go(self, route):
+        self.route = route
+        if self.on_route_change is not None:
+            self.on_route_change(type("RouteEvent", (), {"route": route})())
 
 
 class TestResponsiveLayoutResolver(unittest.TestCase):
@@ -149,7 +168,7 @@ class TestResponsivePieceDisplayUi(unittest.TestCase):
         self.assertEqual(piece_display.width, layout.piece_panel_width)
         self.assertEqual(
             piece_display.black_squares[0].width,
-            max(24, int(layout.board_square_size * 0.45)),
+            layout.board_square_size * 0.97,
         )
         self.assertEqual(
             piece_display.divider.width, max(80, int(layout.piece_panel_width * 0.72))
@@ -178,9 +197,9 @@ class TestResponsiveAppUi(unittest.TestCase):
         app = ChessApp(page, dev_mode=False)
 
         self.assertEqual(app.layout.breakpoint, "desktop")
-        self.assertEqual(app.piece_display_slot.col, {"xs": 12, "md": 2})
+        self.assertEqual(app.piece_display_slot.col, {"xs": 12, "md": 3})
         self.assertEqual(app.board_slot.col, {"xs": 12, "md": 7})
-        self.assertEqual(app.clock_slot.col, {"xs": 12, "md": 3})
+        self.assertEqual(app.clock_slot.col, {"xs": 12, "md": 2})
 
     def test_dev_dropdown_stays_within_available_width(self):
         page = _FakePage(width=420, height=780, padding=_FakePadding(left=20, right=20))
@@ -221,3 +240,89 @@ class TestResponsiveAppUi(unittest.TestCase):
         self.assertEqual(
             app.board_view.game.get_board_fen(), ChessBoard().game.get_board_fen()
         )
+
+    def test_home_selection_updates_clock_and_routes_to_game(self):
+        page = _FakePage(width=960, height=800)
+        app = ChessApp(page, dev_mode=False)
+
+        app._start_game_with_time_control((10, 5))
+
+        self.assertEqual(app.time_control_view.time_control, (10, 5))
+        self.assertEqual(app.view_container.content, app.game_page_view)
+        self.assertEqual(page.route, "/game")
+
+
+class TestHomeView(unittest.TestCase):
+    def test_presets_are_generated_from_time_control_model(self):
+        home_view = HomeView()
+
+        expected_keys = {field.name for field in fields(TimeControl)}
+        actual_keys = {str(preset["key"]) for preset in home_view.presets}
+
+        self.assertEqual(actual_keys, expected_keys)
+
+    def test_presets_include_tooltips_for_grid_tiles(self):
+        home_view = HomeView()
+        first_tile = home_view.grid.controls[0]
+
+        self.assertIn("increment", first_tile.tooltip)
+
+    def test_tile_click_updates_selected_preset(self):
+        home_view = HomeView()
+        selected_preset = next(
+            preset for preset in home_view.presets if preset["value"] == (10, 5)
+        )
+
+        home_view._select_preset(str(selected_preset["key"]))
+
+        self.assertEqual(home_view.selected_preset["value"], (10, 5))
+
+    def test_primary_action_returns_selected_time_control(self):
+        captured = []
+        home_view = HomeView(on_time_control_selected=captured.append)
+        selected_preset = next(
+            preset for preset in home_view.presets if preset["value"] == (10, 5)
+        )
+
+        home_view._select_preset(str(selected_preset["key"]))
+        home_view._handle_primary_action()
+
+        self.assertEqual(captured, [(10, 5)])
+
+    def test_custom_apply_updates_selected_time_control(self):
+        home_view = HomeView()
+
+        home_view.minutes_input.value = "7"
+        home_view.increment_input.value = "3"
+        home_view._handle_custom_apply()
+
+        self.assertEqual(home_view.selected_time_control, (7, 3))
+        self.assertEqual(home_view.selection_text.value, "Selected: Custom 7+3")
+
+    def test_primary_action_uses_custom_time_control(self):
+        captured = []
+        home_view = HomeView(on_time_control_selected=captured.append)
+
+        home_view.minutes_input.value = "12"
+        home_view.increment_input.value = "5"
+        home_view._handle_primary_action()
+
+        self.assertEqual(captured, [(12, 5)])
+
+    def test_custom_time_requires_positive_minutes(self):
+        home_view = HomeView()
+
+        home_view.minutes_input.value = "0"
+        home_view.increment_input.value = "5"
+        home_view._handle_custom_apply()
+
+        self.assertEqual(home_view.minutes_input.error_text, "Enter minutes")
+
+    def test_apply_layout_updates_homepage_responsiveness(self):
+        home_view = HomeView()
+        mobile_layout = resolve_app_layout(420, 780)
+
+        home_view.apply_layout(mobile_layout)
+
+        self.assertEqual(home_view.content.padding.left, mobile_layout.padding)
+        self.assertEqual(home_view.grid.controls[0].col, {"xs": 4, "sm": 4, "md": 4})

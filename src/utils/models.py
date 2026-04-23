@@ -7,7 +7,6 @@ import chess
 @dataclass(frozen=True)
 class TimeControl:
     # Default clock time control
-    ZERO_PLUS_ZERO: Tuple[float, int] = (0.1, 0)
     ONE_PLUS_ZERO: Tuple[int, int] = (1, 0)  # Bullet
     ONE_PLUS_ONE: Tuple[int, int] = (1, 1)
     TWO_PLUS_ONE: Tuple[int, int] = (2, 1)

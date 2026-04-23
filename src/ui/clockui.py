@@ -20,6 +20,7 @@ def time_control_to_string(time_control: TimeControl) -> str:
 class ClockUI(ft.Container):
     def __init__(self, time_control: TimeControl = TimeControl.THREE_PLUS_TWO):
         super().__init__()
+        self.time_control = time_control
         self.layout = resolve_app_layout(960, 800)
         self.black_timer_main = ft.Text(
             time_control_to_string(time_control),
@@ -109,6 +110,28 @@ class ClockUI(ft.Container):
         bus.connect(GameStartedEvent, self._start_clock)
         bus.connect(GameEndedEvent, self._handle_game_ended)
         self.apply_layout(self.layout)
+
+    def set_time_control(self, time_control: tuple[int, int]) -> None:
+        self.time_control = time_control
+        self.clock.stop()
+        self.clock = Clock(time_control=time_control)
+        self.game_over = False
+        self.content.controls = [
+            self.black_timer,
+            self.divider,
+            self.white_timer,
+        ]
+        display_value = time_control_to_string(time_control)
+        for timer_main, timer_ms, timer_container in (
+            (self.black_timer_main, self.black_timer_ms, self.black_timer),
+            (self.white_timer_main, self.white_timer_ms, self.white_timer),
+        ):
+            timer_main.value = display_value
+            timer_main.color = ft.Colors.GREY_400
+            timer_ms.value = ""
+            timer_ms.bgcolor = None
+            timer_container.bgcolor = "#262626"
+        self._safe_update(self)
 
     def apply_layout(self, layout: AppLayout):
         """Resize the timer UI for the current responsive breakpoint."""
