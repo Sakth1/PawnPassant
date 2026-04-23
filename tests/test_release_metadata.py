@@ -10,6 +10,7 @@ from scripts.ci.release_metadata import (
     command_detect_version_bump,
     command_extract_release_metadata,
     compare_semver,
+    parse_semver,
 )
 
 
@@ -23,6 +24,11 @@ class Args:
 class TestSemverComparator(unittest.TestCase):
     """Validate semantic-version comparison edge cases."""
 
+    def test_parse_semver_accepts_v_prefix(self):
+        parsed = parse_semver("v0.3.0-beta.1")
+        self.assertEqual((parsed.major, parsed.minor, parsed.patch), (0, 3, 0))
+        self.assertEqual(parsed.prerelease, ("beta", "1"))
+
     def test_semver_ordering_cases(self):
         cases = [
             ("0.1.0", "0.1.0", 0),
@@ -31,6 +37,8 @@ class TestSemverComparator(unittest.TestCase):
             ("1.0.0-alpha.2", "1.0.0-alpha.1", 1),
             ("1.0.0", "1.0.0-rc.1", 1),
             ("1.0.0-alpha.1", "1.0.0", -1),
+            ("v1.0.0-beta.2", "v1.0.0-beta.1", 1),
+            ("v1.0.0", "1.0.0", 0),
         ]
 
         for left, right, expected in cases:
@@ -74,6 +82,35 @@ binary_name = "Pawn-Passant"
             self.assertIn("release_tag=v1.2.3-alpha.1", written)
             self.assertIn("publish_enabled=true", written)
             self.assertIn("source_packages=chess", written)
+
+    def test_extract_release_metadata_accepts_v_prefixed_project_version(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pyproject = Path(tmp) / "pyproject.toml"
+            output = Path(tmp) / "out.txt"
+            pyproject.write_text(
+                """
+[project]
+name = "pawnpassant"
+version = "v1.2.3-beta.1"
+
+[tool.flet]
+source_packages = ["chess"]
+""".strip() + "\n",
+                encoding="utf-8",
+            )
+
+            args = Args(
+                pyproject=str(pyproject),
+                event_name="release",
+                release_tag="v1.2.3-beta.1",
+                github_output=str(output),
+            )
+            rc = command_extract_release_metadata(args)
+            self.assertEqual(rc, 0)
+
+            written = output.read_text(encoding="utf-8")
+            self.assertIn("version=v1.2.3-beta.1", written)
+            self.assertIn("release_tag=v1.2.3-beta.1", written)
 
     def test_extract_release_metadata_rejects_mismatched_tag(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -174,6 +211,31 @@ class TestVersionBumpDetection(unittest.TestCase):
             written = output.read_text(encoding="utf-8")
             self.assertIn("should_release=true", written)
             self.assertIn("current_version=1.0.0-alpha.2", written)
+
+    def test_detect_version_bump_preserves_single_v_in_tag_output(self):
+        temp_dir, repo = self._init_repo_with_versions(
+            ["v1.0.0-beta.1", "v1.0.0-beta.2"]
+        )
+        with temp_dir:
+            before = subprocess.check_output(
+                ["git", "rev-parse", "HEAD~1"], cwd=repo, text=True
+            ).strip()
+            output = repo / "out.txt"
+            args = Args(
+                pyproject="pyproject.toml", before=before, github_output=str(output)
+            )
+
+            prev_cwd = Path.cwd()
+            try:
+                os.chdir(repo)
+                rc = command_detect_version_bump(args)
+            finally:
+                os.chdir(prev_cwd)
+
+            self.assertEqual(rc, 0)
+            written = output.read_text(encoding="utf-8")
+            self.assertIn("should_release=true", written)
+            self.assertIn("tag=v1.0.0-beta.2", written)
 
     def test_detect_version_bump_false_when_unchanged(self):
         temp_dir, repo = self._init_repo_with_versions(["1.0.0", "1.0.0"])

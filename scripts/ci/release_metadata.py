@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 SEMVER_PATTERN = re.compile(
-    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+    r"^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
     r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
 )
@@ -29,7 +29,7 @@ class ParsedSemver:
 
 
 def parse_semver(version: str) -> ParsedSemver:
-    """Validate and split a SemVer 2.0.0 version string."""
+    """Validate and split a SemVer 2.0.0 version string with optional `v` prefix."""
 
     match = SEMVER_PATTERN.fullmatch(version)
     if not match:
@@ -136,6 +136,12 @@ def normalize_tag(tag: str) -> str:
     return tag[1:] if tag.startswith("v") else tag
 
 
+def ensure_prefixed_tag(version: str) -> str:
+    """Return a release tag with a single leading `v`."""
+
+    return version if version.startswith("v") else f"v{version}"
+
+
 def append_outputs(path: Path, outputs: dict[str, str]) -> None:
     """Append GitHub Actions style key-value outputs to a file."""
 
@@ -181,10 +187,10 @@ def command_extract_release_metadata(args: argparse.Namespace) -> int:
     if publish_enabled == "true":
         if not release_tag:
             raise ValueError("release_tag is required when publish_enabled is true")
-        if normalize_tag(release_tag) != version:
+        if normalize_tag(release_tag) != normalize_tag(version):
             raise ValueError(
                 f"Release tag '{release_tag}' must match pyproject version '{version}' "
-                f"(or 'v{version}')."
+                f"(or '{ensure_prefixed_tag(version)}')."
             )
 
     outputs = {
@@ -247,7 +253,7 @@ def command_detect_version_bump(args: argparse.Namespace) -> int:
         "current_version": current_version,
         "previous_version": previous_version,
         "should_release": should_release,
-        "tag": f"v{current_version}",
+        "tag": ensure_prefixed_tag(current_version),
         "reason": reason,
     }
 
