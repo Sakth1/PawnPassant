@@ -1,4 +1,5 @@
 import flet as ft
+from typing import Callable
 
 from ui.layout import AppLayout, resolve_app_layout
 from core.clock import Clock
@@ -18,9 +19,16 @@ def time_control_to_string(time_control: TimeControl) -> str:
 
 
 class ClockUI(ft.Container):
-    def __init__(self, time_control: TimeControl = TimeControl.THREE_PLUS_TWO):
+    def __init__(
+        self,
+        time_control: TimeControl = TimeControl.THREE_PLUS_TWO,
+        on_draw: Callable | None = None,
+        on_resign: Callable | None = None,
+    ):
         super().__init__()
         self.time_control = time_control
+        self.on_draw = on_draw
+        self.on_resign = on_resign
         self.layout = resolve_app_layout(960, 800)
         self.black_timer_main = ft.Text(
             time_control_to_string(time_control),
@@ -90,9 +98,31 @@ class ClockUI(ft.Container):
             width=self.layout.divider_extent,
             margin=ft.margin.Margin(20, 0, 20, 0),
         )
+        self.draw_button = self._build_action_button(
+            icon_name="HANDSHAKE_OUTLINED",
+            tooltip="Offer draw",
+            on_click=self._handle_draw_click,
+        )
+        self.resign_button = self._build_action_button(
+            icon_name="FLAG_ROUNDED",
+            tooltip="Resign",
+            on_click=self._handle_resign_click,
+        )
+        self.action_bar = ft.Container(
+            content=ft.Row(
+                controls=[self.draw_button, self.resign_button],
+                alignment=ft.MainAxisAlignment.CENTER,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=8,
+            ),
+            padding=ft.Padding(8, 4, 8, 4),
+            border_radius=12,
+            bgcolor="#303030",
+        )
         self.content = ft.Column(
             controls=[
                 self.black_timer,
+                self.action_bar,
                 self.divider,
                 self.white_timer,
             ],
@@ -111,6 +141,31 @@ class ClockUI(ft.Container):
         bus.connect(GameEndedEvent, self._handle_game_ended)
         self.apply_layout(self.layout)
 
+    def _icon(self, name: str, fallback: str = "MORE_HORIZ_ROUNDED"):
+        return getattr(ft.Icons, name, getattr(ft.Icons, fallback))
+
+    def _build_action_button(self, icon_name: str, tooltip: str, on_click) -> ft.IconButton:
+        return ft.IconButton(
+            icon=self._icon(icon_name),
+            tooltip=tooltip,
+            icon_color=ft.Colors.GREY_300,
+            bgcolor="#3A3A3A",
+            hover_color=ft.Colors.WHITE_10,
+            on_click=on_click,
+        )
+
+    def _handle_draw_click(self, event):
+        if self.game_over:
+            return
+        if self.on_draw is not None:
+            self.on_draw(event)
+
+    def _handle_resign_click(self, event):
+        if self.game_over:
+            return
+        if self.on_resign is not None:
+            self.on_resign(event)
+
     def set_time_control(self, time_control: tuple[int, int]) -> None:
         self.time_control = time_control
         self.clock.stop()
@@ -118,6 +173,7 @@ class ClockUI(ft.Container):
         self.game_over = False
         self.content.controls = [
             self.black_timer,
+            self.action_bar,
             self.divider,
             self.white_timer,
         ]
@@ -165,6 +221,21 @@ class ClockUI(ft.Container):
         self.content.spacing = max(10, layout.gap)
         self.divider.width = layout.divider_extent
         self.divider.height = 3
+        action_size = max(34, min(44, int(layout.board_square_size * 0.52)))
+        self.action_bar.border_radius = max(8, int(layout.timer_radius * 0.55))
+        action_padding_y = max(3, int(layout.gap * 0.25))
+        action_padding_x = max(6, int(layout.gap * 0.4))
+        self.action_bar.padding = ft.Padding(
+            action_padding_x,
+            action_padding_y,
+            action_padding_x,
+            action_padding_y,
+        )
+        self.action_bar.content.spacing = max(6, int(layout.gap * 0.45))
+        for button in (self.draw_button, self.resign_button):
+            button.width = action_size
+            button.height = action_size
+            button.icon_size = max(18, int(action_size * 0.55))
         self._safe_update(self)
 
     def _safe_page(self):

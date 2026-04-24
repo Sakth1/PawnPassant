@@ -156,6 +156,8 @@ class TestResponsiveClockUi(unittest.TestCase):
         self.assertEqual(clock_ui.black_timer_main.size, layout.timer_font_size)
         self.assertEqual(clock_ui.black_timer_ms.size, layout.timer_ms_size)
         self.assertEqual(clock_ui.divider.width, layout.divider_extent)
+        self.assertIn(clock_ui.action_bar, clock_ui.content.controls)
+        self.assertGreaterEqual(clock_ui.draw_button.width, 34)
 
 
 class TestResponsivePieceDisplayUi(unittest.TestCase):
