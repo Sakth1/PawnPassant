@@ -29,7 +29,7 @@ class ChessPiece(ft.Container):
             symbol = self.piece.symbol()
             piece_name = SYMBOL_MAP.get(symbol)
             piece_src = Path("pieces", "default", f"{piece_name}.png").as_posix()
-            image_size = max(20, int(self.square_size * 0.82))
+            image_size = max(20, int(self.square_size * 0.94))
             self.width = self.square_size
             self.height = self.square_size
             self.content = ft.Image(
@@ -48,7 +48,7 @@ class ChessPiece(ft.Container):
 
         self.square_size = square_size
         if isinstance(self.content, ft.Image):
-            image_size = max(20, int(self.square_size * 0.82))
+            image_size = max(20, int(self.square_size * 0.94))
             self.width = self.square_size
             self.height = self.square_size
             self.content.width = image_size

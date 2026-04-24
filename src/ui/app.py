@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 
 import flet as ft
+import chess
 
 from ui.home_page import HomeView
 from ui.board import ChessBoard
@@ -22,6 +23,8 @@ from utils.signals import bus
 
 class ChessApp:
     """Builds the page layout and optional developer controls."""
+
+    NAVIGATION_BAR_HEIGHT = 72
 
     def __init__(self, page: ft.Page, dev_mode: bool = False):
         self.page = page
@@ -38,7 +41,10 @@ class ChessApp:
         self.page.scroll = ft.ScrollMode.AUTO
 
         self.board_view = ChessBoard()
-        self.time_control_view = ClockUI()
+        self.time_control_view = ClockUI(
+            on_draw=self._handle_draw_action,
+            on_resign=self._handle_resign_action,
+        )
         self.home_view = HomeView(on_time_control_selected=self._start_game_with_time_control)
         self.piece_display = CaputredPieces()
         self.result_dialog_title = ft.Text(weight=ft.FontWeight.BOLD)
@@ -115,7 +121,7 @@ class ChessApp:
         )
         self.safe_area = ft.SafeArea(
             expand=True,
-            minimum_padding=self.layout.padding,
+            minimum_padding=0,
             content=self.content_container,
         )
         self.game_page_view = ft.Container(
@@ -203,6 +209,9 @@ class ChessApp:
                 - (getattr(padding, "top", 0) or 0)
                 - (getattr(padding, "bottom", 0) or 0),
             )
+        if getattr(self.page, "navigation_bar", None) is not None:
+            page_height = max(480.0, page_height - self.NAVIGATION_BAR_HEIGHT)
+
         return page_width, page_height
 
     def _apply_responsive_layout(self):
@@ -220,7 +229,7 @@ class ChessApp:
         self.board_slot.col = {"xs": 12, "md": self.layout.board_col}
         self.clock_slot.col = {"xs": 12, "md": self.layout.clock_col}
         self.root_column.spacing = self.layout.gap
-        self.safe_area.minimum_padding = self.layout.padding
+        self.safe_area.minimum_padding = 0
         self.content_container.padding = ft.Padding.all(self.layout.padding)
         self.result_dialog_title.size = max(18, int(self.layout.timer_font_size * 0.5))
         self.result_dialog_message.size = max(14, int(self.layout.timer_ms_size * 1.05))
@@ -276,6 +285,34 @@ class ChessApp:
         self.result_dialog_message.value = event.message
         self.page.show_dialog(self.result_dialog)
         self._safe_update(self.page)
+
+    def _handle_draw_action(self, _event=None):
+        if self.board_view.game_over:
+            return
+
+        bus.emit(
+            GameEndedEvent(
+                winner="Draw",
+                reason="agreement",
+                message="Draw by agreement.",
+            )
+        )
+
+        #TODO: have to implement draw agreement by the other color
+
+    def _handle_resign_action(self, _event=None):
+        if self.board_view.game_over:
+            return
+
+        winner = "Black" if self.board_view.game.board.turn == chess.WHITE else "White"
+        loser = "White" if winner == "Black" else "Black"
+        bus.emit(
+            GameEndedEvent(
+                winner=winner,
+                reason="resignation",
+                message=f"{loser} resigned. {winner} wins.",
+            )
+        )
 
     def _handle_result_dialog_close(self, _event=None):
         self.page.pop_dialog()
