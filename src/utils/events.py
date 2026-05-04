@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from utils.models import ActiveColor
+from utils.models import ActiveColor, AppSettings
 from ui.chess_piece import ChessPiece
 
 
@@ -15,6 +15,11 @@ class PieceModevedEvent(BaseEvent):
 
 class GameStartedEvent(BaseEvent):
     pass
+
+
+@dataclass(frozen=True)
+class SettingsChangedEvent(BaseEvent):
+    settings: AppSettings
 
 
 @dataclass(frozen=True)

@@ -26,14 +26,20 @@ from core.movetype import MoveType
 from ui.chess_piece import ChessPiece
 from ui.layout import AppLayout, resolve_app_layout
 from ui.square import Square
-from utils.constants import CASTLING_ROOK_START_SQUARE, CASTLING_ROOK_END_SQUARE, CASTLING_KING_START_SQUARE, CASTLING_KING_END_SQUARE
+from utils.constants import (
+    CASTLING_KING_END_SQUARE,
+    CASTLING_KING_START_SQUARE,
+    CASTLING_ROOK_END_SQUARE,
+    CASTLING_ROOK_START_SQUARE,
+)
 from utils.events import (
     GameEndedEvent,
     GameStartedEvent,
     PieceModevedEvent,
     PieceCapturedEvent,
+    SettingsChangedEvent,
 )
-from utils.models import ActiveColor
+from utils.models import ActiveColor, AppSettings
 from utils.signals import bus
 
 
@@ -42,6 +48,18 @@ class ChessBoard(ft.Container):
 
     PROMOTION_OPTIONS = [QUEEN, ROOK, BISHOP, KNIGHT]
     MOVE_ANIMATION_DURATION_MS = 120
+    MOVE_ANIMATION_DURATIONS = {
+        "off": 0,
+        "fast": 60,
+        "normal": 120,
+        "slow": 220,
+    }
+    PROMOTION_NAME_TO_PIECE = {
+        "queen": QUEEN,
+        "rook": ROOK,
+        "bishop": BISHOP,
+        "knight": KNIGHT,
+    }
 
     TEST_POSITIONS: dict[str, Optional[str]] = {
         "Start Position": None,
@@ -65,6 +83,10 @@ class ChessBoard(ft.Container):
         self.selected_square: Optional[str] = None
         self.active_tap_feedback_square: Optional[str] = None
         self.game_over = False
+        self.settings = AppSettings()
+        self.pending_confirmed_move: Optional[
+            tuple[Move, MoveType, str, str, bool]
+        ] = None
 
         self.board_frame = ft.GridView(
             runs_count=8,
@@ -116,6 +138,16 @@ class ChessBoard(ft.Container):
                 self.MOVE_ANIMATION_DURATION_MS, curve=ft.AnimationCurve.EASE_IN_OUT
             ),
         )
+        self.confirm_move_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Confirm move", weight=ft.FontWeight.BOLD),
+            content=ft.Text("Play this move?"),
+            actions=[
+                ft.TextButton("Cancel", on_click=self._handle_confirm_move_cancel),
+                ft.FilledButton("Play", on_click=self._handle_confirm_move_accept),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
         self.content = ft.Stack(
             controls=[
                 self.board_layer,
@@ -129,7 +161,9 @@ class ChessBoard(ft.Container):
         self.clip_behavior = ft.ClipBehavior.NONE
         bus.connect(GameStartedEvent, self._handle_game_started)
         bus.connect(GameEndedEvent, self._handle_game_ended)
+        bus.connect(SettingsChangedEvent, self._handle_settings_changed)
         self._setup_pieces()
+        self._apply_square_settings(refresh=False)
 
     def apply_layout(self, layout: AppLayout):
         """Resize board surfaces in place for responsive layouts."""
@@ -162,8 +196,12 @@ class ChessBoard(ft.Container):
         )
         self.move_animation_overlay.width = self.square_size
         self.move_animation_overlay.height = self.square_size
+        self.move_animation_overlay.animate_position = ft.Animation(
+            self._animation_duration_ms(), curve=ft.AnimationCurve.EASE_IN_OUT
+        )
         self.content.width = self.width
         self.content.height = self.height
+        self._apply_square_settings(refresh=False)
 
         if self.pending_promotion_move is not None and self.promotion_overlay.visible:
             self._position_promotion_overlay(
@@ -177,6 +215,20 @@ class ChessBoard(ft.Container):
                 ],
             )
 
+        self._safe_update(self)
+
+    def apply_settings(self, settings: AppSettings):
+        self.settings = settings
+        self.move_animation_overlay.animate_position = ft.Animation(
+            self._animation_duration_ms(), curve=ft.AnimationCurve.EASE_IN_OUT
+        )
+        if not self.settings.show_legal_moves:
+            self._clear_move_highlights(refresh=False)
+        elif self.selected_square is not None:
+            self._show_legal_move_highlights(self.selected_square)
+        if not self.settings.show_tap_feedback:
+            self._clear_tap_feedback(refresh=False)
+        self._apply_square_settings(refresh=False)
         self._safe_update(self)
 
     def _render_board_state(self):
@@ -200,6 +252,7 @@ class ChessBoard(ft.Container):
         self.game_over = False
         self.board_frame.controls = self.squares
         self._render_board_state()
+        self._apply_square_settings(refresh=False)
         self._safe_update(self)
 
     def _create_squares(self) -> list[Square]:
@@ -246,6 +299,7 @@ class ChessBoard(ft.Container):
         self.board_frame.controls = (
             self.squares[::-1] if self.is_flipped else self.squares
         )
+        self._apply_square_settings(refresh=False)
         self._safe_update(self.board_frame)
 
     def _clear_move_highlights(self, refresh: bool = True):
@@ -282,6 +336,9 @@ class ChessBoard(ft.Container):
 
     def _set_tap_feedback(self, square_cords: str, refresh: bool = True):
         """Apply fast local feedback to the tapped square before broader refreshes."""
+
+        if not self.settings.show_tap_feedback:
+            return
 
         if self.active_tap_feedback_square == square_cords:
             return
@@ -320,6 +377,11 @@ class ChessBoard(ft.Container):
 
         self.selected_square = square_cords
         self._clear_move_highlights(refresh=True)
+        if not self.settings.show_legal_moves:
+            return
+        self._show_legal_move_highlights(square_cords)
+
+    def _show_legal_move_highlights(self, square_cords: str):
         for target in self._get_legal_targets(square_cords):
             sq: Square | None = self.square_map.get(target)
             if sq is not None:
@@ -342,6 +404,17 @@ class ChessBoard(ft.Container):
                     from_cords=from_cords, to_cords=click_cords
                 )
             return
+
+        if self.selected_square is not None:
+            requested_move = Move(
+                parse_square(self.selected_square),
+                parse_square(click_cords),
+            )
+            if self._is_legal_move(requested_move):
+                self._animate_piece_and_move(
+                    from_cords=self.selected_square, to_cords=click_cords
+                )
+                return
 
         if self.selected_square == click_cords:
             self._clear_move_highlights(refresh=True)
@@ -564,7 +637,8 @@ class ChessBoard(ft.Container):
                 self._update_last_move_on_board()
             case _:
                 pass
-        self._flip_board()
+        if self.settings.auto_flip_board:
+            self._flip_board()
         self._emit_game_end_if_needed()
         bus.emit(PieceModevedEvent())
 
@@ -580,6 +654,18 @@ class ChessBoard(ft.Container):
 
     def _show_promotion_dialog(self, move: Move):
         """Render the promotion picker near the destination square."""
+
+        promotion_piece = self.PROMOTION_NAME_TO_PIECE.get(
+            self.settings.promotion_default
+        )
+        if promotion_piece is not None:
+            promoted_move = Move(
+                from_square=move.from_square,
+                to_square=move.to_square,
+                promotion=promotion_piece,
+            )
+            self._complete_move(promoted_move, MoveType.PROMOTION)
+            return
 
         page = self._safe_page()
         if page is None:
@@ -728,6 +814,9 @@ class ChessBoard(ft.Container):
         self._hide_promotion_overlay(refresh=False)
         self._safe_update(self)
 
+    def _handle_settings_changed(self, event: SettingsChangedEvent):
+        self.apply_settings(event.settings)
+
     @staticmethod
     def _safe_update(control: ft.Control):
         """Update a control when attached to a page, ignoring detached-control
@@ -748,7 +837,7 @@ class ChessBoard(ft.Container):
     ):
         """Animate a move from board coordinates and dispatch it through the UI flow."""
         page = self._safe_page()
-        if page is None or piece is None:
+        if page is None or piece is None or self._animation_duration_ms() == 0:
             self._complete_move(requested_move, movement_type)
             return
 
@@ -772,7 +861,7 @@ class ChessBoard(ft.Container):
             self.move_animation_overlay.top = to_pixel[1] - (self.square_size / 2)
             self._safe_update(self)
 
-            await asyncio.sleep(self.MOVE_ANIMATION_DURATION_MS / 1000)
+            await asyncio.sleep(self._animation_duration_ms() / 1000)
             self.move_animation_overlay.visible = False
             self.move_animation_overlay.content = None
             self._complete_move(requested_move, movement_type)
@@ -788,6 +877,11 @@ class ChessBoard(ft.Container):
         movement_type = self.game.get_move_type(requested_move)
         if movement_type == MoveType.PROMOTION:
             self.move_piece(from_cords, to_cords)
+            return
+        if self.settings.confirm_moves:
+            self._show_move_confirmation(
+                requested_move, movement_type, from_cords, to_cords, animate=True
+            )
             return
 
         self._animate_move(
@@ -809,5 +903,80 @@ class ChessBoard(ft.Container):
         if movement_type == MoveType.PROMOTION:
             self._show_promotion_dialog(requested_move)
             return
+        if self.settings.confirm_moves:
+            self._show_move_confirmation(
+                requested_move, movement_type, from_cords, to_cords, animate=False
+            )
+            return
 
         self._complete_move(requested_move, movement_type)
+
+    def _show_move_confirmation(
+        self,
+        requested_move: Move,
+        movement_type: MoveType,
+        from_cords: str,
+        to_cords: str,
+        animate: bool,
+    ):
+        if self.game_over:
+            return
+
+        page = self._safe_page()
+        if page is None:
+            self._complete_move(requested_move, movement_type)
+            return
+
+        self.pending_confirmed_move = (
+            requested_move,
+            movement_type,
+            from_cords,
+            to_cords,
+            animate,
+        )
+        self.confirm_move_dialog.content.value = f"Play {from_cords} to {to_cords}?"
+        page.show_dialog(self.confirm_move_dialog)
+        self._safe_update(page)
+
+    def _handle_confirm_move_cancel(self, _event=None):
+        self.pending_confirmed_move = None
+        page = self._safe_page()
+        if page is not None:
+            page.pop_dialog()
+            self._safe_update(page)
+
+    def _handle_confirm_move_accept(self, _event=None):
+        pending_move = self.pending_confirmed_move
+        self.pending_confirmed_move = None
+        page = self._safe_page()
+        if page is not None:
+            page.pop_dialog()
+        if pending_move is None or self.game_over:
+            return
+
+        requested_move, movement_type, from_cords, to_cords, animate = pending_move
+        if animate:
+            self._animate_move(
+                self.square_map[from_cords].piece_control,
+                from_cords,
+                to_cords,
+                requested_move,
+                movement_type,
+            )
+        else:
+            self._complete_move(requested_move, movement_type)
+        if page is not None:
+            self._safe_update(page)
+
+    def _animation_duration_ms(self) -> int:
+        return self.MOVE_ANIMATION_DURATIONS.get(
+            self.settings.move_animation, self.MOVE_ANIMATION_DURATION_MS
+        )
+
+    def _apply_square_settings(self, refresh: bool = True):
+        for board_square in self.squares:
+            board_square.set_coordinates_visible(
+                self.settings.show_coordinates,
+                is_flipped=self.is_flipped,
+                refresh=refresh,
+            )

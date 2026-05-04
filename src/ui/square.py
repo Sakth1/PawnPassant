@@ -47,6 +47,8 @@ class Square(ft.Container):
         self.piece_container: Optional[ChessPiece] = None
         self.has_piece = False
         self.tap_feedback_active = False
+        self.show_coordinates = True
+        self.is_flipped = False
         self.highlighted_metadata: dict[str, bool | str | None] = {
             "highlighted": False,
             "parent_piece_square": None,
@@ -150,6 +152,18 @@ class Square(ft.Container):
         else:
             self._rebuild_stack()
 
+    def set_coordinates_visible(
+        self,
+        visible: bool,
+        is_flipped: bool = False,
+        refresh: bool = True,
+    ):
+        self.show_coordinates = visible
+        self.is_flipped = is_flipped
+        self._rebuild_stack()
+        if refresh:
+            self._safe_update(self)
+
     def _rebuild_indicators(self):
         dot_size = max(8, self.size * 0.3)
         ring_size = max(18, self.size * 0.8)
@@ -231,7 +245,53 @@ class Square(ft.Container):
             else:
                 controls.append(self.square_ring)
 
+        controls.extend(self._build_coordinate_labels())
         self.stack.controls = controls
+
+    def _build_coordinate_labels(self) -> list[ft.Control]:
+        if not self.show_coordinates:
+            return []
+
+        labels: list[ft.Control] = []
+        coordinate_color = (
+            ft.Colors.GREEN_900 if self.color == chess.WHITE else ft.Colors.GREEN_100
+        )
+        text_size = max(9, int(self.size * 0.18))
+
+        show_rank = (not self.is_flipped and self.file == 0) or (
+            self.is_flipped and self.file == 7
+        )
+        show_file = (not self.is_flipped and self.rank == 0) or (
+            self.is_flipped and self.rank == 7
+        )
+
+        if show_rank:
+            labels.append(
+                ft.Container(
+                    left=3,
+                    top=1,
+                    content=ft.Text(
+                        str(self.rank + 1),
+                        size=text_size,
+                        color=coordinate_color,
+                        weight=ft.FontWeight.BOLD,
+                    ),
+                )
+            )
+        if show_file:
+            labels.append(
+                ft.Container(
+                    right=3,
+                    bottom=1,
+                    content=ft.Text(
+                        chr(ord("a") + self.file),
+                        size=text_size,
+                        color=coordinate_color,
+                        weight=ft.FontWeight.BOLD,
+                    ),
+                )
+            )
+        return labels
 
     def _resolve_bgcolor(self) -> str:
         """Return the current square background based on transient UI states."""

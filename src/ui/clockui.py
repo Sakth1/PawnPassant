@@ -10,8 +10,9 @@ from utils.events import (
     GameEndedEvent,
     GameStartedEvent,
     PieceModevedEvent,
+    SettingsChangedEvent,
 )
-from utils.models import ActiveColor, TimeControl
+from utils.models import ActiveColor, AppSettings, TimeControl
 
 
 def time_control_to_string(time_control: TimeControl) -> str:
@@ -132,6 +133,7 @@ class ClockUI(ft.Container):
         self.clock = Clock(
             time_control=time_control,
         )
+        self.settings = AppSettings()
         self.active_color: ActiveColor = ActiveColor.WHITE
         self.game_over = False
         bus.connect(ClockStateEvent, self._handle_clock_state)
@@ -139,6 +141,7 @@ class ClockUI(ft.Container):
         bus.connect(PieceModevedEvent, self._handle_piece_moved)
         bus.connect(GameStartedEvent, self._start_clock)
         bus.connect(GameEndedEvent, self._handle_game_ended)
+        bus.connect(SettingsChangedEvent, self._handle_settings_changed)
         self.apply_layout(self.layout)
 
     def _icon(self, name: str, fallback: str = "MORE_HORIZ_ROUNDED"):
@@ -169,7 +172,10 @@ class ClockUI(ft.Container):
     def set_time_control(self, time_control: tuple[int, int]) -> None:
         self.time_control = time_control
         self.clock.stop()
-        self.clock = Clock(time_control=time_control)
+        self.clock = Clock(
+            time_control=time_control,
+            critical_threshold_seconds=self.settings.critical_time_seconds,
+        )
         self.game_over = False
         self.content.controls = [
             self.black_timer,
@@ -270,6 +276,8 @@ class ClockUI(ft.Container):
             container.bgcolor = "#250E0E"
             target_main.margin = ft.margin.Margin(4, 2, 0, 2)
             target_ms.bgcolor = "#250E0E"
+            if not self.settings.show_milliseconds_in_critical:
+                target_ms.value = ""
         else:
             target_ms.value = ""
             if is_white:
@@ -311,6 +319,13 @@ class ClockUI(ft.Container):
     def _handle_game_ended(self, _event: GameEndedEvent):
         self.game_over = True
         self.clock.stop()
+
+    def apply_settings(self, settings: AppSettings):
+        self.settings = settings
+        self.clock.critical_threshold_seconds = settings.critical_time_seconds
+
+    def _handle_settings_changed(self, event: SettingsChangedEvent):
+        self.apply_settings(event.settings)
 
     @staticmethod
     def _safe_update(control: ft.Control):
