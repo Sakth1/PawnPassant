@@ -17,7 +17,7 @@ from ui.clockui import ClockUI
 from ui.home_page import HomeView
 from ui.layout import MAX_SQUARE_SIZE, MIN_SQUARE_SIZE, resolve_app_layout
 from utils.events import GameEndedEvent
-from utils.models import TimeControl
+from utils.models import AppSettings, TimeControl
 from utils.signals import bus
 
 
@@ -121,6 +121,7 @@ class TestResponsiveBoardUi(unittest.TestCase):
 
     def test_promotion_overlay_scales_after_resize(self):
         board = ChessBoard()
+        board.apply_settings(AppSettings(promotion_default="ask"))
         board.load_position("4k3/1P6/8/8/8/8/8/4K3 w - - 0 1")
         board._safe_page = lambda: object()
         layout = resolve_app_layout(420, 780)

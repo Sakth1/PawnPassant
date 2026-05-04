@@ -9,6 +9,7 @@ from chess import BISHOP, KNIGHT, QUEEN, ROOK, Move, parse_square
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ui.board import ChessBoard
+from utils.models import AppSettings
 
 
 class TestPromotionOverlayUi(unittest.TestCase):
@@ -54,6 +55,7 @@ class TestPromotionOverlayUi(unittest.TestCase):
 
     def test_overlay_for_b8_is_above_square_with_q_to_n_order(self):
         board = ChessBoard()
+        board.apply_settings(AppSettings(promotion_default="ask"))
         board.load_position("4k3/1P6/8/8/8/8/8/4K3 w - - 0 1")
         board._safe_page = lambda: object()
 

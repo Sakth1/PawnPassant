@@ -18,6 +18,7 @@ from ui.settings_page import SettingsView
 from ui.layout import AppLayout, resolve_app_layout
 from utils.constants import ASSET_DIR, FONT_DIR
 from utils.events import GameEndedEvent, GameStartedEvent
+from utils.settings import SettingsController
 from utils.signals import bus
 
 
@@ -40,6 +41,7 @@ class ChessApp:
         self.page.spacing = 0
         self.page.scroll = ft.ScrollMode.AUTO
 
+        self.settings_controller = SettingsController(page)
         self.board_view = ChessBoard()
         self.time_control_view = ClockUI(
             on_draw=self._handle_draw_action,
@@ -57,6 +59,19 @@ class ChessApp:
                 ft.TextButton("New Game", on_click=self._handle_result_dialog_close)
             ],
             actions_alignment=ft.MainAxisAlignment.CENTER,
+        )
+        self.pending_terminal_action: str | None = None
+        self.confirm_action_title = ft.Text(weight=ft.FontWeight.BOLD)
+        self.confirm_action_message = ft.Text(text_align=ft.TextAlign.CENTER)
+        self.confirm_action_dialog = ft.AlertDialog(
+            modal=True,
+            title=self.confirm_action_title,
+            content=self.confirm_action_message,
+            actions=[
+                ft.TextButton("Cancel", on_click=self._handle_action_cancel),
+                ft.FilledButton("Confirm", on_click=self._handle_action_confirm),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
         )
 
         self.content_row = ft.ResponsiveRow(
@@ -130,7 +145,7 @@ class ChessApp:
             content=self.safe_area,
         )
 
-        self.settings_view = SettingsView()
+        self.settings_view = SettingsView(self.settings_controller)
         self.view_container = ft.Container(expand=True)
 
         self.route_views = {
@@ -157,6 +172,7 @@ class ChessApp:
 
         self.page.add(self.view_container)
         self._apply_responsive_layout()
+        self.page.run_task(self.settings_controller.load)
         self.page.run_task(self._push_initial_route)
 
     async def _handle_navigation_change(self, event):
@@ -222,6 +238,7 @@ class ChessApp:
         self.piece_display.apply_layout(self.layout)
         self.time_control_view.apply_layout(self.layout)
         self.home_view.apply_layout(self.layout)
+        self.settings_view.apply_layout(self.layout)
 
         self.content_row.spacing = self.layout.gap
         self.content_row.run_spacing = self.layout.gap
@@ -289,7 +306,18 @@ class ChessApp:
     def _handle_draw_action(self, _event=None):
         if self.board_view.game_over:
             return
+        settings = getattr(getattr(self, "settings_controller", None), "settings", None)
+        if settings is not None and settings.confirm_draw:
+            self._show_terminal_action_confirmation(
+                "draw",
+                "Confirm draw",
+                "End this game as a draw by agreement?",
+            )
+            return
 
+        self._emit_draw_agreement()
+
+    def _emit_draw_agreement(self):
         bus.emit(
             GameEndedEvent(
                 winner="Draw",
@@ -303,7 +331,18 @@ class ChessApp:
     def _handle_resign_action(self, _event=None):
         if self.board_view.game_over:
             return
+        settings = getattr(getattr(self, "settings_controller", None), "settings", None)
+        if settings is not None and settings.confirm_resign:
+            self._show_terminal_action_confirmation(
+                "resign",
+                "Confirm resignation",
+                "Resign this game?",
+            )
+            return
 
+        self._emit_resignation()
+
+    def _emit_resignation(self):
         winner = "Black" if self.board_view.game.board.turn == chess.WHITE else "White"
         loser = "White" if winner == "Black" else "Black"
         bus.emit(
@@ -313,6 +352,39 @@ class ChessApp:
                 message=f"{loser} resigned. {winner} wins.",
             )
         )
+
+    def _show_terminal_action_confirmation(
+        self,
+        action: str,
+        title: str,
+        message: str,
+    ):
+        if self.board_view.game_over:
+            return
+
+        self.pending_terminal_action = action
+        self.confirm_action_title.value = title
+        self.confirm_action_message.value = message
+        self.page.show_dialog(self.confirm_action_dialog)
+        self._safe_update(self.page)
+
+    def _handle_action_cancel(self, _event=None):
+        self.pending_terminal_action = None
+        self.page.pop_dialog()
+        self._safe_update(self.page)
+
+    def _handle_action_confirm(self, _event=None):
+        action = self.pending_terminal_action
+        self.pending_terminal_action = None
+        self.page.pop_dialog()
+        if self.board_view.game_over:
+            self._safe_update(self.page)
+            return
+        if action == "draw":
+            self._emit_draw_agreement()
+        elif action == "resign":
+            self._emit_resignation()
+        self._safe_update(self.page)
 
     def _handle_result_dialog_close(self, _event=None):
         self.page.pop_dialog()
