@@ -46,14 +46,18 @@ from utils.signals import bus
 class ChessBoard(ft.Container):
     """Interactive chessboard widget with move highlighting and promotion UI."""
 
+    #: Promotion options displayed left-to-right in the picker.
     PROMOTION_OPTIONS = [QUEEN, ROOK, BISHOP, KNIGHT]
+    #: Default animation duration used when settings do not override it.
     MOVE_ANIMATION_DURATION_MS = 120
+    #: User-facing animation speed keys mapped to movement durations.
     MOVE_ANIMATION_DURATIONS = {
         "off": 0,
         "fast": 60,
         "normal": 120,
         "slow": 220,
     }
+    #: Settings values mapped to python-chess promotion piece constants.
     PROMOTION_NAME_TO_PIECE = {
         "queen": QUEEN,
         "rook": ROOK,
@@ -61,6 +65,7 @@ class ChessBoard(ft.Container):
         "knight": KNIGHT,
     }
 
+    #: Developer-only canned positions used by the dev-mode board selector.
     TEST_POSITIONS: dict[str, Optional[str]] = {
         "Start Position": None,
         "Castle Test": "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
@@ -71,19 +76,33 @@ class ChessBoard(ft.Container):
 
     def __init__(self):
         super().__init__()
+        #: Engine wrapper that owns the authoritative chess position.
         self.game = Game()
+        #: Algebraic coordinates currently marked as legal move targets.
         self.highlighted_squares: set[str] = set()
+        #: Whether visual square order is reversed for black's perspective.
         self.is_flipped = False
+        #: Current responsive layout snapshot.
         self.layout = resolve_app_layout(960, 800)
+        #: Pixel size of each square.
         self.square_size = self.layout.board_square_size
+        #: Pixel size of the 8x8 board.
         self.board_side_px = self.square_size * 8
+        #: Extra one-square lane reserved above the board for promotion UI.
         self.promotion_lane_px = self.square_size
+        #: Move waiting for a promotion piece choice.
         self.pending_promotion_move: Optional[Move] = None
+        #: Color of the pawn being promoted, used to render option images.
         self.pending_promotion_color_is_white: Optional[Color] = None
+        #: Selected source square for click-to-move interactions.
         self.selected_square: Optional[str] = None
+        #: Square currently showing tap feedback.
         self.active_tap_feedback_square: Optional[str] = None
+        #: Whether board interactions should be ignored after a result.
         self.game_over = False
+        #: Current settings snapshot applied to board behavior.
         self.settings = AppSettings()
+        #: Move waiting for confirmation before final commit.
         self.pending_confirmed_move: Optional[
             tuple[Move, MoveType, str, str, bool]
         ] = None
@@ -382,6 +401,8 @@ class ChessBoard(ft.Container):
         self._show_legal_move_highlights(square_cords)
 
     def _show_legal_move_highlights(self, square_cords: str):
+        """Mark all legal destinations for the selected source square."""
+
         for target in self._get_legal_targets(square_cords):
             sq: Square | None = self.square_map.get(target)
             if sq is not None:
@@ -613,6 +634,8 @@ class ChessBoard(ft.Container):
         if not self._is_legal_move(requested_move):
             return
 
+        # After this point the move is authoritative. Clear temporary UI state
+        # first so special-move rendering does not inherit stale highlights.
         self._clear_interaction_state(clear_tap_feedback=True, refresh=False)
         self._hide_promotion_overlay(refresh=False)
         to_piece: ChessPiece | None = self.square_map[
@@ -620,6 +643,8 @@ class ChessBoard(ft.Container):
         ].piece_container
         active_color = self.game.get_active_color()
         self.game.move(requested_move)
+        # python-chess updates the board model; the match updates the existing
+        # Flet controls so the visual board mirrors the new model state.
         match movement_type:
             case MoveType.NORMAL:
                 self._update_last_move_on_board()
@@ -640,6 +665,8 @@ class ChessBoard(ft.Container):
         if self.settings.auto_flip_board:
             self._flip_board()
         self._emit_game_end_if_needed()
+        # Clock and captured-pieces subscribers react to this after the board is
+        # fully updated, which keeps displayed state in move order.
         bus.emit(PieceModevedEvent())
 
     def _emit_game_end_if_needed(self):
@@ -815,6 +842,8 @@ class ChessBoard(ft.Container):
         self._safe_update(self)
 
     def _handle_settings_changed(self, event: SettingsChangedEvent):
+        """Apply board-affecting settings published by the controller."""
+
         self.apply_settings(event.settings)
 
     @staticmethod
@@ -870,6 +899,8 @@ class ChessBoard(ft.Container):
         page.run_task(finish_animation)
 
     def _animate_piece_and_move(self, from_cords: str, to_cords: str):
+        """Build a click-to-move request and animate it when appropriate."""
+
         requested_move = Move(parse_square(from_cords), parse_square(to_cords))
         self._clear_interaction_state(clear_tap_feedback=True)
         if not self._is_legal_move(requested_move):
@@ -919,6 +950,8 @@ class ChessBoard(ft.Container):
         to_cords: str,
         animate: bool,
     ):
+        """Open a confirmation dialog before committing a requested move."""
+
         if self.game_over:
             return
 
@@ -939,6 +972,8 @@ class ChessBoard(ft.Container):
         self._safe_update(page)
 
     def _handle_confirm_move_cancel(self, _event=None):
+        """Cancel the pending confirmed move and close the dialog."""
+
         self.pending_confirmed_move = None
         page = self._safe_page()
         if page is not None:
@@ -946,6 +981,8 @@ class ChessBoard(ft.Container):
             self._safe_update(page)
 
     def _handle_confirm_move_accept(self, _event=None):
+        """Commit the pending confirmed move, preserving its animation choice."""
+
         pending_move = self.pending_confirmed_move
         self.pending_confirmed_move = None
         page = self._safe_page()
@@ -969,11 +1006,15 @@ class ChessBoard(ft.Container):
             self._safe_update(page)
 
     def _animation_duration_ms(self) -> int:
+        """Return the current move animation duration from settings."""
+
         return self.MOVE_ANIMATION_DURATIONS.get(
             self.settings.move_animation, self.MOVE_ANIMATION_DURATION_MS
         )
 
     def _apply_square_settings(self, refresh: bool = True):
+        """Push coordinate visibility and orientation settings to all squares."""
+
         for board_square in self.squares:
             board_square.set_coordinates_visible(
                 self.settings.show_coordinates,

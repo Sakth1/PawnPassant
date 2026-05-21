@@ -1,3 +1,5 @@
+"""Captured-pieces panel and drag/drop reordering support."""
+
 import flet as ft
 import random
 from chess import PAWN, Piece, WHITE, BLACK
@@ -11,21 +13,33 @@ from utils.signals import bus
 
 
 class CaputredPieces(ft.Container):
+    """Display captured pieces in separate white/black grids.
+
+    The class name is intentionally preserved for compatibility with existing
+    imports. Captures arrive through :class:`utils.events.PieceCapturedEvent`,
+    and pieces can be rearranged within their color grid by drag/drop.
+    """
+
     def __init__(self):
         super().__init__()
+        #: Last applied responsive layout metrics.
         self.layout = resolve_app_layout(960, 800)
         self.bgcolor = "#1F1F1F"
         self.border_radius = 16
         self.padding = 12
         self.alignment = ft.Alignment.CENTER
 
+        #: Slots used to display captured black pieces.
         self.black_squares: list[InvisibleSquare] = self._create_invisible_squares(
             "black", BLACK
         )
+        #: Slots used to display captured white pieces.
         self.white_squares: list[InvisibleSquare] = self._create_invisible_squares(
             "white", WHITE
         )
+        #: Empty white-grid slot indexes available for future captures.
         self.available_white_squares: list[int] = list(range(len(self.white_squares)))
+        #: Empty black-grid slot indexes available for future captures.
         self.available_black_squares: list[int] = list(range(len(self.black_squares)))
         self.black_grid: ft.GridView = self._build_square_grid(self.black_squares)
         self.white_grid: ft.GridView = self._build_square_grid(self.white_squares)
@@ -50,6 +64,8 @@ class CaputredPieces(ft.Container):
         self.apply_layout(self.layout)
 
     def _invisible_square(self, prefix, position, piece_colors) -> InvisibleSquare:
+        """Create one captured-piece slot for a color-specific drag group."""
+
         return InvisibleSquare(
             coordinate=str(position),
             color=piece_colors,
@@ -63,12 +79,16 @@ class CaputredPieces(ft.Container):
     def _create_invisible_squares(
         self, prefix: str, piece_colors
     ) -> list[InvisibleSquare]:
+        """Create the initial 16 captured-piece slots for one side."""
+
         squares: list[InvisibleSquare] = []
         for i in range(16):
             squares.append(self._invisible_square(prefix, i, piece_colors))
         return squares
 
     def _build_square_grid(self, squares: list[InvisibleSquare]) -> ft.GridView:
+        """Build the fixed 4-column grid that holds captured-piece slots."""
+
         return ft.GridView(
             runs_count=4,
             controls=squares,
@@ -79,6 +99,8 @@ class CaputredPieces(ft.Container):
         )
 
     def apply_layout(self, layout: AppLayout):
+        """Resize captured-piece grids to match the main board layout."""
+
         self.layout = layout
         self.width = layout.piece_panel_width
         self.padding = max(8, int(layout.gap * 0.75))
@@ -103,6 +125,12 @@ class CaputredPieces(ft.Container):
         self._safe_update(self)
 
     def _get_random_available_position(self, is_white_capture: ActiveColor):
+        """Pick an empty slot for a newly captured piece.
+
+        Random placement gives the captured-piece panel a loose tabletop feel
+        while the available-slot lists still prevent accidental overwrite.
+        """
+
         available_squares: list[int] = (
             self.available_white_squares
             if is_white_capture
@@ -117,6 +145,8 @@ class CaputredPieces(ft.Container):
                 return len(self.black_squares) + 1
 
     def _handle_piece_captured(self, event: PieceCapturedEvent):
+        """Place a captured piece into the capturing side's panel."""
+
         is_white_capture: ActiveColor = event.color
         random_available_pos: int = self._get_random_available_position(
             is_white_capture
@@ -143,9 +173,13 @@ class CaputredPieces(ft.Container):
         self._safe_update(self)
 
     def _handle_piece_drag_start(self, _from_cords: str):
+        """Reserved hook for future captured-piece drag feedback."""
+
         pass
 
     def _handle_piece_drag_complete(self, _from_cords: str, piece_color):
+        """Reserved hook for future captured-piece drag completion feedback."""
+
         pass
 
     def _handle_square_drop(
@@ -155,8 +189,12 @@ class CaputredPieces(ft.Container):
         piece_color,
         source_color: int | None = None,
     ):
+        """Move a captured piece between empty slots in its own color grid."""
+
         try:
             if ":" in str(from_cords):
+                # Drag data includes color because white and black grids can use
+                # the same numeric slot coordinate.
                 parsed_source_color, parsed_from_cords = (
                     InvisibleSquare.parse_drag_data(str(from_cords))
                 )
@@ -189,6 +227,13 @@ class CaputredPieces(ft.Container):
     def move_piece(
         self, from_cords: str, to_cords: str, source_color: int | None = None
     ) -> bool:
+        """Move a captured piece control from one slot to another.
+
+        Returns:
+            ``True`` when a piece was moved; otherwise ``False`` when the source
+            is empty, the target is occupied, or the color/coordinate is invalid.
+        """
+
         source_square = self._find_square(from_cords, color=source_color)
         target_square = self._find_square(to_cords, color=source_color)
         if source_square is None or target_square is None or target_square.has_piece:
@@ -207,6 +252,8 @@ class CaputredPieces(ft.Container):
     def _find_square(
         self, coordinate: str, color: int | None = None
     ) -> InvisibleSquare | None:
+        """Find a captured-piece slot by coordinate and optional color group."""
+
         if color == WHITE:
             squares = self.white_squares
         elif color == BLACK:

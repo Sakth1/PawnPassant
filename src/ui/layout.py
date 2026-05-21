@@ -1,51 +1,101 @@
-"""Responsive layout helpers shared by the Pawn Passant UI."""
+"""Responsive layout helpers shared by the Pawn Passant UI.
+
+The app has several independent Flet controls that must agree on board size,
+panel widths, clock typography, and spacing. This module resolves those values
+once from the page dimensions so controls can resize consistently without each
+component inventing its own breakpoints.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+#: Maximum viewport width, in pixels, treated as a stacked mobile layout.
 MOBILE_BREAKPOINT = 700
+
+#: Maximum viewport width, in pixels, treated as a tablet split layout.
 TABLET_BREAKPOINT = 1100
+
+#: Smallest legal chess square size so pieces and labels remain usable.
 MIN_SQUARE_SIZE = 34
+
+#: Largest chess square size so desktop layouts do not become oversized.
 MAX_SQUARE_SIZE = 96
 
 
 @dataclass(frozen=True)
 class AppLayout:
-    """Resolved responsive metrics for the current page size."""
+    """Resolved responsive metrics for the current page size.
 
+    The dataclass is frozen because it represents one layout calculation. When
+    the page changes size, callers ask :func:`resolve_app_layout` for a new
+    instance and pass it to each control.
+    """
+
+    #: Breakpoint label used by UI controls for coarse layout decisions.
     breakpoint: str
+    #: Effective page width after fallback minimums are applied.
     width: float
+    #: Effective page height after fallback minimums are applied.
     height: float
+    #: Outer page padding used around the main content.
     padding: int
+    #: Standard gap between major UI regions.
     gap: int
+    #: Whether controls should use smaller typography and denser spacing.
     compact: bool
+    #: Whether board, clock, and captured pieces stack vertically.
     stacked: bool
+    #: Pixel size of one chessboard square.
     board_square_size: int
+    #: Pixel size of the full 8x8 board.
     board_side: int
+    #: ResponsiveRow column span allocated to the captured-pieces panel.
     piece_col: int
+    #: ResponsiveRow column span allocated to the chessboard.
     board_col: int
+    #: ResponsiveRow column span allocated to the clock panel.
     clock_col: int
+    #: Pixel width of the captured-pieces panel.
     piece_panel_width: int
+    #: Pixel width of the clock panel.
     clock_width: int
+    #: Font size for the main minute/second timer text.
     timer_font_size: int
+    #: Font size for critical-time millisecond text.
     timer_ms_size: int
+    #: Padding inside timer containers.
     timer_padding: int
+    #: Border radius used by timer surfaces.
     timer_radius: int
+    #: Width of the visual divider inside the clock panel.
     divider_extent: int
+    #: Width of the developer-only FEN selector dropdown.
     dev_control_width: int
 
     @property
     def spacing_scale(self) -> float:
+        """Return a scale factor relative to the original 60px square design."""
+
         return self.board_square_size / 60
 
 
 def resolve_app_layout(page_width: float, page_height: float) -> AppLayout:
-    """Return a responsive layout tuned to the available viewport."""
+    """Return a responsive layout tuned to the available viewport.
+
+    Args:
+        page_width: Current page width reported by Flet.
+        page_height: Current page height reported by Flet.
+
+    Returns:
+        A complete immutable layout snapshot for board, clock, captured pieces,
+        settings, home, and developer controls.
+    """
 
     width = max(float(page_width or 0), 320.0)
     height = max(float(page_height or 0), 480.0)
 
+    # Mobile gets a stacked layout because the board needs most of the width.
     if width < MOBILE_BREAKPOINT:
         breakpoint = "mobile"
         padding = 12
@@ -69,11 +119,14 @@ def resolve_app_layout(page_width: float, page_height: float) -> AppLayout:
     available_height = max(height - (padding * 2), 280.0)
 
     if stacked:
+        # Leave vertical room for controls below the board while keeping the
+        # board as large as possible on narrow screens.
         board_space_width = available_width
         board_space_height = available_height * 0.62
         piece_panel_width = int(min(max(available_width, 220.0), 420.0))
         clock_width = int(min(max(available_width, 220.0), 420.0))
     else:
+        # Desktop/tablet split the row into captured pieces, board, and clock.
         piece_panel_width = int(min(max(available_width * 0.24, 180.0), 300.0))
         clock_width = int(min(max(available_width * 0.16, 140.0), 220.0))
         board_space_width = max(
@@ -81,6 +134,8 @@ def resolve_app_layout(page_width: float, page_height: float) -> AppLayout:
         )
         board_space_height = available_height
 
+    # The board needs nine vertical square units because the promotion picker
+    # reserves a one-square lane above the board.
     board_square_size = int(
         max(
             MIN_SQUARE_SIZE,
