@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Shared CI helpers for release metadata and version bump detection."""
+"""Shared CI helpers for release metadata and version bump detection.
+
+The release workflow needs the same validation in multiple GitHub Actions
+steps. Keeping that logic in Python makes SemVer comparisons testable and keeps
+workflow YAML focused on orchestration.
+"""
 
 from __future__ import annotations
 
@@ -11,6 +16,9 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+#: SemVer 2.0.0 matcher with an optional leading ``v`` accepted for tags.
+#:
+#: Build metadata is accepted but ignored for precedence, matching SemVer rules.
 SEMVER_PATTERN = re.compile(
     r"^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
     r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
@@ -22,14 +30,28 @@ SEMVER_PATTERN = re.compile(
 class ParsedSemver:
     """Normalized semantic-version parts used for comparisons."""
 
+    #: Major version number; increases indicate incompatible release changes.
     major: int
+    #: Minor version number; increases indicate backwards-compatible features.
     minor: int
+    #: Patch version number; increases indicate backwards-compatible fixes.
     patch: int
+    #: Dot-separated prerelease identifiers such as ``("alpha", "1")``.
     prerelease: tuple[str, ...]
 
 
 def parse_semver(version: str) -> ParsedSemver:
-    """Validate and split a SemVer 2.0.0 version string with optional `v` prefix."""
+    """Validate and split a SemVer 2.0.0 version string with optional ``v``.
+
+    Args:
+        version: Version string from ``pyproject.toml`` or a release tag.
+
+    Returns:
+        Parsed core and prerelease fields.
+
+    Raises:
+        ValueError: If the string is not valid SemVer 2.0.0.
+    """
 
     match = SEMVER_PATTERN.fullmatch(version)
     if not match:
@@ -45,7 +67,11 @@ def parse_semver(version: str) -> ParsedSemver:
 
 
 def compare_identifier(left: str, right: str) -> int:
-    """Compare two SemVer prerelease identifiers."""
+    """Compare two SemVer prerelease identifiers.
+
+    Numeric identifiers sort before non-numeric identifiers, and two numeric
+    identifiers compare by integer value rather than lexicographically.
+    """
 
     left_is_num = left.isdigit()
     right_is_num = right.isdigit()
@@ -60,7 +86,12 @@ def compare_identifier(left: str, right: str) -> int:
 
 
 def compare_semver(left: str, right: str) -> int:
-    """Compare two semantic versions using SemVer precedence rules."""
+    """Compare two semantic versions using SemVer precedence rules.
+
+    Returns:
+        ``1`` when ``left`` is newer, ``-1`` when ``right`` is newer, and ``0``
+        when both have the same precedence.
+    """
 
     left_version = parse_semver(left)
     right_version = parse_semver(right)
@@ -91,14 +122,14 @@ def compare_semver(left: str, right: str) -> int:
 
 
 def read_pyproject(pyproject_path: Path) -> dict:
-    """Load a pyproject file into a dictionary."""
+    """Load a ``pyproject.toml`` file into a dictionary."""
 
     with pyproject_path.open("rb") as file:
         return tomllib.load(file)
 
 
 def read_version_from_pyproject(pyproject_path: Path) -> str:
-    """Extract the current project version from pyproject.toml."""
+    """Extract the current project version from ``pyproject.toml``."""
 
     data = read_pyproject(pyproject_path)
     try:
@@ -110,7 +141,16 @@ def read_version_from_pyproject(pyproject_path: Path) -> str:
 
 
 def read_version_from_git_revision(revision: str, pyproject_relpath: str) -> str:
-    """Read the project version from a specific git revision of pyproject.toml."""
+    """Read the project version from a specific git revision.
+
+    Args:
+        revision: Git commit or ref to inspect.
+        pyproject_relpath: Repository-relative path to ``pyproject.toml``.
+
+    Raises:
+        FileNotFoundError: If the file did not exist at that revision.
+        KeyError: If the file exists but lacks ``[project].version``.
+    """
 
     result = subprocess.run(
         ["git", "show", f"{revision}:{pyproject_relpath}"],
@@ -131,13 +171,13 @@ def read_version_from_git_revision(revision: str, pyproject_relpath: str) -> str
 
 
 def normalize_tag(tag: str) -> str:
-    """Remove a leading `v` from release tags for version comparisons."""
+    """Remove a leading ``v`` from release tags for version comparisons."""
 
     return tag[1:] if tag.startswith("v") else tag
 
 
 def ensure_prefixed_tag(version: str) -> str:
-    """Return a release tag with a single leading `v`."""
+    """Return a release tag with a single leading ``v``."""
 
     return version if version.startswith("v") else f"v{version}"
 
@@ -151,7 +191,12 @@ def append_outputs(path: Path, outputs: dict[str, str]) -> None:
 
 
 def command_extract_release_metadata(args: argparse.Namespace) -> int:
-    """Extract build and publishing metadata for the release workflow."""
+    """Extract build and publishing metadata for the release workflow.
+
+    The command verifies that the release tag matches ``project.version`` before
+    allowing publish steps, which prevents accidentally uploading binaries to a
+    mismatched GitHub release.
+    """
 
     pyproject_path = Path(args.pyproject)
     data = read_pyproject(pyproject_path)
@@ -159,6 +204,8 @@ def command_extract_release_metadata(args: argparse.Namespace) -> int:
     version = data["project"]["version"]
     parse_semver(version)
 
+    # ``binary_name`` lives in the project-specific tool table so packaging
+    # names can change without changing the workflow script.
     binary_name = (
         data.get("tool", {})
         .get("pawnpassant", {})
@@ -211,13 +258,19 @@ def command_extract_release_metadata(args: argparse.Namespace) -> int:
 
 
 def command_detect_version_bump(args: argparse.Namespace) -> int:
-    """Detect whether the current commit increases the project version."""
+    """Detect whether the current commit increases the project version.
+
+    This command is used by branch pushes to decide whether an automatic release
+    should be created. Downgrades raise an error because publishing from main or
+    master should move version history forward.
+    """
 
     pyproject_path = Path(args.pyproject)
     current_version = read_version_from_pyproject(pyproject_path)
     parse_semver(current_version)
 
     before = args.before or ""
+    # GitHub sends an all-zero before SHA for the first push to a branch.
     all_zero = "0" * 40
 
     previous_version = ""

@@ -12,6 +12,7 @@ from ui.chess_piece import ChessPiece
 class Square(ft.Container):
     """Represents one clickable chessboard square in the Flet UI."""
 
+    #: Drag/drop group shared by all main-board piece controls.
     DRAG_GROUP = "chess-piece"
 
     def __init__(
@@ -27,28 +28,45 @@ class Square(ft.Container):
         size=60,
     ):
         super().__init__(expand=True)
+        #: Zero-based file index, where 0 is the a-file.
         self.file = file
+        #: Zero-based rank index, where 0 is rank 1.
         self.rank = rank
+        #: Algebraic coordinate such as ``"e4"``.
         self.coordinate = coordinate
+        #: Square color as a python-chess boolean color value.
         self.color = color
+        #: Callback invoked when the square surface is clicked.
         self.on_square_click = on_square_click
+        #: Callback invoked when a piece is dropped on this square.
         self.on_square_drop = on_square_drop
+        #: Callback invoked when dragging starts from this square.
         self.on_piece_drag_start = on_piece_drag_start
+        #: Callback invoked when dragging completes from this square.
         self.on_piece_drag_complete = on_piece_drag_complete
+        #: Pixel size of this square.
         self.size = size
 
+        #: Base background color restored when no transient feedback is active.
         self.base_bgcolor = (
             ft.Colors.GREEN_100 if self.color == chess.WHITE else ft.Colors.GREEN_900
         )
         self.bgcolor = self.base_bgcolor
         self.width = size
         self.height = size
+        #: Flet control currently rendering the piece, if any.
         self.piece_control: Optional[ft.Control] = None
+        #: ChessPiece wrapper currently stored on this square, if any.
         self.piece_container: Optional[ChessPiece] = None
+        #: Whether the square currently contains a draggable piece.
         self.has_piece = False
+        #: Whether fast tap feedback is currently applied.
         self.tap_feedback_active = False
+        #: Whether rank/file coordinate labels should be rendered.
         self.show_coordinates = True
+        #: Whether label placement should follow a flipped board.
         self.is_flipped = False
+        #: Highlight state plus the selected source square that created it.
         self.highlighted_metadata: dict[str, bool | str | None] = {
             "highlighted": False,
             "parent_piece_square": None,
@@ -158,6 +176,8 @@ class Square(ft.Container):
         is_flipped: bool = False,
         refresh: bool = True,
     ):
+        """Toggle edge coordinate labels and refresh their orientation."""
+
         self.show_coordinates = visible
         self.is_flipped = is_flipped
         self._rebuild_stack()
@@ -165,6 +185,8 @@ class Square(ft.Container):
             self._safe_update(self)
 
     def _rebuild_indicators(self):
+        """Recompute highlight marker geometry for the current square size."""
+
         dot_size = max(8, self.size * 0.3)
         ring_size = max(18, self.size * 0.8)
         ring_border = max(2, int(self.size * 0.05))
@@ -249,6 +271,8 @@ class Square(ft.Container):
         self.stack.controls = controls
 
     def _build_coordinate_labels(self) -> list[ft.Control]:
+        """Build rank/file labels for board edges only."""
+
         if not self.show_coordinates:
             return []
 
@@ -331,6 +355,7 @@ class Square(ft.Container):
 
 
 class InvisibleSquare(ft.Container):
+    """Drop target used for captured-piece slots outside the main board."""
 
     def __init__(
         self,
@@ -343,8 +368,11 @@ class InvisibleSquare(ft.Container):
         size=60,
     ):
         super().__init__(expand=True)
+        #: Slot coordinate within the captured-pieces grid.
         self.coordinate = coordinate
+        #: Pixel size of this captured-piece slot.
         self.size = size
+        #: Piece color group represented by this captured-piece grid.
         self.color: chess.Color = color
         self.width = size
         self.height = size
@@ -372,10 +400,14 @@ class InvisibleSquare(ft.Container):
         self.content = self.drag_target
 
     def _drag_data(self) -> str:
+        """Encode color and coordinate so overlapping slot numbers stay distinct."""
+
         return f"{int(self.color)}:{self.coordinate}"
 
     @staticmethod
     def parse_drag_data(data: str) -> tuple[int | None, str]:
+        """Decode captured-piece drag data into ``(color, coordinate)``."""
+
         if ":" not in data:
             return None, data
 

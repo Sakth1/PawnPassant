@@ -1,3 +1,5 @@
+"""Home screen for selecting a chess time control before starting a game."""
+
 from __future__ import annotations
 
 from dataclasses import fields
@@ -10,7 +12,11 @@ from utils.models import TimeControl
 
 
 class HomeView(ft.Container):
+    """Render preset and custom time controls and start the selected game."""
+
+    #: Display order for time-control groups derived from preset length.
     CATEGORY_ORDER = ["bullet", "blitz", "rapid", "classical"]
+    #: Human-readable labels for each time-control category.
     CATEGORY_LABELS = {
         "bullet": "Bullet",
         "blitz": "Blitz",
@@ -23,10 +29,15 @@ class HomeView(ft.Container):
         on_time_control_selected: Callable[[tuple[int, int]], None] | None = None,
     ):
         super().__init__(expand=True)
+        #: Callback invoked with ``(minutes, increment_seconds)`` when play starts.
         self.on_time_control_selected = on_time_control_selected
+        #: Last applied responsive layout metrics.
         self.layout = resolve_app_layout(960, 800)
+        #: Preset dictionaries generated from :class:`utils.models.TimeControl`.
         self.presets = self._build_presets()
+        #: Key of the currently selected preset when no custom control is active.
         self.selected_preset_key = self._default_preset_key()
+        #: Custom ``(minutes, increment_seconds)`` selected by the user, if any.
         self.selected_custom_time_control: tuple[int, int] | None = None
 
         self.title_text = ft.Text("Quick pairing", weight=ft.FontWeight.BOLD)
@@ -82,6 +93,8 @@ class HomeView(ft.Container):
         self._rebuild_view()
 
     def apply_layout(self, layout: AppLayout) -> None:
+        """Resize the home screen controls for the active breakpoint."""
+
         self.layout = layout
         panel_width = min(780, int(layout.width - (layout.padding * 2)))
 
@@ -112,6 +125,8 @@ class HomeView(ft.Container):
         self._safe_update(self)
 
     def _build_presets(self) -> list[dict[str, object]]:
+        """Build sorted time-control preset metadata from the dataclass fields."""
+
         presets: list[dict[str, object]] = []
         for time_field in fields(TimeControl):
             minutes, increment = time_field.default
@@ -136,6 +151,8 @@ class HomeView(ft.Container):
 
     @staticmethod
     def _categorize_time_control(minutes: int) -> str:
+        """Classify a preset by base minutes for grouping and labels."""
+
         if minutes <= 2:
             return "bullet"
         if minutes <= 5:
@@ -145,6 +162,8 @@ class HomeView(ft.Container):
         return "classical"
 
     def _default_preset_key(self) -> str:
+        """Return the preset key selected when the home screen first opens."""
+
         for preset in self.presets:
             if preset["value"] == TimeControl.THREE_PLUS_TWO:
                 return str(preset["key"])
@@ -152,6 +171,8 @@ class HomeView(ft.Container):
 
     @property
     def selected_preset(self) -> dict[str, object]:
+        """Return metadata for the selected preset, falling back defensively."""
+
         for preset in self.presets:
             if preset["key"] == self.selected_preset_key:
                 return preset
@@ -159,9 +180,13 @@ class HomeView(ft.Container):
 
     @property
     def selected_time_control(self) -> tuple[int, int]:
+        """Return the custom time control when present, otherwise the preset."""
+
         return self.selected_custom_time_control or self.selected_preset["value"]
 
     def _rebuild_view(self) -> None:
+        """Recompose preset grid, custom inputs, and footer selection text."""
+
         self.grid.controls = [self._build_preset_tile(preset) for preset in self.presets]
         self.selection_text.value = self._selection_label()
         self.custom_row.controls = [
@@ -187,6 +212,8 @@ class HomeView(ft.Container):
         self._safe_update(self.footer_row)
 
     def _build_preset_tile(self, preset: dict[str, object]) -> ft.Container:
+        """Create one clickable preset tile."""
+
         is_selected = (
             self.selected_custom_time_control is None
             and preset["key"] == self.selected_preset_key
@@ -225,6 +252,8 @@ class HomeView(ft.Container):
         )
 
     def _tile_columns(self) -> dict[str, int]:
+        """Return ResponsiveRow column spans for preset tiles."""
+
         if self.layout.breakpoint == "mobile":
             return {"xs": 4, "sm": 4, "md": 4}
         if self.layout.breakpoint == "tablet":
@@ -232,12 +261,16 @@ class HomeView(ft.Container):
         return {"xs": 6, "sm": 4, "md": 3, "lg": 3}
 
     def _preset_tooltip(self, preset: dict[str, object]) -> str:
+        """Return accessible detail text for a preset tile."""
+
         return (
             f"{self.CATEGORY_LABELS[str(preset['category'])]}  "
             f"{preset['minutes']} min + {preset['increment']} sec increment"
         )
 
     def _selection_label(self) -> str:
+        """Return the footer text describing the active time control."""
+
         if self.selected_custom_time_control is not None:
             minutes, increment = self.selected_custom_time_control
             return f"Selected: Custom {minutes}+{increment}"
@@ -248,17 +281,23 @@ class HomeView(ft.Container):
         )
 
     def _select_preset(self, preset_key: str) -> None:
+        """Select a preset and clear any previous custom selection."""
+
         self.selected_preset_key = preset_key
         self.selected_custom_time_control = None
         self._rebuild_view()
 
     def _handle_custom_input_change(self, _event: ft.ControlEvent | None = None) -> None:
+        """Clear validation errors while the user edits custom time fields."""
+
         self.minutes_input.error_text = None
         self.increment_input.error_text = None
         self._safe_update(self.minutes_input)
         self._safe_update(self.increment_input)
 
     def _parse_custom_time_control(self) -> tuple[int, int] | None:
+        """Parse custom minutes/increment fields into a validated tuple."""
+
         minutes_raw = (self.minutes_input.value or "").strip()
         increment_raw = (self.increment_input.value or "").strip()
 
@@ -274,6 +313,8 @@ class HomeView(ft.Container):
         return (minutes, increment)
 
     def _handle_custom_apply(self, _event: ft.ControlEvent | None = None) -> None:
+        """Store a valid custom time control as the active selection."""
+
         parsed = self._parse_custom_time_control()
         if parsed is None:
             return
@@ -281,6 +322,8 @@ class HomeView(ft.Container):
         self._rebuild_view()
 
     def _handle_primary_action(self, _event: ft.ControlEvent | None = None) -> None:
+        """Start a game using the selected preset or valid custom control."""
+
         if self.selected_custom_time_control is None:
             parsed = self._parse_custom_time_control()
             if parsed is not None:
@@ -288,6 +331,8 @@ class HomeView(ft.Container):
         self._start_time_control(self.selected_time_control)
 
     def _start_time_control(self, time_control: tuple[int, int]) -> None:
+        """Notify the parent app that a time control was chosen."""
+
         if self.on_time_control_selected is not None:
             self.on_time_control_selected(time_control)
 

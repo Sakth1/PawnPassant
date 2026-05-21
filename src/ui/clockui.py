@@ -1,3 +1,9 @@
+"""Flet clock panel that bridges clock events to visible timer controls.
+
+The backend clock owns timing and worker-thread concerns; this control owns
+presentation, draw/resign actions, and event translation into UI updates.
+"""
+
 import flet as ft
 from typing import Callable
 
@@ -16,10 +22,14 @@ from utils.models import ActiveColor, AppSettings, TimeControl
 
 
 def time_control_to_string(time_control: TimeControl) -> str:
+    """Format a time-control tuple as the initial ``MM:00`` display string."""
+
     return f"{time_control[0]:02}:00"
 
 
 class ClockUI(ft.Container):
+    """Display both clocks and publish terminal time results."""
+
     def __init__(
         self,
         time_control: TimeControl = TimeControl.THREE_PLUS_TWO,
@@ -27,9 +37,13 @@ class ClockUI(ft.Container):
         on_resign: Callable | None = None,
     ):
         super().__init__()
+        #: Current ``(minutes, increment_seconds)`` setting for the clock.
         self.time_control = time_control
+        #: Callback invoked when the draw button is pressed.
         self.on_draw = on_draw
+        #: Callback invoked when the resign button is pressed.
         self.on_resign = on_resign
+        #: Last applied responsive layout snapshot.
         self.layout = resolve_app_layout(960, 800)
         self.black_timer_main = ft.Text(
             time_control_to_string(time_control),
@@ -133,8 +147,11 @@ class ClockUI(ft.Container):
         self.clock = Clock(
             time_control=time_control,
         )
+        #: Current settings snapshot used for critical-time display behavior.
         self.settings = AppSettings()
+        #: Side whose clock is active from the UI's perspective.
         self.active_color: ActiveColor = ActiveColor.WHITE
+        #: Prevents clock/action updates after a terminal result.
         self.game_over = False
         bus.connect(ClockStateEvent, self._handle_clock_state)
         bus.connect(ClockTickEvent, self._handle_clock_tick)
@@ -145,9 +162,13 @@ class ClockUI(ft.Container):
         self.apply_layout(self.layout)
 
     def _icon(self, name: str, fallback: str = "MORE_HORIZ_ROUNDED"):
+        """Resolve a Flet icon name with a fallback for version differences."""
+
         return getattr(ft.Icons, name, getattr(ft.Icons, fallback))
 
     def _build_action_button(self, icon_name: str, tooltip: str, on_click) -> ft.IconButton:
+        """Create one compact icon button for a terminal game action."""
+
         return ft.IconButton(
             icon=self._icon(icon_name),
             tooltip=tooltip,
@@ -158,18 +179,29 @@ class ClockUI(ft.Container):
         )
 
     def _handle_draw_click(self, event):
+        """Forward draw requests while the game is active."""
+
         if self.game_over:
             return
         if self.on_draw is not None:
             self.on_draw(event)
 
     def _handle_resign_click(self, event):
+        """Forward resignation requests while the game is active."""
+
         if self.game_over:
             return
         if self.on_resign is not None:
             self.on_resign(event)
 
     def set_time_control(self, time_control: tuple[int, int]) -> None:
+        """Replace the backend clock and reset both visible timers.
+
+        Args:
+            time_control: ``(minutes, increment_seconds)`` tuple selected on the
+                home screen or supplied by tests.
+        """
+
         self.time_control = time_control
         self.clock.stop()
         self.clock = Clock(
@@ -177,6 +209,8 @@ class ClockUI(ft.Container):
             critical_threshold_seconds=self.settings.critical_time_seconds,
         )
         self.game_over = False
+        # The timer column is reversed after each move; resetting the list
+        # restores black-on-top and white-on-bottom for a fresh game.
         self.content.controls = [
             self.black_timer,
             self.action_bar,
@@ -245,12 +279,16 @@ class ClockUI(ft.Container):
         self._safe_update(self)
 
     def _safe_page(self):
+        """Return the attached page or ``None`` when running in detached tests."""
+
         try:
             return self.page
         except RuntimeError:
             return None
 
     def _handle_clock_tick(self, event: ClockTickEvent):
+        """Schedule timer updates onto Flet's page task queue."""
+
         if self.game_over:
             return
         page = self._safe_page()
@@ -259,9 +297,13 @@ class ClockUI(ft.Container):
         page.run_task(self._update_ui_async, event)
 
     async def _update_ui_async(self, event: ClockTickEvent):
+        """Async wrapper used by ``page.run_task`` for thread-safe UI updates."""
+
         self._update_ui(event)
 
     def _update_ui(self, event: ClockTickEvent):
+        """Apply one clock tick payload to the matching timer controls."""
+
         is_white = event.color == ActiveColor.WHITE
         target_main = self.white_timer_main if is_white else self.black_timer_main
         target_ms = self.white_timer_ms if is_white else self.black_timer_ms
@@ -271,6 +313,8 @@ class ClockUI(ft.Container):
         target_ms.bgcolor = None
 
         if event.is_critical:
+            # Critical time gets a darker surface and optional milliseconds so
+            # players can see flag-risk without changing the main timer format.
             target_ms.value = f".{event.milliseconds // 10:02}"
             container = self.white_timer if is_white else self.black_timer
             container.bgcolor = "#250E0E"
@@ -287,10 +331,14 @@ class ClockUI(ft.Container):
         self.update()
 
     def _start_clock(self, _event: GameStartedEvent):
+        """Start the backend timer when a game starts."""
+
         self.game_over = False
         self.clock.start()
 
     def _handle_piece_moved(self, _event: PieceModevedEvent):
+        """Switch clocks and flip their visual order after each committed move."""
+
         if self.game_over:
             return
         self.clock.switch()
@@ -317,14 +365,20 @@ class ClockUI(ft.Container):
         self._safe_update(self)
 
     def _handle_game_ended(self, _event: GameEndedEvent):
+        """Freeze timer updates and stop the backend worker after a result."""
+
         self.game_over = True
         self.clock.stop()
 
     def apply_settings(self, settings: AppSettings):
+        """Apply settings that affect clock display and backend threshold."""
+
         self.settings = settings
         self.clock.critical_threshold_seconds = settings.critical_time_seconds
 
     def _handle_settings_changed(self, event: SettingsChangedEvent):
+        """React to settings updates published by the settings controller."""
+
         self.apply_settings(event.settings)
 
     @staticmethod

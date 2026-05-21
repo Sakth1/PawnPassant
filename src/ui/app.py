@@ -1,4 +1,9 @@
-"""Top-level application wiring for the Pawn Passant interface."""
+"""Top-level application wiring for the Pawn Passant interface.
+
+``ChessApp`` composes independent Flet controls into one routed application,
+subscribes to game-level events, and owns app-shell concerns such as dialogs,
+navigation, responsive layout, settings loading, and developer-only board setup.
+"""
 
 from __future__ import annotations
 
@@ -23,13 +28,19 @@ from utils.signals import bus
 
 
 class ChessApp:
-    """Builds the page layout and optional developer controls."""
+    """Build page layout, navigation, dialogs, and optional developer controls."""
 
+    #: Approximate navigation bar height subtracted from usable game content.
     NAVIGATION_BAR_HEIGHT = 72
 
     def __init__(self, page: ft.Page, dev_mode: bool = False):
+        """Create and attach the app shell to a Flet page."""
+
+        #: Flet page owned by the running application.
         self.page = page
+        #: Whether developer-only controls such as FEN presets are visible.
         self.dev_mode = dev_mode
+        #: Current responsive layout snapshot shared by child views.
         self.layout: AppLayout = resolve_app_layout(960, 800)
 
         self.page.fonts = {
@@ -42,6 +53,8 @@ class ChessApp:
         self.page.scroll = ft.ScrollMode.AUTO
 
         self.settings_controller = SettingsController(page)
+        # Child controls are long-lived; route changes swap which one is visible
+        # rather than reconstructing game state on every navigation event.
         self.board_view = ChessBoard()
         self.time_control_view = ClockUI(
             on_draw=self._handle_draw_action,
@@ -190,10 +203,14 @@ class ChessApp:
                 raise ValueError(f"Invalid index {selected_index}")
 
     async def _push_initial_route(self):
+        """Navigate to the home route after page construction settles."""
+
         await asyncio.sleep(0)
         await self.page.push_route("/home")
 
     def _handle_route_change(self, event: ft.RouteChangeEvent):
+        """Swap the visible route view and keep navigation selection in sync."""
+
         route = event.route or "/home"
         self.view_container.content = self.route_views.get(route, self.home_view)
 
@@ -207,6 +224,8 @@ class ChessApp:
         self._safe_update(self.page)
 
     def _resolve_page_dimensions(self) -> tuple[float, float]:
+        """Return usable page dimensions after safe-area and nav adjustments."""
+
         page_width = getattr(self.page, "width", 0) or 960
         page_height = getattr(self.page, "height", 0) or 800
 
@@ -231,6 +250,8 @@ class ChessApp:
         return page_width, page_height
 
     def _apply_responsive_layout(self):
+        """Resolve and apply responsive metrics to every child view."""
+
         page_width, page_height = self._resolve_page_dimensions()
         self.layout = resolve_app_layout(page_width, page_height)
 
@@ -255,6 +276,8 @@ class ChessApp:
             self.position_selector.width = self.layout.dev_control_width
 
     def _handle_page_resize(self, _event):
+        """Recalculate layout after Flet reports size or media changes."""
+
         self._apply_responsive_layout()
 
     def _handle_position_change(self, e: ft.ControlEvent):
@@ -291,6 +314,8 @@ class ChessApp:
         bus.emit(GameStartedEvent())
 
     def _handle_game_started(self, _event: GameStartedEvent):
+        """Clear terminal dialogs and return the shell to active-game state."""
+
         self.page.pop_dialog()
         self.result_dialog.open = False
         self.result_dialog_title.value = ""
@@ -298,12 +323,16 @@ class ChessApp:
         self._safe_update(self.page)
 
     def _handle_game_ended(self, event: GameEndedEvent):
+        """Show the result dialog for a terminal game event."""
+
         self.result_dialog_title.value = event.winner or "Game Over"
         self.result_dialog_message.value = event.message
         self.page.show_dialog(self.result_dialog)
         self._safe_update(self.page)
 
     def _handle_draw_action(self, _event=None):
+        """Handle draw button clicks, including optional confirmation."""
+
         if self.board_view.game_over:
             return
         settings = getattr(getattr(self, "settings_controller", None), "settings", None)
@@ -318,6 +347,8 @@ class ChessApp:
         self._emit_draw_agreement()
 
     def _emit_draw_agreement(self):
+        """Publish a draw-by-agreement result."""
+
         bus.emit(
             GameEndedEvent(
                 winner="Draw",
@@ -329,6 +360,8 @@ class ChessApp:
         #TODO: have to implement draw agreement by the other color
 
     def _handle_resign_action(self, _event=None):
+        """Handle resign button clicks, including optional confirmation."""
+
         if self.board_view.game_over:
             return
         settings = getattr(getattr(self, "settings_controller", None), "settings", None)
@@ -343,6 +376,8 @@ class ChessApp:
         self._emit_resignation()
 
     def _emit_resignation(self):
+        """Publish a resignation result for the side that is not to move."""
+
         winner = "Black" if self.board_view.game.board.turn == chess.WHITE else "White"
         loser = "White" if winner == "Black" else "Black"
         bus.emit(
@@ -359,6 +394,8 @@ class ChessApp:
         title: str,
         message: str,
     ):
+        """Open a confirmation dialog for draw or resignation actions."""
+
         if self.board_view.game_over:
             return
 
@@ -369,11 +406,15 @@ class ChessApp:
         self._safe_update(self.page)
 
     def _handle_action_cancel(self, _event=None):
+        """Dismiss a pending terminal-action confirmation."""
+
         self.pending_terminal_action = None
         self.page.pop_dialog()
         self._safe_update(self.page)
 
     def _handle_action_confirm(self, _event=None):
+        """Commit the pending confirmed draw or resignation action."""
+
         action = self.pending_terminal_action
         self.pending_terminal_action = None
         self.page.pop_dialog()
@@ -387,6 +428,8 @@ class ChessApp:
         self._safe_update(self.page)
 
     def _handle_result_dialog_close(self, _event=None):
+        """Close the result dialog and reset board/clock for a new game."""
+
         self.page.pop_dialog()
         self.result_dialog.open = False
         if self.position_selector is not None:
@@ -397,6 +440,8 @@ class ChessApp:
         self._safe_update(self.page)
 
     def _start_game_with_time_control(self, time_control: tuple[int, int]) -> None:
+        """Start a new game from the home screen's selected time control."""
+
         self.time_control_view.set_time_control(time_control)
         if self.position_selector is not None:
             self.position_selector.value = "Start Position"
@@ -407,6 +452,8 @@ class ChessApp:
 
     @staticmethod
     def _safe_update(control: ft.Control):
+        """Update attached Flet controls while tolerating detached test controls."""
+
         try:
             control.update()
         except RuntimeError:

@@ -1,4 +1,10 @@
-"""Game-state helpers built on top of python-chess."""
+"""Game-state helpers built on top of python-chess.
+
+The engine package intentionally delegates chess legality to the mature
+``python-chess`` library. This wrapper exposes the smaller behavior surface the
+UI needs: load positions, classify legal moves, apply moves, and produce stable
+game-result summaries.
+"""
 
 from chess import Board, Move, Square, Color, PAWN, square_rank
 from typing import Optional
@@ -7,9 +13,10 @@ from core.movetype import MoveType
 
 
 class Game:
-    """Wraps the chess board with helpers tailored to the UI layer."""
+    """Wrap a :class:`chess.Board` with Pawn Passant-specific helpers."""
 
     def __init__(self):
+        #: Authoritative python-chess board state for the current game.
         self.board: Board = Board()
 
     def reset_board(self):
@@ -28,10 +35,20 @@ class Game:
         return self.board.fen()
 
     def get_active_color(self) -> Color:
+        """Return the side to move according to the underlying board."""
+
         return self.board.turn
 
     def get_move_type(self, move: Move) -> MoveType:
-        """Classify a move so the UI can apply the correct visual update path."""
+        """Classify a move so the UI can apply the correct visual update path.
+
+        Args:
+            move: Move candidate expressed in python-chess square indexes.
+
+        Returns:
+            A :class:`core.movetype.MoveType` describing the UI operation needed
+            after the board accepts the move.
+        """
 
         if self.board.is_queenside_castling(move):
             return MoveType.QUEEN_SIDE_CASTLING
@@ -89,9 +106,11 @@ class Game:
         return self.board.move_stack[-1]
 
     def get_winner(self):
-        """Return the winning side name, `Draw`, or `None` if play continues."""
+        """Return the winning side name, ``Draw``, or ``None`` if play continues."""
 
         if self.board.is_checkmate():
+            # In checkmate, python-chess leaves ``turn`` on the side that has no
+            # legal move, so the winner is the opposite color.
             return "Black" if self.board.turn else "White"
         elif (
             self.board.is_stalemate()
@@ -104,7 +123,11 @@ class Game:
             return None
 
     def get_result_summary(self) -> tuple[Optional[str], str, str]:
-        """Return a normalized winner, reason, and user-facing message."""
+        """Return a normalized winner, reason, and user-facing message.
+
+        The UI consumes this tuple directly for modal title/message text while
+        tests assert the stable reason keys.
+        """
 
         winner = self.get_winner()
         if self.board.is_checkmate():

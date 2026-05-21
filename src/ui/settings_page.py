@@ -1,4 +1,9 @@
-"""Settings screen for board, gameplay, and clock preferences."""
+"""Settings screen for board, gameplay, and clock preferences.
+
+This view owns only the controls. Validation, persistence, and notification are
+delegated to :class:`utils.settings.SettingsController` so settings remain
+consistent across board, clock, and app shell subscribers.
+"""
 
 from __future__ import annotations
 
@@ -14,10 +19,15 @@ from utils.signals import bus
 
 
 class SettingsView(ft.Container):
+    """Render grouped settings controls and forward changes to the controller."""
+
     def __init__(self, controller: SettingsController | None = None):
         super().__init__(expand=True)
+        #: Controller that validates, emits, and persists settings changes.
         self.controller = controller or SettingsController()
+        #: Current settings snapshot reflected by the controls.
         self.settings = self.controller.settings
+        #: Last applied responsive layout metrics.
         self.layout = resolve_app_layout(960, 800)
 
         self.title_text = ft.Text("Settings", weight=ft.FontWeight.BOLD)
@@ -57,6 +67,8 @@ class SettingsView(ft.Container):
         self._rebuild_sections()
 
     def apply_layout(self, layout: AppLayout) -> None:
+        """Resize the settings page for the active breakpoint."""
+
         self.layout = layout
         panel_width = min(860, int(layout.width - (layout.padding * 2)))
         self.content.padding = ft.Padding.all(layout.padding)
@@ -73,6 +85,8 @@ class SettingsView(ft.Container):
         self._safe_update(self)
 
     def _rebuild_sections(self):
+        """Rebuild all setting rows from the current settings snapshot."""
+
         self.board_section.controls = [
             self._section_header("Board"),
             self._switch_row(
@@ -154,12 +168,16 @@ class SettingsView(ft.Container):
         self._safe_update(self)
 
     def _section_header(self, label: str) -> ft.Container:
+        """Create a section title used to group related preferences."""
+
         return ft.Container(
             padding=ft.Padding(0, 8, 0, 2),
             content=ft.Text(label, weight=ft.FontWeight.BOLD, size=16),
         )
 
     def _setting_row(self, label: str, control: ft.Control) -> ft.Container:
+        """Wrap a label/control pair in the shared settings row style."""
+
         return ft.Container(
             border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=8,
@@ -175,6 +193,8 @@ class SettingsView(ft.Container):
         )
 
     def _switch_row(self, label: str, key: str, value: bool) -> ft.Container:
+        """Create a boolean settings row backed by an adaptive switch."""
+
         control = ft.Switch(
             value=value,
             adaptive=True,
@@ -191,6 +211,8 @@ class SettingsView(ft.Container):
         value: str,
         options: list[tuple[str, str]],
     ) -> ft.Container:
+        """Create an option-list settings row backed by a dropdown."""
+
         control = ft.Dropdown(
             width=190 if self.layout.compact else 220,
             value=value,
@@ -205,6 +227,8 @@ class SettingsView(ft.Container):
         return self._setting_row(label, control)
 
     def _number_row(self, label: str, key: str, value: int) -> ft.Container:
+        """Create a numeric settings row backed by a number-only text field."""
+
         control = ft.TextField(
             width=96,
             value=str(value),
@@ -218,9 +242,13 @@ class SettingsView(ft.Container):
         return self._setting_row(label, control)
 
     def _update_setting(self, key: str, value: Any):
+        """Send one setting change to the controller."""
+
         self.controller.update(**{key: value})
 
     def _update_number_setting(self, key: str, control: ft.TextField):
+        """Parse and send a numeric setting change when the field has a value."""
+
         raw_value = (control.value or "").strip()
         if not raw_value:
             return
@@ -228,9 +256,13 @@ class SettingsView(ft.Container):
         self.controller.update(**{key: value})
 
     def _handle_reset_defaults(self, _event=None):
+        """Restore all settings to their default values."""
+
         self.controller.reset_defaults()
 
     def _handle_settings_changed(self, event: SettingsChangedEvent):
+        """Refresh controls after any settings change event."""
+
         self.settings = event.settings
         self._rebuild_sections()
 
