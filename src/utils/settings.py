@@ -210,11 +210,11 @@ class SettingsController:
         if self.page is None:
             return None
 
-        storage = getattr(self.page, "shared_preferences", None)
+        storage = getattr(self.page, "SharedPreferences", None)
         if storage is not None:
             return storage
 
-        storage = getattr(self.page, "client_storage", None)
+        storage = getattr(self.page, "StoragePaths", None)
         if storage is not None:
             return storage
 
@@ -227,7 +227,7 @@ class SettingsController:
     async def _resolve_support_directory(self) -> Path | None:
         """Resolve the app-specific support directory from Flet storage paths."""
 
-        storage_paths = getattr(self.page, "storage_paths", None)
+        storage_paths = getattr(self.page, "StoragePaths", None)
         if storage_paths is None or not hasattr(
             storage_paths, "get_application_support_directory"
         ):

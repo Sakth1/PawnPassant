@@ -160,6 +160,20 @@ class TestResponsiveClockUi(unittest.TestCase):
         self.assertIn(clock_ui.action_bar, clock_ui.content.controls)
         self.assertGreaterEqual(clock_ui.draw_button.width, 34)
 
+    def test_milliseconds_share_main_timer_baseline(self):
+        clock_ui = ClockUI()
+
+        self.assertEqual(
+            clock_ui.black_timer.content.vertical_alignment,
+            clock_ui.white_timer.content.vertical_alignment,
+        )
+        self.assertEqual(
+            clock_ui.black_timer.content.vertical_alignment,
+            clock_ui.black_timer.content.vertical_alignment.BASELINE,
+        )
+        self.assertIsNone(clock_ui.black_timer_ms.offset)
+        self.assertIsNone(clock_ui.white_timer_ms.offset)
+
 
 class TestResponsivePieceDisplayUi(unittest.TestCase):
     def test_apply_layout_updates_sidebar_dimensions(self):
@@ -251,6 +265,17 @@ class TestResponsiveAppUi(unittest.TestCase):
         app._start_game_with_time_control((10, 5))
 
         self.assertEqual(app.time_control_view.time_control, (10, 5))
+        self.assertEqual(app.view_container.content, app.game_page_view)
+        self.assertEqual(page.route, "/game")
+
+    def test_navigation_tab_shows_game_view_immediately(self):
+        page = _FakePage(width=960, height=800)
+        app = ChessApp(page, dev_mode=False)
+        page.navigation_bar.selected_index = 1
+
+        event = type("NavEvent", (), {"control": page.navigation_bar})()
+        app._handle_navigation_change(event)
+
         self.assertEqual(app.view_container.content, app.game_page_view)
         self.assertEqual(page.route, "/game")
 

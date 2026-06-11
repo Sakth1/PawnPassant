@@ -7,7 +7,6 @@ navigation, responsive layout, settings loading, and developer-only board setup.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 from pathlib import Path
@@ -170,9 +169,21 @@ class ChessApp:
         # Add NavigationBar with at least 2 destinations
         self.page.navigation_bar = ft.NavigationBar(
             destinations=[
-                ft.NavigationBarDestination(icon=ft.icons.Icons.HOME, label="Home", visible=True),
-                ft.NavigationBarDestination(icon=ft.icons.Icons.GAMES, label="Game", visible=True),
-                ft.NavigationBarDestination(icon=ft.icons.Icons.SETTINGS, label="Settings", visible=True),
+                ft.NavigationBarDestination(
+                    icon=ft.Icons.HOME,
+                    label="Home",
+                    visible=True,
+                ),
+                ft.NavigationBarDestination(
+                    icon=ft.Icons.GAMES,
+                    label="Game",
+                    visible=True,
+                ),
+                ft.NavigationBarDestination(
+                    icon=ft.Icons.SETTINGS,
+                    label="Settings",
+                    visible=True,
+                ),
             ],
             on_change=self._handle_navigation_change,
         )
@@ -186,32 +197,46 @@ class ChessApp:
         self.page.add(self.view_container)
         self._apply_responsive_layout()
         self.page.run_task(self.settings_controller.load)
-        self.page.run_task(self._push_initial_route)
+        self._navigate_to("/home")
 
-    async def _handle_navigation_change(self, event):
+    def _handle_navigation_change(self, event):
         """Handle navigation bar tab changes."""
+
         selected_index = event.control.selected_index
 
         match selected_index:
             case 0:
-                await self.page.push_route("/home")
+                self._navigate_to("/home")
             case 1:
-                await self.page.push_route("/game")
+                self._navigate_to("/game")
             case 2:
-                await self.page.push_route("/settings")
+                self._navigate_to("/settings")
             case _:
                 raise ValueError(f"Invalid index {selected_index}")
 
-    async def _push_initial_route(self):
-        """Navigate to the home route after page construction settles."""
+    def _navigate_to(self, route: str) -> None:
+        """Show a route immediately and sync it to Flet navigation history."""
 
-        await asyncio.sleep(0)
-        await self.page.push_route("/home")
+        self._show_route(route)
+        navigate = getattr(self.page, "navigate", None)
+        if callable(navigate):
+            navigate(route)
+            return
+        self.page.run_task(self._push_route, route)
+
+    async def _push_route(self, route: str) -> None:
+        """Navigate from synchronous callbacks without leaking a coroutine."""
+
+        await self.page.push_route(route)
 
     def _handle_route_change(self, event: ft.RouteChangeEvent):
         """Swap the visible route view and keep navigation selection in sync."""
 
-        route = event.route or "/home"
+        self._show_route(event.route or "/home")
+
+    def _show_route(self, route: str) -> None:
+        """Swap the visible route without depending on browser callback timing."""
+
         self.view_container.content = self.route_views.get(route, self.home_view)
 
         route_to_index = {
@@ -447,7 +472,7 @@ class ChessApp:
             self.position_selector.value = "Start Position"
         self.board_view.load_position()
         bus.emit(GameStartedEvent())
-        self.page.go("/game")
+        self._navigate_to("/game")
         self._safe_update(self.page)
 
     @staticmethod

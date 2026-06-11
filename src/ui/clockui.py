@@ -52,7 +52,7 @@ class ClockUI(ft.Container):
             font_family="RobotoMono",
             size=self.layout.timer_font_size,
             weight=ft.FontWeight.BOLD,
-            margin=ft.margin.Margin(5, 5, 5, 5),
+            margin=ft.Margin(5, 5, 5, 5),
         )
         self.black_timer_ms = ft.Text(
             "",
@@ -61,16 +61,15 @@ class ClockUI(ft.Container):
             font_family="RobotoMono",
             size=self.layout.timer_ms_size,
             weight=ft.FontWeight.BOLD,
-            offset=ft.Offset(0, 0.1),
-            margin=ft.margin.Margin(0, 0, 5, 0),
+            margin=ft.Margin(0, 0, 5, 0),
         )
         self.black_timer = ft.Container(
             content=ft.Row(
                 controls=[self.black_timer_main, self.black_timer_ms],
                 alignment=ft.MainAxisAlignment.CENTER,
-                vertical_alignment=ft.CrossAxisAlignment.END,
+                vertical_alignment=ft.CrossAxisAlignment.BASELINE,
                 spacing=2,
-                margin=ft.margin.Margin(5, 5, 5, 5),
+                margin=ft.Margin(5, 5, 5, 5),
             ),
             bgcolor="#262626",
         )
@@ -81,7 +80,7 @@ class ClockUI(ft.Container):
             font_family="RobotoMono",
             size=self.layout.timer_font_size,
             weight=ft.FontWeight.BOLD,
-            margin=ft.margin.Margin(5, 5, 5, 5),
+            margin=ft.Margin(5, 5, 5, 5),
         )
         self.white_timer_ms = ft.Text(
             "",
@@ -90,15 +89,14 @@ class ClockUI(ft.Container):
             font_family="RobotoMono",
             size=self.layout.timer_ms_size,
             weight=ft.FontWeight.BOLD,
-            offset=ft.Offset(0, -0.4),
         )
         self.white_timer = ft.Container(
             content=ft.Row(
                 controls=[self.white_timer_main, self.white_timer_ms],
                 alignment=ft.MainAxisAlignment.CENTER,
-                vertical_alignment=ft.CrossAxisAlignment.END,
+                vertical_alignment=ft.CrossAxisAlignment.BASELINE,
                 spacing=2,
-                margin=ft.margin.Margin(5, 5, 5, 5),
+                margin=ft.Margin(5, 5, 5, 5),
             ),
             bgcolor="#262626",
         )
@@ -111,7 +109,7 @@ class ClockUI(ft.Container):
             height=3,
             bgcolor=ft.Colors.GREY_400,
             width=self.layout.divider_extent,
-            margin=ft.margin.Margin(20, 0, 20, 0),
+            margin=ft.Margin(20, 0, 20, 0),
         )
         self.draw_button = self._build_action_button(
             icon_name="HANDSHAKE_OUTLINED",
@@ -236,7 +234,7 @@ class ClockUI(ft.Container):
         self.width = layout.clock_width
         self.border_radius = layout.timer_radius
 
-        row_margin = ft.margin.Margin(
+        row_margin = ft.Margin(
             layout.timer_padding,
             layout.timer_padding,
             layout.timer_padding,
@@ -252,11 +250,11 @@ class ClockUI(ft.Container):
 
         for timer_text in (self.black_timer_main, self.white_timer_main):
             timer_text.size = layout.timer_font_size
-            timer_text.margin = ft.margin.Margin(4, 2, 0, 2)
+            timer_text.margin = ft.Margin(4, 2, 0, 2)
 
         for timer_ms in (self.black_timer_ms, self.white_timer_ms):
             timer_ms.size = layout.timer_ms_size
-            timer_ms.margin = ft.margin.Margin(0, 0, 4, 2)
+            timer_ms.margin = ft.Margin(0, 0, 4, 2)
 
         self.content.spacing = max(10, layout.gap)
         self.divider.width = layout.divider_extent
@@ -318,7 +316,7 @@ class ClockUI(ft.Container):
             target_ms.value = f".{event.milliseconds // 10:02}"
             container = self.white_timer if is_white else self.black_timer
             container.bgcolor = "#250E0E"
-            target_main.margin = ft.margin.Margin(4, 2, 0, 2)
+            target_main.margin = ft.Margin(4, 2, 0, 2)
             target_ms.bgcolor = "#250E0E"
             if not self.settings.show_milliseconds_in_critical:
                 target_ms.value = ""
