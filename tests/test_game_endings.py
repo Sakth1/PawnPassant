@@ -54,9 +54,13 @@ class TestGameEndings(unittest.TestCase):
         self.assertEqual(self.ended_events[0].message, "White wins on time.")
 
     def test_clock_draw_action_emits_agreed_draw(self):
-        clock_ui = ClockUI(on_draw=lambda _event: bus.emit(
-            GameEndedEvent(winner="Draw", reason="agreement", message="Draw by agreement.")
-        ))
+        clock_ui = ClockUI(
+            on_draw=lambda _event: bus.emit(
+                GameEndedEvent(
+                    winner="Draw", reason="agreement", message="Draw by agreement."
+                )
+            )
+        )
 
         clock_ui._handle_draw_click(None)
 

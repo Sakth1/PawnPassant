@@ -21,7 +21,6 @@ from utils.models import ActiveColor, AppSettings
 from utils.settings import SettingsController
 from utils.signals import bus
 
-
 TEST_TMP_ROOT = Path(__file__).resolve().parents[1] / ".test_tmp_settings"
 
 
@@ -46,11 +45,7 @@ class _FakePage:
             self.storage_paths = type(
                 "StoragePathsStub",
                 (),
-                {
-                    "get_application_support_directory": (
-                        lambda _self: support_dir
-                    )
-                },
+                {"get_application_support_directory": (lambda _self: support_dir)},
             )()
         self.overlay = []
 
@@ -206,9 +201,7 @@ class TestSettingsView(unittest.TestCase):
 class TestSettingsDrivenBoard(unittest.TestCase):
     def test_legal_moves_disabled_suppresses_hints_but_move_still_works(self):
         board = ChessBoard()
-        board.apply_settings(
-            AppSettings(show_legal_moves=False, move_animation="off")
-        )
+        board.apply_settings(AppSettings(show_legal_moves=False, move_animation="off"))
 
         board._handle_square_click(board.square_map["e2"], "e2")
 

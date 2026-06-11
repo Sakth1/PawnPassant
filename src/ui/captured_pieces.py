@@ -2,9 +2,8 @@
 
 import flet as ft
 import random
-from chess import PAWN, Piece, WHITE, BLACK
+from chess import WHITE, BLACK
 
-from ui.chess_piece import ChessPiece
 from ui.layout import AppLayout, resolve_app_layout
 from ui.square import InvisibleSquare
 from utils.events import PieceCapturedEvent
@@ -69,7 +68,11 @@ class CaputredPieces(ft.Container):
         return InvisibleSquare(
             coordinate=str(position),
             color=piece_colors,
-            drag_drop_group= "captured-chess-piece-white" if piece_colors else "captured-chess-piece-black",
+            drag_drop_group=(
+                "captured-chess-piece-white"
+                if piece_colors
+                else "captured-chess-piece-black"
+            ),
             on_square_drop=self._handle_square_drop,
             on_piece_drag_start=self._handle_piece_drag_start,
             on_piece_drag_complete=self._handle_piece_drag_complete,
@@ -219,7 +222,7 @@ class CaputredPieces(ft.Container):
             else:
                 self.available_black_squares.append(from_cords)
                 self.available_black_squares.remove(to_cords)
-        except Exception as e:
+        except Exception:
             import traceback
 
             traceback.print_exc()
@@ -238,7 +241,7 @@ class CaputredPieces(ft.Container):
         target_square = self._find_square(to_cords, color=source_color)
         if source_square is None or target_square is None or target_square.has_piece:
             return False
-        
+
         print(source_square.coordinate)
         print(target_square.coordinate)
 

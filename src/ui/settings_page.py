@@ -13,7 +13,6 @@ import flet as ft
 
 from ui.layout import AppLayout, resolve_app_layout
 from utils.events import SettingsChangedEvent
-from utils.models import AppSettings
 from utils.settings import SettingsController
 from utils.signals import bus
 
@@ -217,8 +216,7 @@ class SettingsView(ft.Container):
             width=190 if self.layout.compact else 220,
             value=value,
             options=[
-                ft.dropdown.Option(key=option, text=text)
-                for option, text in options
+                ft.dropdown.Option(key=option, text=text) for option, text in options
             ],
             on_select=lambda event, setting_key=key: self._update_setting(
                 setting_key, event.control.value

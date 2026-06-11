@@ -39,7 +39,7 @@ from utils.events import (
     PieceCapturedEvent,
     SettingsChangedEvent,
 )
-from utils.models import ActiveColor, AppSettings
+from utils.models import AppSettings
 from utils.signals import bus
 
 
@@ -103,9 +103,9 @@ class ChessBoard(ft.Container):
         #: Current settings snapshot applied to board behavior.
         self.settings = AppSettings()
         #: Move waiting for confirmation before final commit.
-        self.pending_confirmed_move: Optional[
-            tuple[Move, MoveType, str, str, bool]
-        ] = None
+        self.pending_confirmed_move: Optional[tuple[Move, MoveType, str, str, bool]] = (
+            None
+        )
 
         self.board_frame = ft.GridView(
             runs_count=8,
@@ -542,7 +542,7 @@ class ChessBoard(ft.Container):
             king: Optional[ChessPiece] = self._get_piece_at_square(
                 self.square_map.get(CASTLING_KING_START_SQUARE.get("QUEEN_SIDE_WHITE"))
             )
-            
+
             self.square_map[
                 CASTLING_ROOK_START_SQUARE.get("QUEEN_SIDE_WHITE")
             ].update_content(None)
@@ -550,13 +550,12 @@ class ChessBoard(ft.Container):
                 CASTLING_ROOK_END_SQUARE.get("QUEEN_SIDE_WHITE")
             ].update_content(rook)
 
-            self.square_map[CASTLING_KING_START_SQUARE.get("QUEEN_SIDE_WHITE")].update_content(
-                None
-            )
-            self.square_map[CASTLING_KING_END_SQUARE.get("QUEEN_SIDE_WHITE")].update_content(
-                king
-            )
-
+            self.square_map[
+                CASTLING_KING_START_SQUARE.get("QUEEN_SIDE_WHITE")
+            ].update_content(None)
+            self.square_map[
+                CASTLING_KING_END_SQUARE.get("QUEEN_SIDE_WHITE")
+            ].update_content(king)
 
         else:
             rook = self._get_piece_at_square(
@@ -572,12 +571,12 @@ class ChessBoard(ft.Container):
                 CASTLING_ROOK_END_SQUARE.get("QUEEN_SIDE_BLACK")
             ].update_content(rook)
 
-            self.square_map[CASTLING_KING_START_SQUARE.get("QUEEN_SIDE_BLACK")].update_content(
-                None
-            )
-            self.square_map[CASTLING_KING_END_SQUARE.get("QUEEN_SIDE_BLACK")].update_content(
-                king
-            )
+            self.square_map[
+                CASTLING_KING_START_SQUARE.get("QUEEN_SIDE_BLACK")
+            ].update_content(None)
+            self.square_map[
+                CASTLING_KING_END_SQUARE.get("QUEEN_SIDE_BLACK")
+            ].update_content(king)
 
     def _king_side_castling(self):
         """Reposition the rook after a king-side castle."""
