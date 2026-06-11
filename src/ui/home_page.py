@@ -187,7 +187,9 @@ class HomeView(ft.Container):
     def _rebuild_view(self) -> None:
         """Recompose preset grid, custom inputs, and footer selection text."""
 
-        self.grid.controls = [self._build_preset_tile(preset) for preset in self.presets]
+        self.grid.controls = [
+            self._build_preset_tile(preset) for preset in self.presets
+        ]
         self.selection_text.value = self._selection_label()
         self.custom_row.controls = [
             ft.Container(content=self.custom_hint, col={"xs": 12, "md": 12}),
@@ -287,7 +289,9 @@ class HomeView(ft.Container):
         self.selected_custom_time_control = None
         self._rebuild_view()
 
-    def _handle_custom_input_change(self, _event: ft.ControlEvent | None = None) -> None:
+    def _handle_custom_input_change(
+        self, _event: ft.ControlEvent | None = None
+    ) -> None:
         """Clear validation errors while the user edits custom time fields."""
 
         self.minutes_input.error_text = None

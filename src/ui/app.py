@@ -59,7 +59,9 @@ class ChessApp:
             on_draw=self._handle_draw_action,
             on_resign=self._handle_resign_action,
         )
-        self.home_view = HomeView(on_time_control_selected=self._start_game_with_time_control)
+        self.home_view = HomeView(
+            on_time_control_selected=self._start_game_with_time_control
+        )
         self.piece_display = CaputredPieces()
         self.result_dialog_title = ft.Text(weight=ft.FontWeight.BOLD)
         self.result_dialog_message = ft.Text(text_align=ft.TextAlign.CENTER)
@@ -382,7 +384,7 @@ class ChessApp:
             )
         )
 
-        #TODO: have to implement draw agreement by the other color
+        # TODO: have to implement draw agreement by the other color
 
     def _handle_resign_action(self, _event=None):
         """Handle resign button clicks, including optional confirmation."""

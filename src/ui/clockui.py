@@ -164,7 +164,9 @@ class ClockUI(ft.Container):
 
         return getattr(ft.Icons, name, getattr(ft.Icons, fallback))
 
-    def _build_action_button(self, icon_name: str, tooltip: str, on_click) -> ft.IconButton:
+    def _build_action_button(
+        self, icon_name: str, tooltip: str, on_click
+    ) -> ft.IconButton:
         """Create one compact icon button for a terminal game action."""
 
         return ft.IconButton(

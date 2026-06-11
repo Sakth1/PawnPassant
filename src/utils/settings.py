@@ -22,9 +22,11 @@ class SettingsBackend(Protocol):
     """Storage interface used by :class:`SettingsController`."""
 
     async def load(self) -> dict[str, Any] | None: ...
+
     """Return a raw settings payload, or ``None`` when nothing can be loaded."""
 
     async def save(self, payload: dict[str, Any]) -> None: ...
+
     """Persist a raw settings payload."""
 
 

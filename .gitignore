@@ -172,6 +172,7 @@ monkeytype.sqlite3
 .codex
 .test_tmp_settings
 .qwen
+docs
 
 # IDE
 .vscode/

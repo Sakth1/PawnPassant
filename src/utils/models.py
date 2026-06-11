@@ -6,9 +6,8 @@ the UI asks for a changed copy, and the controller publishes that copy to the
 rest of the app.
 """
 
-from dataclasses import asdict, dataclass, fields, replace
+from dataclasses import asdict, dataclass, fields
 from typing import Any, Tuple
-from enum import StrEnum
 import chess
 
 
