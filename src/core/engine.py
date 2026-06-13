@@ -6,10 +6,14 @@ UI needs: load positions, classify legal moves, apply moves, and produce stable
 game-result summaries.
 """
 
-from chess import Board, Move, Square, Color, PAWN, square_rank
+import logging
 from typing import Optional
 
+from chess import Board, Move, Square, Color, PAWN, square_rank
+
 from core.movetype import MoveType
+
+logger = logging.getLogger(__name__)
 
 
 class Game:
@@ -23,11 +27,13 @@ class Game:
         """Restore the standard starting position."""
 
         self.board = Board()
+        logger.info("Engine board reset")
 
     def set_board_fen(self, fen: str):
         """Load a board position from a FEN string."""
 
         self.board = Board(fen)
+        logger.info("Engine board set from FEN")
 
     def get_board_fen(self):
         """Return the current board position as FEN."""
@@ -74,6 +80,7 @@ class Game:
         """Apply a legal move to the underlying board."""
 
         self.board.push(move)
+        logger.debug("Engine move pushed move=%s ply=%s", move.uci(), self.board.ply())
 
     def get_move_san(self, move: Move) -> str:
         """Format a move using standard algebraic notation."""
@@ -88,7 +95,7 @@ class Game:
     def display_board(self):
         """Print the board for quick local debugging."""
 
-        print(self.board)
+        logger.debug("Board state:\n%s", self.board)
 
     def piece_at_square(self, square: Square):
         """Return the piece currently occupying a square, if any."""

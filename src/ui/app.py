@@ -8,6 +8,7 @@ navigation, responsive layout, settings loading, and developer-only board setup.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -25,6 +26,8 @@ from utils.events import GameEndedEvent, GameStartedEvent
 from utils.settings import SettingsController
 from utils.signals import bus
 
+logger = logging.getLogger(__name__)
+
 
 class ChessApp:
     """Build page layout, navigation, dialogs, and optional developer controls."""
@@ -35,6 +38,7 @@ class ChessApp:
     def __init__(self, page: ft.Page, dev_mode: bool = False):
         """Create and attach the app shell to a Flet page."""
 
+        logger.info("Initializing app shell dev_mode=%s", dev_mode)
         #: Flet page owned by the running application.
         self.page = page
         #: Whether developer-only controls such as FEN presets are visible.
@@ -55,7 +59,7 @@ class ChessApp:
         # Child controls are long-lived; route changes swap which one is visible
         # rather than reconstructing game state on every navigation event.
         self.board_view = ChessBoard()
-        self.time_control_view = ClockUI(
+        self.time_control_UI = ClockUI(
             on_draw=self._handle_draw_action,
             on_resign=self._handle_resign_action,
         )
@@ -103,7 +107,7 @@ class ChessApp:
             col={"xs": 12, "md": 7},
         )
         self.clock_slot = ft.Container(
-            content=self.time_control_view,
+            content=self.time_control_UI,
             alignment=ft.Alignment.CENTER,
             col={"xs": 12, "md": 2},
         )
@@ -204,7 +208,7 @@ class ChessApp:
     def _handle_navigation_change(self, event):
         """Handle navigation bar tab changes."""
 
-        selected_index = event.control.selected_index
+        selected_index: int = event.control.selected_index
 
         match selected_index:
             case 0:
@@ -219,6 +223,7 @@ class ChessApp:
     def _navigate_to(self, route: str) -> None:
         """Show a route immediately and sync it to Flet navigation history."""
 
+        logger.info("Navigating to route=%s", route)
         self._show_route(route)
         navigate = getattr(self.page, "navigate", None)
         if callable(navigate):
@@ -240,6 +245,11 @@ class ChessApp:
         """Swap the visible route without depending on browser callback timing."""
 
         self.view_container.content = self.route_views.get(route, self.home_view)
+        if route not in self.route_views:
+            logger.warning(
+                "Unknown route requested route=%s; falling back to home",
+                route,
+            )
 
         route_to_index = {
             "/home": 0,
@@ -284,7 +294,7 @@ class ChessApp:
 
         self.board_view.apply_layout(self.layout)
         self.piece_display.apply_layout(self.layout)
-        self.time_control_view.apply_layout(self.layout)
+        self.time_control_UI.apply_layout(self.layout)
         self.home_view.apply_layout(self.layout)
         self.settings_view.apply_layout(self.layout)
 
@@ -319,6 +329,7 @@ class ChessApp:
                     event_data = json.loads(payload)
                     selected_name = event_data.get("value") or event_data.get("key")
                 except json.JSONDecodeError:
+                    logger.warning("Failed to decode board setup payload=%s", payload)
                     selected_name = payload
             else:
                 selected_name = payload
@@ -337,6 +348,7 @@ class ChessApp:
 
         self.position_selector.value = selected_name
         selected_fen = ChessBoard.TEST_POSITIONS[selected_name]
+        logger.info("Loading developer board position name=%s", selected_name)
         self.board_view.load_position(selected_fen)
         bus.emit(GameStartedEvent())
 
@@ -347,6 +359,7 @@ class ChessApp:
         self.result_dialog.open = False
         self.result_dialog_title.value = ""
         self.result_dialog_message.value = ""
+        logger.info("Game started")
         self._safe_update(self.page)
 
     def _handle_game_ended(self, event: GameEndedEvent):
@@ -354,6 +367,12 @@ class ChessApp:
 
         self.result_dialog_title.value = event.winner or "Game Over"
         self.result_dialog_message.value = event.message
+        logger.info(
+            "Game ended winner=%s reason=%s message=%s",
+            event.winner,
+            event.reason,
+            event.message,
+        )
         self.page.show_dialog(self.result_dialog)
         self._safe_update(self.page)
 
@@ -361,6 +380,7 @@ class ChessApp:
         """Handle draw button clicks, including optional confirmation."""
 
         if self.board_view.game_over:
+            logger.info("Ignoring draw action because game is already over")
             return
         settings = getattr(getattr(self, "settings_controller", None), "settings", None)
         if settings is not None and settings.confirm_draw:
@@ -383,6 +403,7 @@ class ChessApp:
                 message="Draw by agreement.",
             )
         )
+        logger.info("Draw agreement emitted")
 
         # TODO: have to implement draw agreement by the other color
 
@@ -390,6 +411,7 @@ class ChessApp:
         """Handle resign button clicks, including optional confirmation."""
 
         if self.board_view.game_over:
+            logger.info("Ignoring resign action because game is already over")
             return
         settings = getattr(getattr(self, "settings_controller", None), "settings", None)
         if settings is not None and settings.confirm_resign:
@@ -414,6 +436,7 @@ class ChessApp:
                 message=f"{loser} resigned. {winner} wins.",
             )
         )
+        logger.info("Resignation emitted loser=%s winner=%s", loser, winner)
 
     def _show_terminal_action_confirmation(
         self,
@@ -424,9 +447,11 @@ class ChessApp:
         """Open a confirmation dialog for draw or resignation actions."""
 
         if self.board_view.game_over:
+            logger.info("Ignoring %s confirmation because game is already over", action)
             return
 
         self.pending_terminal_action = action
+        logger.info("Showing terminal action confirmation action=%s", action)
         self.confirm_action_title.value = title
         self.confirm_action_message.value = message
         self.page.show_dialog(self.confirm_action_dialog)
@@ -436,6 +461,7 @@ class ChessApp:
         """Dismiss a pending terminal-action confirmation."""
 
         self.pending_terminal_action = None
+        logger.info("Terminal action cancelled")
         self.page.pop_dialog()
         self._safe_update(self.page)
 
@@ -444,6 +470,7 @@ class ChessApp:
 
         action = self.pending_terminal_action
         self.pending_terminal_action = None
+        logger.info("Terminal action confirmed action=%s", action)
         self.page.pop_dialog()
         if self.board_view.game_over:
             self._safe_update(self.page)
@@ -459,17 +486,23 @@ class ChessApp:
 
         self.page.pop_dialog()
         self.result_dialog.open = False
+        logger.info("Resetting game from result dialog")
         if self.position_selector is not None:
             self.position_selector.value = "Start Position"
         self.board_view.load_position()
-        self.time_control_view.set_time_control(self.time_control_view.time_control)
+        self.time_control_UI.set_time_control(self.time_control_UI.time_control)
         bus.emit(GameStartedEvent())
         self._safe_update(self.page)
 
     def _start_game_with_time_control(self, time_control: tuple[int, int]) -> None:
         """Start a new game from the home screen's selected time control."""
 
-        self.time_control_view.set_time_control(time_control)
+        self.time_control_UI.set_time_control(time_control)
+        logger.info(
+            "Starting game with time_control_minutes=%s increment_seconds=%s",
+            time_control[0],
+            time_control[1],
+        )
         if self.position_selector is not None:
             self.position_selector.value = "Start Position"
         self.board_view.load_position()
@@ -487,7 +520,7 @@ class ChessApp:
             pass
 
 
-def main(page: ft.Page):
+def EntryPoint(page: ft.Page):
     """Create the app with dev-mode controls toggled by environment variable."""
 
     dev_mode = os.getenv("PAWNPASSANT_DEV", "").strip().lower() in {
@@ -497,4 +530,5 @@ def main(page: ft.Page):
         "dev",
     }
 
+    logger.info("Entry point invoked dev_mode=%s", dev_mode)
     ChessApp(page, dev_mode=dev_mode)

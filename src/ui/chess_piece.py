@@ -6,13 +6,15 @@ the adapter between those two worlds.
 """
 
 import asyncio
-import traceback
+import logging
 from pathlib import Path
 
 import flet as ft
 from chess import Color, Piece
 
 from utils.constants import SYMBOL_MAP
+
+logger = logging.getLogger(__name__)
 
 
 class ChessPiece(ft.Container):
@@ -57,7 +59,7 @@ class ChessPiece(ft.Container):
             )
             return self
         except Exception:
-            traceback.print_exc()
+            logger.exception("Failed to render chess piece piece=%s", self.piece)
             return ft.Text("ERROR", align=ft.Alignment.CENTER, color=ft.Colors.RED)
 
     def set_square_size(self, square_size: int):

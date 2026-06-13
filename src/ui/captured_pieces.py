@@ -1,7 +1,9 @@
 """Captured-pieces panel and drag/drop reordering support."""
 
-import flet as ft
+import logging
 import random
+
+import flet as ft
 from chess import WHITE, BLACK
 
 from ui.layout import AppLayout, resolve_app_layout
@@ -9,6 +11,8 @@ from ui.square import InvisibleSquare
 from utils.events import PieceCapturedEvent
 from utils.models import ActiveColor
 from utils.signals import bus
+
+logger = logging.getLogger(__name__)
 
 
 class CaputredPieces(ft.Container):
@@ -154,6 +158,11 @@ class CaputredPieces(ft.Container):
         random_available_pos: int = self._get_random_available_position(
             is_white_capture
         )
+        logger.info(
+            "Captured piece received color=%s slot=%s",
+            "white" if is_white_capture else "black",
+            random_available_pos,
+        )
         if is_white_capture:
             try:
                 self.white_squares[random_available_pos].update_content(event.piece)
@@ -223,9 +232,12 @@ class CaputredPieces(ft.Container):
                 self.available_black_squares.append(from_cords)
                 self.available_black_squares.remove(to_cords)
         except Exception:
-            import traceback
-
-            traceback.print_exc()
+            logger.exception(
+                "Failed to move captured piece from=%s to=%s source_color=%s",
+                from_cords,
+                to_cords,
+                source_color,
+            )
 
     def move_piece(
         self, from_cords: str, to_cords: str, source_color: int | None = None
@@ -240,16 +252,26 @@ class CaputredPieces(ft.Container):
         source_square = self._find_square(from_cords, color=source_color)
         target_square = self._find_square(to_cords, color=source_color)
         if source_square is None or target_square is None or target_square.has_piece:
+            logger.debug(
+                "Captured piece move rejected from=%s to=%s source_color=%s",
+                from_cords,
+                to_cords,
+                source_color,
+            )
             return False
-
-        print(source_square.coordinate)
-        print(target_square.coordinate)
 
         chess_piece = source_square.piece_container
         if chess_piece is None:
+            logger.debug("Captured piece move rejected empty_source=%s", from_cords)
             return False
         source_square.update_content(None)
         target_square.update_content(chess_piece)
+        logger.info(
+            "Captured piece moved from=%s to=%s source_color=%s",
+            source_square.coordinate,
+            target_square.coordinate,
+            source_color,
+        )
         return True
 
     def _find_square(

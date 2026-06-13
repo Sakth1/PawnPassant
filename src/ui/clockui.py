@@ -4,8 +4,10 @@ The backend clock owns timing and worker-thread concerns; this control owns
 presentation, draw/resign actions, and event translation into UI updates.
 """
 
-import flet as ft
+import logging
 from typing import Callable
+
+import flet as ft
 
 from ui.layout import AppLayout, resolve_app_layout
 from core.clock import Clock
@@ -19,6 +21,8 @@ from utils.events import (
     SettingsChangedEvent,
 )
 from utils.models import ActiveColor, AppSettings, TimeControl
+
+logger = logging.getLogger(__name__)
 
 
 def time_control_to_string(time_control: TimeControl) -> str:
@@ -209,6 +213,11 @@ class ClockUI(ft.Container):
             critical_threshold_seconds=self.settings.critical_time_seconds,
         )
         self.game_over = False
+        logger.info(
+            "Clock UI time control set minutes=%s increment_seconds=%s",
+            time_control[0],
+            time_control[1],
+        )
         # The timer column is reversed after each move; resetting the list
         # restores black-on-top and white-on-bottom for a fresh game.
         self.content.controls = [
@@ -334,6 +343,7 @@ class ClockUI(ft.Container):
         """Start the backend timer when a game starts."""
 
         self.game_over = False
+        logger.info("Clock UI starting clock")
         self.clock.start()
 
     def _handle_piece_moved(self, _event: PieceModevedEvent):
@@ -341,6 +351,7 @@ class ClockUI(ft.Container):
 
         if self.game_over:
             return
+        logger.debug("Clock UI handling piece moved")
         self.clock.switch()
         self._flip_clock()
 
@@ -351,6 +362,7 @@ class ClockUI(ft.Container):
             return
 
         winner = "Black" if event.active_color == ActiveColor.WHITE else "White"
+        logger.info("Clock UI emitting time result winner=%s", winner)
         bus.emit(
             GameEndedEvent(
                 winner=winner,
@@ -368,6 +380,7 @@ class ClockUI(ft.Container):
         """Freeze timer updates and stop the backend worker after a result."""
 
         self.game_over = True
+        logger.info("Clock UI stopping clock after game end")
         self.clock.stop()
 
     def apply_settings(self, settings: AppSettings):
@@ -375,6 +388,10 @@ class ClockUI(ft.Container):
 
         self.settings = settings
         self.clock.critical_threshold_seconds = settings.critical_time_seconds
+        logger.info(
+            "Clock settings applied critical_threshold_seconds=%s",
+            settings.critical_time_seconds,
+        )
 
     def _handle_settings_changed(self, event: SettingsChangedEvent):
         """React to settings updates published by the settings controller."""

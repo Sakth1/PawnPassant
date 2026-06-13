@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import fields
+import logging
 from typing import Callable
 
 import flet as ft
 
 from ui.layout import AppLayout, resolve_app_layout
 from utils.models import TimeControl
+
+logger = logging.getLogger(__name__)
 
 
 class HomeView(ft.Container):
@@ -287,6 +290,7 @@ class HomeView(ft.Container):
 
         self.selected_preset_key = preset_key
         self.selected_custom_time_control = None
+        logger.info("Preset time control selected key=%s", preset_key)
         self._rebuild_view()
 
     def _handle_custom_input_change(
@@ -323,6 +327,11 @@ class HomeView(ft.Container):
         if parsed is None:
             return
         self.selected_custom_time_control = parsed
+        logger.info(
+            "Custom time control selected minutes=%s increment_seconds=%s",
+            parsed[0],
+            parsed[1],
+        )
         self._rebuild_view()
 
     def _handle_primary_action(self, _event: ft.ControlEvent | None = None) -> None:
@@ -338,6 +347,11 @@ class HomeView(ft.Container):
         """Notify the parent app that a time control was chosen."""
 
         if self.on_time_control_selected is not None:
+            logger.info(
+                "Starting selected time control minutes=%s increment_seconds=%s",
+                time_control[0],
+                time_control[1],
+            )
             self.on_time_control_selected(time_control)
 
     @staticmethod

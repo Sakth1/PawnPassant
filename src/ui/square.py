@@ -1,12 +1,14 @@
 """Board-square control with piece rendering and move-highlight support."""
 
-import traceback
+import logging
 from typing import Optional
 
 import flet as ft
 import chess
 
 from ui.chess_piece import ChessPiece
+
+logger = logging.getLogger(__name__)
 
 
 class Square(ft.Container):
@@ -148,7 +150,10 @@ class Square(ft.Container):
                 self.has_piece = False
                 self.piece_container = None
         except Exception:
-            traceback.print_exc()
+            logger.exception(
+                "Failed to update board square coordinate=%s",
+                self.coordinate,
+            )
             content = ft.Text("ERROR", align=ft.Alignment.CENTER, color=ft.Colors.RED)
             self.has_piece = False
             self.piece_container = None
@@ -527,7 +532,10 @@ class InvisibleSquare(ft.Container):
                 self.has_piece = False
                 self.piece_container = None
         except Exception:
-            traceback.print_exc()
+            logger.exception(
+                "Failed to update captured-piece square coordinate=%s",
+                self.coordinate,
+            )
             content = ft.Text("ERROR", align=ft.Alignment.CENTER, color=ft.Colors.RED)
             self.has_piece = False
             self.piece_container = None
