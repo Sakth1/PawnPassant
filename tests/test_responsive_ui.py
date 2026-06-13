@@ -264,7 +264,7 @@ class TestResponsiveAppUi(unittest.TestCase):
 
         app._start_game_with_time_control((10, 5))
 
-        self.assertEqual(app.time_control_view.time_control, (10, 5))
+        self.assertEqual(app.time_control_UI.time_control, (10, 5))
         self.assertEqual(app.view_container.content, app.game_page_view)
         self.assertEqual(page.route, "/game")
 

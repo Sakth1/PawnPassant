@@ -7,8 +7,11 @@ component inventing its own breakpoints.
 """
 
 from __future__ import annotations
+import logging
 
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 #: Maximum viewport width, in pixels, treated as a stacked mobile layout.
 MOBILE_BREAKPOINT = 700
@@ -94,6 +97,7 @@ def resolve_app_layout(page_width: float, page_height: float) -> AppLayout:
 
     width = max(float(page_width or 0), 320.0)
     height = max(float(page_height or 0), 480.0)
+    logger.debug("Resolving app layout: width=%s, height=%s", width, height)
 
     # Mobile gets a stacked layout because the board needs most of the width.
     if width < MOBILE_BREAKPOINT:

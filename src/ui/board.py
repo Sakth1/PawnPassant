@@ -1,6 +1,7 @@
 """Chessboard UI control that coordinates game state, rendering, and interactions."""
 
 import asyncio
+import logging
 from typing import Optional
 
 import flet as ft
@@ -41,6 +42,8 @@ from utils.events import (
 )
 from utils.models import AppSettings
 from utils.signals import bus
+
+logger = logging.getLogger(__name__)
 
 
 class ChessBoard(ft.Container):
@@ -264,8 +267,10 @@ class ChessBoard(ft.Container):
 
         if fen:
             self.game.set_board_fen(fen)
+            logger.info("Loaded board position fen=%s", fen)
         else:
             self.game.reset_board()
+            logger.info("Reset board to starting position")
         self._hide_promotion_overlay(refresh=False)
         self.is_flipped = False
         self.game_over = False
@@ -472,10 +477,18 @@ class ChessBoard(ft.Container):
         """Handle a piece being dropped onto a square."""
 
         if self.promotion_overlay.visible or self.game_over:
+            logger.debug(
+                "Ignored square drop from=%s to=%s promotion_visible=%s game_over=%s",
+                from_cords,
+                to_cords,
+                self.promotion_overlay.visible,
+                self.game_over,
+            )
             return
 
         self._clear_interaction_state(clear_tap_feedback=True)
         if from_cords == to_cords:
+            logger.debug("Ignored square drop onto same square square=%s", from_cords)
             return
 
         self.move_piece(from_cords=from_cords, to_cords=to_cords)
@@ -631,6 +644,7 @@ class ChessBoard(ft.Container):
         """Commit a legal move and update the UI according to its special behavior."""
 
         if not self._is_legal_move(requested_move):
+            logger.info("Rejected illegal move move=%s", requested_move.uci())
             return
 
         # After this point the move is authoritative. Clear temporary UI state
@@ -641,7 +655,15 @@ class ChessBoard(ft.Container):
             square_name(requested_move.to_square)
         ].piece_container
         active_color = self.game.get_active_color()
+        move_san = self.game.get_move_san(requested_move)
         self.game.move(requested_move)
+        logger.info(
+            "Committed move san=%s uci=%s move_type=%s active_color=%s",
+            move_san,
+            requested_move.uci(),
+            movement_type.value,
+            "white" if active_color == WHITE else "black",
+        )
         # python-chess updates the board model; the match updates the existing
         # Flet controls so the visual board mirrors the new model state.
         match movement_type:
@@ -676,6 +698,7 @@ class ChessBoard(ft.Container):
 
         winner, reason, message = self.game.get_result_summary()
         self.game_over = True
+        logger.info("Terminal board state winner=%s reason=%s", winner, reason)
         bus.emit(GameEndedEvent(winner=winner, reason=reason, message=message))
 
     def _show_promotion_dialog(self, move: Move):
@@ -690,12 +713,21 @@ class ChessBoard(ft.Container):
                 to_square=move.to_square,
                 promotion=promotion_piece,
             )
+            logger.info(
+                "Auto-promoting move=%s promotion=%s",
+                move.uci(),
+                self.settings.promotion_default,
+            )
             self._complete_move(promoted_move, MoveType.PROMOTION)
             return
 
         page = self._safe_page()
         if page is None:
             # Headless tests and detached controls fall back to queen promotion.
+            logger.info(
+                "Promotion picker unavailable; defaulting to queen move=%s",
+                move.uci(),
+            )
             promoted_move = Move(
                 from_square=move.from_square,
                 to_square=move.to_square,
@@ -706,6 +738,7 @@ class ChessBoard(ft.Container):
 
         piece_color_is_white = self.game.color_of_piece_at_square(move.from_square)
         if piece_color_is_white is None:
+            logger.warning("Promotion source square is empty move=%s", move.uci())
             promoted_move = Move(
                 from_square=move.from_square,
                 to_square=move.to_square,
@@ -716,6 +749,7 @@ class ChessBoard(ft.Container):
 
         self.pending_promotion_move = move
         self.pending_promotion_color_is_white = piece_color_is_white
+        logger.info("Showing promotion picker move=%s", move.uci())
         self.promotion_overlay.content = ft.Row(
             spacing=0,
             controls=[
@@ -811,6 +845,11 @@ class ChessBoard(ft.Container):
             return
 
         move = self.pending_promotion_move
+        logger.info(
+            "Promotion selected move=%s promotion_piece=%s",
+            move.uci(),
+            promotion_piece,
+        )
         promoted_move = Move(
             from_square=move.from_square,
             to_square=move.to_square,
@@ -831,11 +870,13 @@ class ChessBoard(ft.Container):
         """Re-enable board interaction for a fresh game."""
 
         self.game_over = False
+        logger.info("Board interactions enabled")
 
     def _handle_game_ended(self, _event: GameEndedEvent):
         """Freeze the board once a game result has been declared."""
 
         self.game_over = True
+        logger.info("Board interactions disabled")
         self._clear_interaction_state(clear_tap_feedback=True, refresh=False)
         self._hide_promotion_overlay(refresh=False)
         self._safe_update(self)
@@ -903,6 +944,10 @@ class ChessBoard(ft.Container):
         requested_move = Move(parse_square(from_cords), parse_square(to_cords))
         self._clear_interaction_state(clear_tap_feedback=True)
         if not self._is_legal_move(requested_move):
+            logger.info(
+                "Rejected illegal animated move move=%s",
+                requested_move.uci(),
+            )
             return
         movement_type = self.game.get_move_type(requested_move)
         if movement_type == MoveType.PROMOTION:
@@ -928,6 +973,10 @@ class ChessBoard(ft.Container):
         requested_move = Move(parse_square(from_cords), parse_square(to_cords))
         self._clear_interaction_state(clear_tap_feedback=True)
         if not self._is_legal_move(requested_move):
+            logger.info(
+                "Rejected illegal dropped move move=%s",
+                requested_move.uci(),
+            )
             return
         movement_type = self.game.get_move_type(requested_move)
         if movement_type == MoveType.PROMOTION:
@@ -952,10 +1001,15 @@ class ChessBoard(ft.Container):
         """Open a confirmation dialog before committing a requested move."""
 
         if self.game_over:
+            logger.info("Move confirmation skipped because game is over")
             return
 
         page = self._safe_page()
         if page is None:
+            logger.info(
+                "Move confirmation unavailable; committing move=%s",
+                requested_move.uci(),
+            )
             self._complete_move(requested_move, movement_type)
             return
 
@@ -967,6 +1021,7 @@ class ChessBoard(ft.Container):
             animate,
         )
         self.confirm_move_dialog.content.value = f"Play {from_cords} to {to_cords}?"
+        logger.info("Showing move confirmation move=%s", requested_move.uci())
         page.show_dialog(self.confirm_move_dialog)
         self._safe_update(page)
 
@@ -974,6 +1029,7 @@ class ChessBoard(ft.Container):
         """Cancel the pending confirmed move and close the dialog."""
 
         self.pending_confirmed_move = None
+        logger.info("Move confirmation cancelled")
         page = self._safe_page()
         if page is not None:
             page.pop_dialog()
@@ -988,9 +1044,15 @@ class ChessBoard(ft.Container):
         if page is not None:
             page.pop_dialog()
         if pending_move is None or self.game_over:
+            logger.info(
+                "Move confirmation accept ignored pending=%s game_over=%s",
+                pending_move is not None,
+                self.game_over,
+            )
             return
 
         requested_move, movement_type, from_cords, to_cords, animate = pending_move
+        logger.info("Move confirmation accepted move=%s", requested_move.uci())
         if animate:
             self._animate_move(
                 self.square_map[from_cords].piece_control,

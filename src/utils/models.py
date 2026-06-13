@@ -6,9 +6,12 @@ the UI asks for a changed copy, and the controller publishes that copy to the
 rest of the app.
 """
 
+import logging
 from dataclasses import asdict, dataclass, fields
 from typing import Any, Tuple
 import chess
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)

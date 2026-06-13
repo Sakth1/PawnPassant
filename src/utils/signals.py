@@ -6,6 +6,10 @@ that job: events are emitted on the UI process and delivered immediately to
 registered listeners.
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class SignalBus:
     """Dispatch events to callbacks registered by exact event type."""
@@ -23,13 +27,20 @@ class SignalBus:
         """Register ``fn`` to be called whenever ``event_type`` is emitted."""
 
         self._listeners.setdefault(event_type, []).append(fn)
+        logger.debug("Signal listener connected event_type=%s", event_type.__name__)
 
     def emit(self, event):
         """Synchronously deliver ``event`` to listeners of its concrete class."""
 
         event_type = type(event)
+        listeners = self._listeners.get(event_type, [])
+        logger.debug(
+            "Signal emitted event_type=%s listener_count=%s",
+            event_type.__name__,
+            len(listeners),
+        )
 
-        for fn in self._listeners.get(event_type, []):
+        for fn in listeners:
             fn(event)
 
 

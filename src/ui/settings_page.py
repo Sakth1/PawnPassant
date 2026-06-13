@@ -7,6 +7,7 @@ consistent across board, clock, and app shell subscribers.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import flet as ft
@@ -15,6 +16,8 @@ from ui.layout import AppLayout, resolve_app_layout
 from utils.events import SettingsChangedEvent
 from utils.settings import SettingsController
 from utils.signals import bus
+
+logger = logging.getLogger(__name__)
 
 
 class SettingsView(ft.Container):
@@ -242,6 +245,7 @@ class SettingsView(ft.Container):
     def _update_setting(self, key: str, value: Any):
         """Send one setting change to the controller."""
 
+        logger.info("Settings view update key=%s value=%s", key, value)
         self.controller.update(**{key: value})
 
     def _update_number_setting(self, key: str, control: ft.TextField):
@@ -251,17 +255,20 @@ class SettingsView(ft.Container):
         if not raw_value:
             return
         value = int(raw_value)
+        logger.info("Settings view numeric update key=%s value=%s", key, value)
         self.controller.update(**{key: value})
 
     def _handle_reset_defaults(self, _event=None):
         """Restore all settings to their default values."""
 
+        logger.info("Settings defaults requested")
         self.controller.reset_defaults()
 
     def _handle_settings_changed(self, event: SettingsChangedEvent):
         """Refresh controls after any settings change event."""
 
         self.settings = event.settings
+        logger.debug("Settings view refreshed")
         self._rebuild_sections()
 
     @staticmethod

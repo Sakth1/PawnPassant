@@ -6,6 +6,7 @@ daemon worker thread, emits coarse updates outside critical time, and emits
 high-frequency updates only when milliseconds matter.
 """
 
+import logging
 import threading
 import time
 from typing import Optional, Tuple
@@ -13,6 +14,8 @@ from typing import Optional, Tuple
 from utils.models import ActiveColor
 from utils.events import ClockStateEvent, ClockTickEvent
 from utils.signals import bus
+
+logger = logging.getLogger(__name__)
 
 
 class Clock:
@@ -60,6 +63,11 @@ class Clock:
 
         initial_time_ms = self.time_control[0] * 60000
         increment = self.time_control[1]
+        logger.debug(
+            "Setting up tickers minutes=%s increment_seconds=%s",
+            self.time_control[0],
+            increment,
+        )
 
         # Create tickers on first call
         if not self._tickers_initialized:
@@ -108,6 +116,11 @@ class Clock:
             )
             self._worker_thread.start()
             should_emit_initial = True
+            logger.info(
+                "Clock started minutes=%s increment_seconds=%s",
+                self.time_control[0],
+                self.increment,
+            )
 
         if should_emit_initial:
             # Emit outside the lock so subscribers can react without being tied
@@ -159,6 +172,12 @@ class Clock:
                 self._active_started_at = None
 
             self._switch_active_color()
+            logger.info(
+                "Clock switched from_color=%s to_color=%s remaining_ms=%s",
+                current_color,
+                next_color,
+                next_ticker.remaining_time_ms,
+            )
             emit_updates.extend(
                 [(current_ticker, current_color), (next_ticker, next_color)]
             )
@@ -186,6 +205,7 @@ class Clock:
             self._active_started_at = None
             worker_thread = self._worker_thread
             should_emit_stopped = True
+            logger.info("Clock stopping")
 
         # A flag fall may stop the clock from inside the worker. Joining the
         # current thread would deadlock, so only external callers wait.
@@ -197,6 +217,7 @@ class Clock:
 
         if should_emit_stopped:
             self._emit_clock_state("stopped", None)
+            logger.info("Clock stopped")
 
     def _run_clock(self):
         """Worker loop that decrements the active ticker and emits due events."""
@@ -226,6 +247,7 @@ class Clock:
                     self._active_started_at = None
                     flagged_color = active_color
                     should_emit = True
+                    logger.info("Clock flagged color=%s", flagged_color)
 
                 if should_emit:
                     event_payload = self._build_tick_event(active_ticker, active_color)
@@ -260,6 +282,11 @@ class Clock:
         """Publish a lifecycle or flag-fall event."""
 
         bus.emit(ClockStateEvent(state=state, active_color=active_color))
+        logger.debug(
+            "Clock state emitted state=%s active_color=%s",
+            state,
+            active_color,
+        )
 
     def _emit_ticker_event(
         self, ticker: "Ticker", color: ActiveColor, force: bool = False
