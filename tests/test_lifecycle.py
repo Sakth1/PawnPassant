@@ -10,19 +10,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from ui.routing import RouteManager
 from utils.signals import bus, SignalBus
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Fake page compatible with RouteManager
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class _FakePage:
     """Minimal page stub for RouteManager tests."""
 
     def __init__(self):
         self.route = "/home"
-        self.navigation_bar = type(
-            "FakeNavBar", (), {"selected_index": 0}
-        )()
+        self.navigation_bar = type("FakeNavBar", (), {"selected_index": 0})()
         self.controls = []
 
     def add(self, control):
@@ -47,6 +45,7 @@ class _FakePage:
 # ─────────────────────────────────────────────────────────────────────────────
 # RouteManager lifecycle tests
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestRouteManagerLifecycle(unittest.TestCase):
     """RouteManager must call lifecycle hooks in the correct order."""
@@ -102,7 +101,9 @@ class TestRouteManagerLifecycle(unittest.TestCase):
 
     def test_lifecycle_handler_error_does_not_crash_navigation(self):
         """A broken lifecycle handler must not prevent navigation."""
-        self.manager.on_exit("/game", lambda: (_ for _ in ()).throw(RuntimeError("oops")))
+        self.manager.on_exit(
+            "/game", lambda: (_ for _ in ()).throw(RuntimeError("oops"))
+        )
         self.manager.navigate("/game")
         self.calls.clear()
 
@@ -140,6 +141,7 @@ class TestRouteManagerLifecycle(unittest.TestCase):
 # ─────────────────────────────────────────────────────────────────────────────
 # RouteManager event-handler delegation tests
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestRouteManagerEventDelegation(unittest.TestCase):
     """RouteManager.handle_route_change and handle_navigation_change."""
@@ -182,6 +184,7 @@ class TestRouteManagerEventDelegation(unittest.TestCase):
 # ─────────────────────────────────────────────────────────────────────────────
 # SignalBus enhancements
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestSignalBusDisconnect(unittest.TestCase):
     """SignalBus.disconnect must remove listeners correctly."""

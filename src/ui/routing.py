@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 from typing import Callable, Protocol
 
+from utils.dialogs import safe_update
+
 logger = logging.getLogger(__name__)
 
 
@@ -79,7 +81,9 @@ class RouteManager:
         """
         new_view = self._route_views.get(route)
         if new_view is None:
-            logger.warning("Unknown route=%s in swap_view, falling back to /home", route)
+            logger.warning(
+                "Unknown route=%s in swap_view, falling back to /home", route
+            )
             route = "/home"
             new_view = self._route_views.get("/home")
         self._view_container.content = new_view
@@ -135,7 +139,7 @@ class RouteManager:
                 nav.selected_index = idx
 
             # Push route to Flet history
-            self._safe_update(self._view_container)
+            safe_update(self._view_container)
             navigate = getattr(self._page, "navigate", None)
             if callable(navigate):
                 navigate(route)
@@ -177,14 +181,6 @@ class RouteManager:
             fn()
         except Exception:
             logger.exception("Lifecycle handler raised")
-
-    @staticmethod
-    def _safe_update(control) -> None:
-        """Update a control, tolerating detached-state in tests."""
-        try:
-            control.update()
-        except RuntimeError:
-            pass
 
     def get_current_view(self):
         """Return the currently displayed route view, or ``None``."""

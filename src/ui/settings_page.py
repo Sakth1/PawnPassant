@@ -13,6 +13,7 @@ from typing import Any
 import flet as ft
 
 from ui.layout import AppLayout, resolve_app_layout
+from utils.dialogs import safe_update
 from utils.events import SettingsChangedEvent
 from utils.settings import SettingsController
 from utils.signals import bus
@@ -84,7 +85,7 @@ class SettingsView(ft.Container):
             self.clock_section,
         ):
             section.spacing = max(8, layout.gap // 2)
-        self._safe_update(self)
+        safe_update(self)
 
     def _rebuild_sections(self):
         """Rebuild all setting rows from the current settings snapshot."""
@@ -167,7 +168,7 @@ class SettingsView(ft.Container):
             ),
         ]
         self.status_text.value = "Preferences saved locally"
-        self._safe_update(self)
+        safe_update(self)
 
     def _section_header(self, label: str) -> ft.Container:
         """Create a section title used to group related preferences."""
@@ -271,9 +272,4 @@ class SettingsView(ft.Container):
         logger.debug("Settings view refreshed")
         self._rebuild_sections()
 
-    @staticmethod
-    def _safe_update(control: ft.Control) -> None:
-        try:
-            control.update()
-        except RuntimeError:
-            pass
+

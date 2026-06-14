@@ -9,6 +9,7 @@ from typing import Callable
 import flet as ft
 
 from ui.layout import AppLayout, resolve_app_layout
+from utils.dialogs import safe_update, show_alert_dialog
 from utils.models import TimeControl
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ class HomeView(ft.Container):
             "Choose a preset or enter your own time control.",
             text_align=ft.TextAlign.LEFT,
         )
-        self.selection_text = ft.Text()
+        self.selection_text = ft.Text(text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD)
         self.grid = ft.ResponsiveRow(columns=12)
         self.minutes_input = ft.TextField(
             label="Minutes",
@@ -68,10 +69,15 @@ class HomeView(ft.Container):
             icon=ft.Icons.TUNE_ROUNDED,
             on_click=self._handle_custom_apply,
         )
-        self.play_button = ft.FilledButton(
-            "Play selected",
-            icon=ft.Icons.PLAY_ARROW_ROUNDED,
+        self.play_computer_button = ft.FilledButton(
+            "Play computer",
+            icon=ft.Icons.COMPUTER,
             on_click=self._handle_primary_action,
+        )
+        self.play_someone_button = ft.FilledButton(
+            "Play someone",
+            icon=ft.Icons.PERSON,
+            on_click=self._make_wip_handler(feature="Play someone"),
         )
         self.custom_row = ft.ResponsiveRow(columns=12)
         self.footer_row = ft.ResponsiveRow(columns=12)
@@ -117,15 +123,17 @@ class HomeView(ft.Container):
 
         self.title_text.size = 24 if layout.compact else 32
         self.subtitle_text.size = 13 if layout.compact else 15
-        self.selection_text.size = 12 if layout.compact else 13
+        self.selection_text.size = 20 if layout.compact else 24
         self.custom_hint.size = 12 if layout.compact else 13
-        self.play_button.height = 44 if layout.compact else 48
-        self.play_button.width = None if layout.stacked else 180
+        self.play_computer_button.height = 44 if layout.compact else 48
+        self.play_computer_button.width = None if layout.stacked else 180
+        self.play_someone_button.height = 44 if layout.compact else 48
+        self.play_someone_button.width = None if layout.stacked else 180
         self.custom_apply_button.height = 44 if layout.compact else 48
         self.custom_apply_button.width = None if layout.stacked else 160
 
         self._rebuild_view()
-        self._safe_update(self)
+        safe_update(self)
 
     def _build_presets(self) -> list[dict[str, object]]:
         """Build sorted time-control preset metadata from the dataclass fields."""
@@ -151,6 +159,17 @@ class HomeView(ft.Container):
                 int(preset["increment"]),
             ),
         )
+    
+    def _alert_feature_wip(self, feature: str):
+        show_alert_dialog(
+            self.page,
+            "Work In Progress",
+            f"{feature} feature is Work In Progress.",
+        )
+
+    def _make_wip_handler(self, feature: str):
+        """Return a callable that shows a Work-In-Progress dialog."""
+        return lambda _e=None: self._alert_feature_wip(feature)
 
     @staticmethod
     def _categorize_time_control(minutes: int) -> str:
@@ -205,16 +224,25 @@ class HomeView(ft.Container):
             ),
         ]
         self.footer_row.controls = [
-            ft.Container(content=self.selection_text, col={"xs": 12, "md": 8}),
             ft.Container(
-                content=self.play_button,
+                content=self.play_computer_button,
+                alignment=ft.Alignment.CENTER_LEFT,
+                col={"xs": 4, "md": 4},
+            ),
+            ft.Container(
+                content=self.selection_text,
+                col={"xs": 4, "md": 4},
+                alignment=ft.Alignment.CENTER,
+            ),
+            ft.Container(
+                content=self.play_someone_button,
                 alignment=ft.Alignment.CENTER_RIGHT,
-                col={"xs": 12, "md": 4},
+                col={"xs": 4, "md": 4},
             ),
         ]
-        self._safe_update(self.grid)
-        self._safe_update(self.custom_row)
-        self._safe_update(self.footer_row)
+        safe_update(self.grid)
+        safe_update(self.custom_row)
+        safe_update(self.footer_row)
 
     def _build_preset_tile(self, preset: dict[str, object]) -> ft.Container:
         """Create one clickable preset tile."""
@@ -300,8 +328,8 @@ class HomeView(ft.Container):
 
         self.minutes_input.error_text = None
         self.increment_input.error_text = None
-        self._safe_update(self.minutes_input)
-        self._safe_update(self.increment_input)
+        safe_update(self.minutes_input)
+        safe_update(self.increment_input)
 
     def _parse_custom_time_control(self) -> tuple[int, int] | None:
         """Parse custom minutes/increment fields into a validated tuple."""
@@ -316,7 +344,7 @@ class HomeView(ft.Container):
         increment = int(increment_raw) if increment_raw else 0
         if minutes <= 0:
             self.minutes_input.error_text = "Enter minutes"
-            self._safe_update(self.minutes_input)
+            safe_update(self.minutes_input)
             return None
         return (minutes, increment)
 
@@ -354,9 +382,4 @@ class HomeView(ft.Container):
             )
             self.on_time_control_selected(time_control)
 
-    @staticmethod
-    def _safe_update(control: ft.Control) -> None:
-        try:
-            control.update()
-        except RuntimeError:
-            pass
+
