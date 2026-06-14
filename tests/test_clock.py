@@ -15,7 +15,6 @@ from utils.events import (
     ClockStateEvent,
     ClockTickEvent,
     GameEndedEvent,
-    GameStartedEvent,
     PieceModevedEvent,
 )
 from utils.models import ActiveColor
@@ -238,19 +237,13 @@ class TestClockUi(unittest.TestCase):
         self.assertEqual(clock_ui.black_timer_ms.value, ".87")
         self.assertEqual(updates, ["updated"])
 
-    def test_bus_events_drive_start_switch_and_stop(self):
+    def test_lifecycle_drives_start_and_stop(self):
         clock_ui = ClockUI()
         clock_ui.clock = _ClockStub()
 
-        bus.emit(GameStartedEvent())
+        clock_ui.on_enter()
         bus.emit(PieceModevedEvent())
-        bus.emit(
-            GameEndedEvent(
-                winner="White",
-                reason="checkmate",
-                message="White wins by checkmate.",
-            )
-        )
+        clock_ui.on_exit()
 
         self.assertEqual(clock_ui.clock.start_calls, 1)
         self.assertEqual(clock_ui.clock.switch_calls, 1)

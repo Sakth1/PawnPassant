@@ -35,7 +35,6 @@ from utils.constants import (
 )
 from utils.events import (
     GameEndedEvent,
-    GameStartedEvent,
     PieceModevedEvent,
     PieceCapturedEvent,
     SettingsChangedEvent,
@@ -181,7 +180,6 @@ class ChessBoard(ft.Container):
             clip_behavior=ft.ClipBehavior.NONE,
         )
         self.clip_behavior = ft.ClipBehavior.NONE
-        bus.connect(GameStartedEvent, self._handle_game_started)
         bus.connect(GameEndedEvent, self._handle_game_ended)
         bus.connect(SettingsChangedEvent, self._handle_settings_changed)
         self._setup_pieces()
@@ -866,11 +864,23 @@ class ChessBoard(ft.Container):
         except RuntimeError:
             return None
 
-    def _handle_game_started(self, _event: GameStartedEvent):
-        """Re-enable board interaction for a fresh game."""
+    def on_enter(self):
+        """Enable board interactions when the game view becomes visible.
+
+        Called by :class:`~ui.routing.RouteManager` after the game page is
+        attached to the page tree.
+        """
 
         self.game_over = False
-        logger.info("Board interactions enabled")
+        logger.info("Board on_enter: interactions enabled")
+
+    def on_exit(self):
+        """Disable board interactions when leaving the game view."""
+
+        self.game_over = True
+        self._clear_interaction_state(clear_tap_feedback=True, refresh=False)
+        self._hide_promotion_overlay(refresh=False)
+        logger.info("Board on_exit: interactions disabled")
 
     def _handle_game_ended(self, _event: GameEndedEvent):
         """Freeze the board once a game result has been declared."""
