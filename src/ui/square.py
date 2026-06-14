@@ -6,6 +6,7 @@ from typing import Optional
 import flet as ft
 import chess
 
+from utils.dialogs import safe_update
 from ui.chess_piece import ChessPiece
 
 logger = logging.getLogger(__name__)
@@ -128,7 +129,7 @@ class Square(ft.Container):
         self.highlighted_metadata["parent_piece_square"] = parent_piece_square
         self._rebuild_stack()
         if refresh:
-            self._safe_update(self)
+            safe_update(self)
 
     def update_content(self, piece: Optional[ChessPiece] = None):
         """Replace the visible piece control and refresh the square overlay."""
@@ -187,7 +188,7 @@ class Square(ft.Container):
         self.is_flipped = is_flipped
         self._rebuild_stack()
         if refresh:
-            self._safe_update(self)
+            safe_update(self)
 
     def _rebuild_indicators(self):
         """Recompute highlight marker geometry for the current square size."""
@@ -332,7 +333,7 @@ class Square(ft.Container):
     def _refresh_bgcolor(self, refresh: bool = True):
         self.bgcolor = self._resolve_bgcolor()
         if refresh:
-            self._safe_update(self)
+            safe_update(self)
 
     def _animate_piece_bob_when_clicked(self):
         """Animate the piece when the square is clicked. only to be used on
@@ -350,14 +351,6 @@ class Square(ft.Container):
             return
         self.tap_feedback_active = active
         self._refresh_bgcolor(refresh=refresh)
-
-    @staticmethod
-    def _safe_update(control: ft.Control):
-        try:
-            control.update()
-        except RuntimeError:
-            pass
-
 
 class InvisibleSquare(ft.Container):
     """Drop target used for captured-piece slots outside the main board."""

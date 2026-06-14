@@ -8,6 +8,7 @@ from chess import WHITE, BLACK
 
 from ui.layout import AppLayout, resolve_app_layout
 from ui.square import InvisibleSquare
+from utils.dialogs import safe_update
 from utils.events import PieceCapturedEvent
 from utils.models import ActiveColor
 from utils.signals import bus
@@ -129,7 +130,7 @@ class CaputredPieces(ft.Container):
 
         self.divider.width = max(80, int(layout.piece_panel_width * 0.72))
         self.content.spacing = max(10, int(layout.gap * 0.65))
-        self._safe_update(self)
+        safe_update(self)
 
     def _get_random_available_position(self, is_white_capture: ActiveColor):
         """Pick an empty slot for a newly captured piece.
@@ -182,7 +183,7 @@ class CaputredPieces(ft.Container):
                 )
                 self.black_squares[-1].update_content(event.piece)
 
-        self._safe_update(self)
+        safe_update(self)
 
     def _handle_piece_drag_start(self, _from_cords: str):
         """Reserved hook for future captured-piece drag feedback."""
@@ -291,9 +292,4 @@ class CaputredPieces(ft.Container):
                 return square
         return None
 
-    @staticmethod
-    def _safe_update(control: ft.Control):
-        try:
-            control.update()
-        except RuntimeError:
-            pass
+
