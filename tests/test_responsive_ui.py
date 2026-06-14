@@ -169,10 +169,10 @@ class TestResponsiveClockUi(unittest.TestCase):
         )
         self.assertEqual(
             clock_ui.black_timer.content.vertical_alignment,
-            clock_ui.black_timer.content.vertical_alignment.BASELINE,
+            clock_ui.black_timer.content.vertical_alignment.END,
         )
-        self.assertIsNone(clock_ui.black_timer_ms.offset)
-        self.assertIsNone(clock_ui.white_timer_ms.offset)
+        self.assertIsNotNone(clock_ui.black_timer_ms.offset)
+        self.assertIsNotNone(clock_ui.white_timer_ms.offset)
 
 
 class TestResponsivePieceDisplayUi(unittest.TestCase):

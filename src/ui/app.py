@@ -21,6 +21,7 @@ from ui.clockui import ClockUI
 from ui.captured_pieces import CaputredPieces
 from ui.settings_page import SettingsView
 from ui.layout import AppLayout, resolve_app_layout
+from ui.routing import RouteManager
 from utils.constants import ASSET_DIR, FONT_DIR
 from utils.events import GameEndedEvent, GameStartedEvent
 from utils.settings import SettingsController
@@ -166,34 +167,50 @@ class ChessApp:
         self.settings_view = SettingsView(self.settings_controller)
         self.view_container = ft.Container(expand=True)
 
-        self.route_views = {
+        route_to_index = {
+            "/home": 0,
+            "/game": 1,
+            "/settings": 2,
+        }
+        route_views = {
             "/home": self.home_view,
             "/game": self.game_page_view,
             "/settings": self.settings_view,
         }
+        self._route_manager = RouteManager(
+            page=self.page,
+            view_container=self.view_container,
+            route_views=route_views,
+            route_to_index=route_to_index,
+        )
+
+        # Register lifecycle callbacks so that services only start after
+        # the game view is attached to the page tree.
+        self._route_manager.on_enter("/game", self._on_game_enter)
+        self._route_manager.on_exit("/game", self._on_game_exit)
 
         # Add NavigationBar with at least 2 destinations
         self.page.navigation_bar = ft.NavigationBar(
             destinations=[
                 ft.NavigationBarDestination(
-                    icon=ft.Icons.HOME,
+                    icon=ft.icons.Icons.HOME,
                     label="Home",
                     visible=True,
                 ),
                 ft.NavigationBarDestination(
-                    icon=ft.Icons.GAMES,
+                    icon=ft.icons.Icons.GAMES,
                     label="Game",
                     visible=True,
                 ),
                 ft.NavigationBarDestination(
-                    icon=ft.Icons.SETTINGS,
+                    icon=ft.icons.Icons.SETTINGS,
                     label="Settings",
                     visible=True,
                 ),
             ],
-            on_change=self._handle_navigation_change,
+            on_change=self._route_manager.handle_navigation_change,
         )
-        self.page.on_route_change = self._handle_route_change
+        self.page.on_route_change = self._route_manager.handle_route_change
 
         self.page.on_resize = self._handle_page_resize
         self.page.on_media_change = self._handle_page_resize
@@ -203,62 +220,34 @@ class ChessApp:
         self.page.add(self.view_container)
         self._apply_responsive_layout()
         self.page.run_task(self.settings_controller.load)
-        self._navigate_to("/home")
+        self._route_manager.navigate("/home")
+
+    # ── lifecycle callbacks ─────────────────────────────────────────────
+
+    def _on_game_enter(self) -> None:
+        """Start game services when the game view is mounted.
+
+        Called by :class:`RouteManager` after the game page is attached to
+        the page tree, so clock ticks and board interactions never race
+        against navigation.
+        """
+        self.board_view.on_enter()
+        self.time_control_UI.on_enter()
+
+    def _on_game_exit(self) -> None:
+        """Stop game services when the game view is unmounted."""
+        self.time_control_UI.on_exit()
+        self.board_view.on_exit()
 
     def _handle_navigation_change(self, event):
         """Handle navigation bar tab changes."""
 
-        selected_index: int = event.control.selected_index
-
-        match selected_index:
-            case 0:
-                self._navigate_to("/home")
-            case 1:
-                self._navigate_to("/game")
-            case 2:
-                self._navigate_to("/settings")
-            case _:
-                raise ValueError(f"Invalid index {selected_index}")
+        self._route_manager.handle_navigation_change(event)
 
     def _navigate_to(self, route: str) -> None:
         """Show a route immediately and sync it to Flet navigation history."""
 
-        logger.info("Navigating to route=%s", route)
-        self._show_route(route)
-        navigate = getattr(self.page, "navigate", None)
-        if callable(navigate):
-            navigate(route)
-            return
-        self.page.run_task(self._push_route, route)
-
-    async def _push_route(self, route: str) -> None:
-        """Navigate from synchronous callbacks without leaking a coroutine."""
-
-        await self.page.push_route(route)
-
-    def _handle_route_change(self, event: ft.RouteChangeEvent):
-        """Swap the visible route view and keep navigation selection in sync."""
-
-        self._show_route(event.route or "/home")
-
-    def _show_route(self, route: str) -> None:
-        """Swap the visible route without depending on browser callback timing."""
-
-        self.view_container.content = self.route_views.get(route, self.home_view)
-        if route not in self.route_views:
-            logger.warning(
-                "Unknown route requested route=%s; falling back to home",
-                route,
-            )
-
-        route_to_index = {
-            "/home": 0,
-            "/game": 1,
-            "/settings": 2,
-        }
-        self.page.navigation_bar.selected_index = route_to_index.get(route, 0)
-        self._safe_update(self.view_container)
-        self._safe_update(self.page)
+        self._route_manager.navigate(route)
 
     def _resolve_page_dimensions(self) -> tuple[float, float]:
         """Return usable page dimensions after safe-area and nav adjustments."""
@@ -350,17 +339,20 @@ class ChessApp:
         selected_fen = ChessBoard.TEST_POSITIONS[selected_name]
         logger.info("Loading developer board position name=%s", selected_name)
         self.board_view.load_position(selected_fen)
+        self.board_view.on_enter()
         bus.emit(GameStartedEvent())
 
     def _handle_game_started(self, _event: GameStartedEvent):
         """Clear terminal dialogs and return the shell to active-game state."""
 
-        self.page.pop_dialog()
+        try:
+            self.page.pop_dialog()
+        except (IndexError, RuntimeError):
+            pass
         self.result_dialog.open = False
         self.result_dialog_title.value = ""
         self.result_dialog_message.value = ""
         logger.info("Game started")
-        self._safe_update(self.page)
 
     def _handle_game_ended(self, event: GameEndedEvent):
         """Show the result dialog for a terminal game event."""
@@ -491,8 +483,7 @@ class ChessApp:
             self.position_selector.value = "Start Position"
         self.board_view.load_position()
         self.time_control_UI.set_time_control(self.time_control_UI.time_control)
-        bus.emit(GameStartedEvent())
-        self._safe_update(self.page)
+        self._route_manager.navigate("/game")
 
     def _start_game_with_time_control(self, time_control: tuple[int, int]) -> None:
         """Start a new game from the home screen's selected time control."""
@@ -506,9 +497,20 @@ class ChessApp:
         if self.position_selector is not None:
             self.position_selector.value = "Start Position"
         self.board_view.load_position()
+        self.page.run_task(self._async_start_game)
+
+    async def _async_start_game(self) -> None:
+        """Async game-start: swap view → navigate → start services → emit.
+
+        This is the core of the Option A fix.  By finishing navigation
+        (``page.push_route``) *before* the lifecycle callbacks fire, we
+        guarantee that clock ticks never race against a pending route
+        change on the client side.
+        """
+        self._route_manager.swap_view("/game")
+        await self.page.push_route("/game")
+        self._on_game_enter()
         bus.emit(GameStartedEvent())
-        self._navigate_to("/game")
-        self._safe_update(self.page)
 
     @staticmethod
     def _safe_update(control: ft.Control):
