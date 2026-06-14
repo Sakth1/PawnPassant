@@ -79,7 +79,9 @@ class RouteManager:
         """
         new_view = self._route_views.get(route)
         if new_view is None:
-            logger.warning("Unknown route=%s in swap_view, falling back to /home", route)
+            logger.warning(
+                "Unknown route=%s in swap_view, falling back to /home", route
+            )
             route = "/home"
             new_view = self._route_views.get("/home")
         self._view_container.content = new_view

@@ -363,8 +363,6 @@ class ClockUI(ft.Container):
         self.clock.stop()
         logger.info("Clock UI on_exit: clock stopped")
 
-
-
     def _handle_piece_moved(self, _event: PieceModevedEvent):
         """Switch clocks and flip their visual order after each committed move."""
 
