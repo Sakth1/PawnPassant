@@ -23,6 +23,7 @@ from ui.settings_page import SettingsView
 from ui.layout import AppLayout, resolve_app_layout
 from ui.routing import RouteManager
 from utils.constants import ASSET_DIR, FONT_DIR
+from utils.dialogs import safe_pop_dialog, safe_update
 from utils.events import GameEndedEvent, GameStartedEvent
 from utils.settings import SettingsController
 from utils.signals import bus
@@ -345,10 +346,7 @@ class ChessApp:
     def _handle_game_started(self, _event: GameStartedEvent):
         """Clear terminal dialogs and return the shell to active-game state."""
 
-        try:
-            self.page.pop_dialog()
-        except (IndexError, RuntimeError):
-            pass
+        safe_pop_dialog(self.page)
         self.result_dialog.open = False
         self.result_dialog_title.value = ""
         self.result_dialog_message.value = ""
@@ -366,7 +364,7 @@ class ChessApp:
             event.message,
         )
         self.page.show_dialog(self.result_dialog)
-        self._safe_update(self.page)
+        safe_update(self.page)
 
     def _handle_draw_action(self, _event=None):
         """Handle draw button clicks, including optional confirmation."""
@@ -447,7 +445,7 @@ class ChessApp:
         self.confirm_action_title.value = title
         self.confirm_action_message.value = message
         self.page.show_dialog(self.confirm_action_dialog)
-        self._safe_update(self.page)
+        safe_update(self.page)
 
     def _handle_action_cancel(self, _event=None):
         """Dismiss a pending terminal-action confirmation."""
@@ -455,7 +453,7 @@ class ChessApp:
         self.pending_terminal_action = None
         logger.info("Terminal action cancelled")
         self.page.pop_dialog()
-        self._safe_update(self.page)
+        safe_update(self.page)
 
     def _handle_action_confirm(self, _event=None):
         """Commit the pending confirmed draw or resignation action."""
@@ -465,13 +463,13 @@ class ChessApp:
         logger.info("Terminal action confirmed action=%s", action)
         self.page.pop_dialog()
         if self.board_view.game_over:
-            self._safe_update(self.page)
+            safe_update(self.page)
             return
         if action == "draw":
             self._emit_draw_agreement()
         elif action == "resign":
             self._emit_resignation()
-        self._safe_update(self.page)
+        safe_update(self.page)
 
     def _handle_result_dialog_close(self, _event=None):
         """Close the result dialog and reset board/clock for a new game."""
@@ -511,16 +509,6 @@ class ChessApp:
         await self.page.push_route("/game")
         self._on_game_enter()
         bus.emit(GameStartedEvent())
-
-    @staticmethod
-    def _safe_update(control: ft.Control):
-        """Update attached Flet controls while tolerating detached test controls."""
-
-        try:
-            control.update()
-        except RuntimeError:
-            pass
-
 
 def EntryPoint(page: ft.Page):
     """Create the app with dev-mode controls toggled by environment variable."""

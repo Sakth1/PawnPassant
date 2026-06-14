@@ -11,6 +11,7 @@ import flet as ft
 
 from ui.layout import AppLayout, resolve_app_layout
 from core.clock import Clock
+from utils.dialogs import safe_update
 from utils.signals import bus
 from utils.events import (
     ClockStateEvent,
@@ -236,7 +237,7 @@ class ClockUI(ft.Container):
             timer_ms.value = ""
             timer_ms.bgcolor = None
             timer_container.bgcolor = "#262626"
-        self._safe_update(self)
+        safe_update(self)
 
     def apply_layout(self, layout: AppLayout):
         """Resize the timer UI for the current responsive breakpoint."""
@@ -285,7 +286,7 @@ class ClockUI(ft.Container):
             button.width = action_size
             button.height = action_size
             button.icon_size = max(18, int(action_size * 0.55))
-        self._safe_update(self)
+        safe_update(self)
 
     def _safe_page(self):
         """Return the attached page or ``None`` when running in detached tests."""
@@ -391,7 +392,7 @@ class ClockUI(ft.Container):
     def _flip_clock(self):
         """Reverse the clock display orientation."""
         self.content.controls.reverse()
-        self._safe_update(self)
+        safe_update(self)
 
     def _handle_game_ended(self, _event: GameEndedEvent):
         """Freeze timer updates and stop the backend worker after a result."""
@@ -415,9 +416,4 @@ class ClockUI(ft.Container):
 
         self.apply_settings(event.settings)
 
-    @staticmethod
-    def _safe_update(control: ft.Control):
-        try:
-            control.update()
-        except RuntimeError:
-            pass
+
