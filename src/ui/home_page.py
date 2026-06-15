@@ -8,25 +8,22 @@ from typing import Callable
 
 import flet as ft
 
+from utils.constants import (
+    CATEGORY_LABELS,
+    CATEGORY_ORDER,
+    DEFAULT_PAGE_HEIGHT,
+    DEFAULT_PAGE_WIDTH,
+)
 from ui.layout import AppLayout, resolve_app_layout
 from utils.dialogs import safe_update, show_alert_dialog
 from utils.models import TimeControl
+from utils.game_state import GameAgainst, game_state
 
 logger = logging.getLogger(__name__)
 
 
 class HomeView(ft.Container):
     """Render preset and custom time controls and start the selected game."""
-
-    #: Display order for time-control groups derived from preset length.
-    CATEGORY_ORDER = ["bullet", "blitz", "rapid", "classical"]
-    #: Human-readable labels for each time-control category.
-    CATEGORY_LABELS = {
-        "bullet": "Bullet",
-        "blitz": "Blitz",
-        "rapid": "Rapid",
-        "classical": "Classical",
-    }
 
     def __init__(
         self,
@@ -36,7 +33,7 @@ class HomeView(ft.Container):
         #: Callback invoked with ``(minutes, increment_seconds)`` when play starts.
         self.on_time_control_selected = on_time_control_selected
         #: Last applied responsive layout metrics.
-        self.layout = resolve_app_layout(960, 800)
+        self.layout = resolve_app_layout(DEFAULT_PAGE_WIDTH, DEFAULT_PAGE_HEIGHT)
         #: Preset dictionaries generated from :class:`utils.models.TimeControl`.
         self.presets = self._build_presets()
         #: Key of the currently selected preset when no custom control is active.
@@ -74,7 +71,7 @@ class HomeView(ft.Container):
         self.play_computer_button = ft.FilledButton(
             "Play computer",
             icon=ft.Icons.COMPUTER,
-            on_click=self._handle_primary_action,
+            on_click=self._handle_play_computer,
         )
         self.play_someone_button = ft.FilledButton(
             "Play someone",
@@ -156,7 +153,7 @@ class HomeView(ft.Container):
         return sorted(
             presets,
             key=lambda preset: (
-                self.CATEGORY_ORDER.index(str(preset["category"])),
+                CATEGORY_ORDER.index(str(preset["category"])),
                 int(preset["minutes"]),
                 int(preset["increment"]),
             ),
@@ -278,7 +275,7 @@ class HomeView(ft.Container):
                         text_align=ft.TextAlign.CENTER,
                     ),
                     ft.Text(
-                        self.CATEGORY_LABELS[str(preset["category"])],
+                        CATEGORY_LABELS[str(preset["category"])],
                         size=11 if self.layout.compact else 12,
                         text_align=ft.TextAlign.CENTER,
                     ),
@@ -299,7 +296,7 @@ class HomeView(ft.Container):
         """Return accessible detail text for a preset tile."""
 
         return (
-            f"{self.CATEGORY_LABELS[str(preset['category'])]}  "
+            f"{CATEGORY_LABELS[str(preset['category'])]}  "
             f"{preset['minutes']} min + {preset['increment']} sec increment"
         )
 
@@ -312,7 +309,7 @@ class HomeView(ft.Container):
         preset = self.selected_preset
         return (
             f"Selected: {preset['label']} "
-            f"{self.CATEGORY_LABELS[str(preset['category'])]}"
+            f"{CATEGORY_LABELS[str(preset['category'])]}"
         )
 
     def _select_preset(self, preset_key: str) -> None:
@@ -364,16 +361,20 @@ class HomeView(ft.Container):
         )
         self._rebuild_view()
 
-    def _handle_primary_action(self, _event: ft.ControlEvent | None = None) -> None:
+    def _handle_play_computer(self, _event: ft.ControlEvent | None = None) -> None:
         """Start a game using the selected preset or valid custom control."""
 
         if self.selected_custom_time_control is None:
             parsed = self._parse_custom_time_control()
             if parsed is not None:
                 self.selected_custom_time_control = parsed
+        game_state.game_against = GameAgainst.COMPUTER
         self._start_time_control(self.selected_time_control)
 
-    def _start_time_control(self, time_control: tuple[int, int]) -> None:
+    def _start_time_control(
+        self,
+        time_control: tuple[int, int],
+    ) -> None:
         """Notify the parent app that a time control was chosen."""
 
         if self.on_time_control_selected is not None:
@@ -382,4 +383,6 @@ class HomeView(ft.Container):
                 time_control[0],
                 time_control[1],
             )
-            self.on_time_control_selected(time_control)
+            self.on_time_control_selected(
+                time_control
+            )

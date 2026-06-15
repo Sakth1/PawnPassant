@@ -9,6 +9,14 @@ from typing import Callable
 
 import flet as ft
 
+from utils.constants import (
+    DEFAULT_PAGE_HEIGHT,
+    DEFAULT_PAGE_WIDTH,
+    FONT_FAMILY,
+    TIMER_BG,
+    TIMER_CRITICAL_BG,
+)
+from utils.game_state import game_state
 from ui.layout import AppLayout, resolve_app_layout
 from core.clock import Clock
 from utils.dialogs import safe_update
@@ -48,12 +56,12 @@ class ClockUI(ft.Container):
         #: Callback invoked when the resign button is pressed.
         self.on_resign = on_resign
         #: Last applied responsive layout snapshot.
-        self.layout = resolve_app_layout(960, 800)
+        self.layout = resolve_app_layout(DEFAULT_PAGE_WIDTH, DEFAULT_PAGE_HEIGHT)
         self.black_timer_main = ft.Text(
             time_control_to_string(time_control),
             text_align=ft.TextAlign.CENTER,
             color=ft.Colors.GREY_400,
-            font_family="RobotoMono",
+            font_family=FONT_FAMILY,
             size=self.layout.timer_font_size,
             weight=ft.FontWeight.BOLD,
             margin=ft.margin.Margin(5, 5, 5, 5),
@@ -62,7 +70,7 @@ class ClockUI(ft.Container):
             "",
             text_align=ft.TextAlign.CENTER,
             color=ft.Colors.GREY_400,
-            font_family="RobotoMono",
+            font_family=FONT_FAMILY,
             size=self.layout.timer_ms_size,
             weight=ft.FontWeight.BOLD,
             offset=ft.Offset(0, 0.1),
@@ -76,13 +84,13 @@ class ClockUI(ft.Container):
                 spacing=2,
                 margin=ft.margin.Margin(5, 5, 5, 5),
             ),
-            bgcolor="#262626",
+            bgcolor=TIMER_BG,
         )
         self.white_timer_main = ft.Text(
             time_control_to_string(time_control),
             text_align=ft.TextAlign.CENTER,
             color=ft.Colors.GREY_400,
-            font_family="RobotoMono",
+            font_family=FONT_FAMILY,
             size=self.layout.timer_font_size,
             weight=ft.FontWeight.BOLD,
             margin=ft.margin.Margin(5, 5, 5, 5),
@@ -91,7 +99,7 @@ class ClockUI(ft.Container):
             "",
             text_align=ft.TextAlign.CENTER,
             color=ft.Colors.GREY_400,
-            font_family="RobotoMono",
+            font_family=FONT_FAMILY,
             size=self.layout.timer_ms_size,
             weight=ft.FontWeight.BOLD,
             offset=ft.Offset(0, -0.4),
@@ -104,10 +112,10 @@ class ClockUI(ft.Container):
                 spacing=2,
                 margin=ft.margin.Margin(5, 5, 5, 5),
             ),
-            bgcolor="#262626",
+            bgcolor=TIMER_BG,
         )
 
-        self.bgcolor = "#262626"
+        self.bgcolor = TIMER_BG
         self.expand = False
         self.alignment = ft.Alignment.CENTER
         self.border_radius = self.layout.timer_radius
@@ -153,10 +161,8 @@ class ClockUI(ft.Container):
         )
         #: Current settings snapshot used for critical-time display behavior.
         self.settings = AppSettings()
-        #: Side whose clock is active from the UI's perspective.
-        self.active_color: ActiveColor = ActiveColor.WHITE
         #: Prevents clock/action updates after a terminal result.
-        self.game_over = False
+        game_state.game_over = False
         bus.connect(ClockStateEvent, self._handle_clock_state)
         bus.connect(ClockTickEvent, self._handle_clock_tick)
         bus.connect(PieceMovedEvent, lambda event: self._handle_piece_moved(event))
@@ -186,7 +192,7 @@ class ClockUI(ft.Container):
     def _handle_draw_click(self, event):
         """Forward draw requests while the game is active."""
 
-        if self.game_over:
+        if game_state.game_over:
             return
         if self.on_draw is not None:
             self.on_draw(event)
@@ -194,7 +200,7 @@ class ClockUI(ft.Container):
     def _handle_resign_click(self, event):
         """Forward resignation requests while the game is active."""
 
-        if self.game_over:
+        if game_state.game_over:
             return
         if self.on_resign is not None:
             self.on_resign(event)
@@ -213,7 +219,7 @@ class ClockUI(ft.Container):
             time_control=time_control,
             critical_threshold_seconds=self.settings.critical_time_seconds,
         )
-        self.game_over = False
+        game_state.game_over = False
         logger.info(
             "Clock UI time control set minutes=%s increment_seconds=%s",
             time_control[0],
@@ -236,7 +242,7 @@ class ClockUI(ft.Container):
             timer_main.color = ft.Colors.GREY_400
             timer_ms.value = ""
             timer_ms.bgcolor = None
-            timer_container.bgcolor = "#262626"
+            timer_container.bgcolor = TIMER_BG
         safe_update(self)
 
     def apply_layout(self, layout: AppLayout):
@@ -299,7 +305,7 @@ class ClockUI(ft.Container):
     def _handle_clock_tick(self, event: ClockTickEvent):
         """Schedule timer updates onto Flet's page task queue."""
 
-        if self.game_over:
+        if game_state.game_over:
             return
         page = self._safe_page()
         if page is None:
@@ -327,17 +333,17 @@ class ClockUI(ft.Container):
             # players can see flag-risk without changing the main timer format.
             target_ms.value = f".{event.milliseconds // 10:02}"
             container = self.white_timer if is_white else self.black_timer
-            container.bgcolor = "#250E0E"
+            container.bgcolor = TIMER_CRITICAL_BG
             target_main.margin = ft.margin.Margin(4, 2, 0, 2)
-            target_ms.bgcolor = "#250E0E"
+            target_ms.bgcolor = TIMER_CRITICAL_BG
             if not self.settings.show_milliseconds_in_critical:
                 target_ms.value = ""
         else:
             target_ms.value = ""
             if is_white:
-                self.white_timer.bgcolor = "#262626"
+                self.white_timer.bgcolor = TIMER_BG
             else:
-                self.black_timer.bgcolor = "#262626"
+                self.black_timer.bgcolor = TIMER_BG
         self.update()
 
     def on_enter(self):
@@ -349,7 +355,7 @@ class ClockUI(ft.Container):
         before the view is mounted.
         """
 
-        self.game_over = False
+        game_state.game_over = False
         logger.info("Clock UI on_enter: starting clock")
         self.clock.start()
 
@@ -360,14 +366,14 @@ class ClockUI(ft.Container):
         detached.
         """
 
-        self.game_over = True
+        game_state.game_over = True
         self.clock.stop()
         logger.info("Clock UI on_exit: clock stopped")
 
     def _handle_piece_moved(self, _event: PieceMovedEvent):
         """Switch clocks and flip their visual order after each committed move."""
 
-        if self.game_over:
+        if game_state.game_over:
             return
         logger.debug("Clock UI handling piece moved")
         self.clock.switch()
@@ -376,7 +382,11 @@ class ClockUI(ft.Container):
     def _handle_clock_state(self, event: ClockStateEvent):
         """Translate a flag-fall into a game-ended result event."""
 
-        if event.state != "flagged" or event.active_color is None or self.game_over:
+        if (
+            event.state != "flagged"
+            or event.active_color is None
+            or game_state.game_over
+        ):
             return
 
         winner = "Black" if event.active_color == ActiveColor.WHITE else "White"
@@ -397,7 +407,7 @@ class ClockUI(ft.Container):
     def _handle_game_ended(self, _event: GameEndedEvent):
         """Freeze timer updates and stop the backend worker after a result."""
 
-        self.game_over = True
+        game_state.game_over = True
         logger.info("Clock UI stopping clock after game end")
         self.clock.stop()
 

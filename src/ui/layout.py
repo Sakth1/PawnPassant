@@ -11,6 +11,14 @@ import logging
 
 from dataclasses import dataclass
 
+from utils.constants import (
+    BOARD_SIZE,
+    MAX_SQUARE_SIZE,
+    MIN_PAGE_HEIGHT,
+    MIN_PAGE_WIDTH,
+    MIN_SQUARE_SIZE,
+)
+
 logger = logging.getLogger(__name__)
 
 #: Maximum viewport width, in pixels, treated as a stacked mobile layout.
@@ -18,12 +26,6 @@ MOBILE_BREAKPOINT = 700
 
 #: Maximum viewport width, in pixels, treated as a tablet split layout.
 TABLET_BREAKPOINT = 1100
-
-#: Smallest legal chess square size so pieces and labels remain usable.
-MIN_SQUARE_SIZE = 34
-
-#: Largest chess square size so desktop layouts do not become oversized.
-MAX_SQUARE_SIZE = 96
 
 
 @dataclass(frozen=True)
@@ -95,8 +97,8 @@ def resolve_app_layout(page_width: float, page_height: float) -> AppLayout:
         settings, home, and developer controls.
     """
 
-    width = max(float(page_width or 0), 320.0)
-    height = max(float(page_height or 0), 480.0)
+    width = max(float(page_width or 0), MIN_PAGE_WIDTH)
+    height = max(float(page_height or 0), MIN_PAGE_HEIGHT)
     logger.debug("Resolving app layout: width=%s, height=%s", width, height)
 
     # Mobile gets a stacked layout because the board needs most of the width.
@@ -145,12 +147,12 @@ def resolve_app_layout(page_width: float, page_height: float) -> AppLayout:
             MIN_SQUARE_SIZE,
             min(
                 MAX_SQUARE_SIZE,
-                board_space_width / 8,
-                board_space_height / 9,
+                board_space_width / BOARD_SIZE,
+                board_space_height / (BOARD_SIZE + 1),
             ),
         )
     )
-    board_side = board_square_size * 8
+    board_side = board_square_size * BOARD_SIZE
 
     timer_font_size = max(24, int(board_square_size * 0.5))
     timer_ms_size = max(12, int(timer_font_size * 0.48))

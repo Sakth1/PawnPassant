@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from utils.models import ActiveColor, AppSettings
+from utils.game_state import GameAgainst
 from ui.chess_piece import ChessPiece
 
 
@@ -31,10 +32,12 @@ class PieceMovedEvent(BaseEvent):
     """Side to move after the move."""
 
 
+@dataclass(frozen=True)
 class GameStartedEvent(BaseEvent):
     """Published when a fresh game begins or the board is reset for replay."""
 
-    pass
+    opponent_nature: GameAgainst
+    """Identity of the opponent in the current or upcoming game."""
 
 
 @dataclass(frozen=True)

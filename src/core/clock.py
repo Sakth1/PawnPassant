@@ -11,6 +11,13 @@ import threading
 import time
 from typing import Optional, Tuple
 
+from utils.constants import (
+    DEFAULT_CRITICAL_THRESHOLD_SECONDS,
+    MS_PER_MINUTE,
+    MS_PER_SECOND,
+    TICK_INTERVAL_MS,
+)
+from utils.game_state import game_state
 from utils.models import ActiveColor
 from utils.events import ClockStateEvent, ClockTickEvent
 from utils.signals import bus
@@ -34,7 +41,7 @@ class Clock:
     def __init__(
         self,
         time_control: Tuple[int, int],
-        critical_threshold_seconds: int = 10,
+        critical_threshold_seconds: int = DEFAULT_CRITICAL_THRESHOLD_SECONDS,
     ):
         #: Original time control used when a new game starts.
         self.time_control: Tuple[int, int] = time_control
@@ -61,7 +68,7 @@ class Clock:
     def setup_ticker(self):
         """Create or reset the side tickers from the current time control."""
 
-        initial_time_ms = self.time_control[0] * 60000
+        initial_time_ms = self.time_control[0] * MS_PER_MINUTE
         increment = self.time_control[1]
         logger.debug(
             "Setting up tickers minutes=%s increment_seconds=%s",
@@ -157,7 +164,9 @@ class Clock:
             # Increment is applied after the side moves, matching common chess
             # clock behavior and avoiding bonus time for a player who flags.
             if current_ticker.remaining_time_ms > 0:
-                current_ticker.remaining_time_ms += current_ticker.increment * 1000
+                current_ticker.remaining_time_ms += (
+                    current_ticker.increment * MS_PER_SECOND
+                )
             current_ticker.active = False
             current_ticker.last_update_ts = None
 
@@ -223,7 +232,11 @@ class Clock:
         """Worker loop that decrements the active ticker and emits due events."""
 
         tick_seconds = (
-            min(self.white_ticker.tick_interval, self.black_ticker.tick_interval) / 1000
+            min(
+                self.white_ticker.tick_interval,
+                self.black_ticker.tick_interval,
+            )
+            / MS_PER_SECOND
         )
 
         while not self._stop_event.wait(tick_seconds):
@@ -275,6 +288,7 @@ class Clock:
             if self.active_color == ActiveColor.WHITE
             else ActiveColor.WHITE
         )
+        game_state.active_color = self.active_color
 
     def _emit_clock_state(
         self, state: str, active_color: Optional[ActiveColor]
@@ -359,10 +373,10 @@ class Ticker:
         self,
         starting_time: int = 0,
         increment: int = 0,
-        tick_interval: int = 10,
+        tick_interval: int = TICK_INTERVAL_MS,
     ):
         #: Remaining clock time in milliseconds.
-        self.remaining_time_ms: int = starting_time * 60000
+        self.remaining_time_ms: int = starting_time * MS_PER_MINUTE
         #: Increment, in seconds, added after this side completes a move.
         self.increment: int = increment
         #: Worker polling interval in milliseconds.
@@ -382,7 +396,7 @@ class Ticker:
         if self.last_update_ts is None:
             return
 
-        elapsed_ms = int((now - self.last_update_ts) * 1000)
+        elapsed_ms = int((now - self.last_update_ts) * MS_PER_SECOND)
         if elapsed_ms <= 0:
             return
 
@@ -392,6 +406,6 @@ class Ticker:
     def formatted_time(self) -> Tuple[int, int, int]:
         """Return ``(minutes, seconds, milliseconds)`` for display/events."""
 
-        minutes: int = self.remaining_time_ms // 60000
-        seconds: int = (self.remaining_time_ms % 60000) // 1000
-        return (minutes, seconds, self.remaining_time_ms % 1000)
+        minutes: int = self.remaining_time_ms // MS_PER_MINUTE
+        seconds: int = (self.remaining_time_ms % MS_PER_MINUTE) // MS_PER_SECOND
+        return (minutes, seconds, self.remaining_time_ms % MS_PER_SECOND)

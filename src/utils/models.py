@@ -11,6 +11,8 @@ from dataclasses import asdict, dataclass, fields
 from typing import Any, Tuple
 import chess
 
+from utils.constants import MOVE_ANIMATION_OPTIONS, PROMOTION_DEFAULT_OPTIONS
+
 logger = logging.getLogger(__name__)
 
 
@@ -100,11 +102,6 @@ class AppSettings:
     #: Whether draw agreement opens a confirmation dialog before ending the game.
     confirm_draw: bool = True
 
-    #: Accepted persisted values for move animation speed.
-    MOVE_ANIMATION_OPTIONS = {"off", "fast", "normal", "slow"}
-    #: Accepted persisted values for automatic or interactive promotion choice.
-    PROMOTION_DEFAULT_OPTIONS = {"ask", "queen", "rook", "bishop", "knight"}
-
     def to_dict(self) -> dict[str, Any]:
         """Serialize settings into JSON-compatible primitive values."""
 
@@ -144,12 +141,9 @@ class AppSettings:
                 if isinstance(value, int) and 0 <= value <= 60:
                     values[key] = value
             elif isinstance(default_value, str):
-                if key == "move_animation" and value in cls.MOVE_ANIMATION_OPTIONS:
+                if key == "move_animation" and value in MOVE_ANIMATION_OPTIONS:
                     values[key] = value
-                elif (
-                    key == "promotion_default"
-                    and value in cls.PROMOTION_DEFAULT_OPTIONS
-                ):
+                elif key == "promotion_default" and value in PROMOTION_DEFAULT_OPTIONS:
                     values[key] = value
                 elif key not in {"move_animation", "promotion_default"}:
                     values[key] = value

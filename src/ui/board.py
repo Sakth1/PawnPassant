@@ -28,10 +28,16 @@ from ui.chess_piece import ChessPiece
 from ui.layout import AppLayout, resolve_app_layout
 from ui.square import Square
 from utils.constants import (
+    BOARD_SIZE,
     CASTLING_KING_END_SQUARE,
     CASTLING_KING_START_SQUARE,
     CASTLING_ROOK_END_SQUARE,
     CASTLING_ROOK_START_SQUARE,
+    DEFAULT_MOVE_ANIMATION_DURATION_MS,
+    DEFAULT_PAGE_HEIGHT,
+    DEFAULT_PAGE_WIDTH,
+    MOVE_ANIMATION_DURATIONS,
+    MS_PER_SECOND,
 )
 from utils.dialogs import safe_update
 from utils.events import (
@@ -40,6 +46,7 @@ from utils.events import (
     PieceCapturedEvent,
     SettingsChangedEvent,
 )
+from utils.game_state import game_state
 from utils.models import AppSettings
 from utils.signals import bus
 
@@ -52,14 +59,9 @@ class ChessBoard(ft.Container):
     #: Promotion options displayed left-to-right in the picker.
     PROMOTION_OPTIONS = [QUEEN, ROOK, BISHOP, KNIGHT]
     #: Default animation duration used when settings do not override it.
-    MOVE_ANIMATION_DURATION_MS = 120
+    MOVE_ANIMATION_DURATION_MS = DEFAULT_MOVE_ANIMATION_DURATION_MS
     #: User-facing animation speed keys mapped to movement durations.
-    MOVE_ANIMATION_DURATIONS = {
-        "off": 0,
-        "fast": 60,
-        "normal": 120,
-        "slow": 220,
-    }
+    MOVE_ANIMATION_DURATIONS = MOVE_ANIMATION_DURATIONS
     #: Settings values mapped to python-chess promotion piece constants.
     PROMOTION_NAME_TO_PIECE = {
         "queen": QUEEN,
@@ -86,11 +88,11 @@ class ChessBoard(ft.Container):
         #: Whether visual square order is reversed for black's perspective.
         self.is_flipped = False
         #: Current responsive layout snapshot.
-        self.layout = resolve_app_layout(960, 800)
+        self.layout = resolve_app_layout(DEFAULT_PAGE_WIDTH, DEFAULT_PAGE_HEIGHT)
         #: Pixel size of each square.
         self.square_size = self.layout.board_square_size
         #: Pixel size of the 8x8 board.
-        self.board_side_px = self.square_size * 8
+        self.board_side_px = self.square_size * BOARD_SIZE
         #: Extra one-square lane reserved above the board for promotion UI.
         self.promotion_lane_px = self.square_size
         #: Move waiting for a promotion piece choice.
@@ -102,7 +104,7 @@ class ChessBoard(ft.Container):
         #: Square currently showing tap feedback.
         self.active_tap_feedback_square: Optional[str] = None
         #: Whether board interactions should be ignored after a result.
-        self.game_over = False
+        game_state.game_over = False
         #: Current settings snapshot applied to board behavior.
         self.settings = AppSettings()
         #: Move waiting for confirmation before final commit.
@@ -111,7 +113,7 @@ class ChessBoard(ft.Container):
         )
 
         self.board_frame = ft.GridView(
-            runs_count=8,
+            runs_count=BOARD_SIZE,
             controls=self._create_squares(),
             expand=False,
             spacing=0,
@@ -191,7 +193,7 @@ class ChessBoard(ft.Container):
 
         self.layout = layout
         self.square_size = layout.board_square_size
-        self.board_side_px = self.square_size * 8
+        self.board_side_px = self.square_size * BOARD_SIZE
         self.promotion_lane_px = self.square_size
 
         for board_square in self.squares:
@@ -272,7 +274,7 @@ class ChessBoard(ft.Container):
             logger.info("Reset board to starting position")
         self._hide_promotion_overlay(refresh=False)
         self.is_flipped = False
-        self.game_over = False
+        game_state.game_over = False
         self.board_frame.controls = self.squares
         self._render_board_state()
         self._apply_square_settings(refresh=False)
@@ -417,7 +419,7 @@ class ChessBoard(ft.Container):
         """Either play a highlighted move or reveal legal targets for the
         clicked square."""
 
-        if self.promotion_overlay.visible or self.game_over:
+        if self.promotion_overlay.visible or game_state.game_over:
             return
 
         self._set_tap_feedback(click_cords)
@@ -458,7 +460,7 @@ class ChessBoard(ft.Container):
 
         if (
             self.promotion_overlay.visible
-            or self.game_over
+            or game_state.game_over
             or not self._is_selectable_square(from_cords)
         ):
             return
@@ -475,13 +477,13 @@ class ChessBoard(ft.Container):
     def _handle_square_drop(self, from_cords: str, to_cords: str):
         """Handle a piece being dropped onto a square."""
 
-        if self.promotion_overlay.visible or self.game_over:
+        if self.promotion_overlay.visible or game_state.game_over:
             logger.debug(
                 "Ignored square drop from=%s to=%s promotion_visible=%s game_over=%s",
                 from_cords,
                 to_cords,
                 self.promotion_overlay.visible,
-                self.game_over,
+                game_state.game_over,
             )
             return
 
@@ -698,7 +700,7 @@ class ChessBoard(ft.Container):
             return
 
         winner, reason, message = self.game.get_result_summary()
-        self.game_over = True
+        game_state.game_over = True
         logger.info("Terminal board state winner=%s reason=%s", winner, reason)
         bus.emit(GameEndedEvent(winner=winner, reason=reason, message=message))
 
@@ -775,7 +777,7 @@ class ChessBoard(ft.Container):
 
         target_square = self.square_map[square_cords]
         visual_idx = self.board_frame.controls.index(target_square)
-        return visual_idx // 8, visual_idx % 8
+        return visual_idx // BOARD_SIZE, visual_idx % BOARD_SIZE
 
     def _get_center_pixel_of_square(self, square_cords: str) -> tuple[int, int]:
         """Get the center pixel of a square in the current visual grid position."""
@@ -874,13 +876,13 @@ class ChessBoard(ft.Container):
         attached to the page tree.
         """
 
-        self.game_over = False
+        game_state.game_over = False
         logger.info("Board on_enter: interactions enabled")
 
     def on_exit(self):
         """Disable board interactions when leaving the game view."""
 
-        self.game_over = True
+        game_state.game_over = True
         self._clear_interaction_state(clear_tap_feedback=True, refresh=False)
         self._hide_promotion_overlay(refresh=False)
         logger.info("Board on_exit: interactions disabled")
@@ -888,7 +890,7 @@ class ChessBoard(ft.Container):
     def _handle_game_ended(self, _event: GameEndedEvent):
         """Freeze the board once a game result has been declared."""
 
-        self.game_over = True
+        game_state.game_over = True
         logger.info("Board interactions disabled")
         self._clear_interaction_state(clear_tap_feedback=True, refresh=False)
         self._hide_promotion_overlay(refresh=False)
@@ -933,7 +935,7 @@ class ChessBoard(ft.Container):
             self.move_animation_overlay.top = to_pixel[1] - (self.square_size / 2)
             safe_update(self)
 
-            await asyncio.sleep(self._animation_duration_ms() / 1000)
+            await asyncio.sleep(self._animation_duration_ms() / MS_PER_SECOND)
             self.move_animation_overlay.visible = False
             self.move_animation_overlay.content = None
             self._complete_move(requested_move, movement_type)
@@ -1003,7 +1005,7 @@ class ChessBoard(ft.Container):
     ):
         """Open a confirmation dialog before committing a requested move."""
 
-        if self.game_over:
+        if game_state.game_over:
             logger.info("Move confirmation skipped because game is over")
             return
 
@@ -1046,11 +1048,11 @@ class ChessBoard(ft.Container):
         page = self._safe_page()
         if page is not None:
             page.pop_dialog()
-        if pending_move is None or self.game_over:
+        if pending_move is None or game_state.game_over:
             logger.info(
                 "Move confirmation accept ignored pending=%s game_over=%s",
                 pending_move is not None,
-                self.game_over,
+                game_state.game_over,
             )
             return
 

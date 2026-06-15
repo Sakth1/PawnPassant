@@ -12,6 +12,7 @@ from typing import Any
 
 import flet as ft
 
+from utils.constants import DEFAULT_PAGE_HEIGHT, DEFAULT_PAGE_WIDTH
 from ui.layout import AppLayout, resolve_app_layout
 from utils.dialogs import safe_update
 from utils.events import SettingsChangedEvent
@@ -31,7 +32,7 @@ class SettingsView(ft.Container):
         #: Current settings snapshot reflected by the controls.
         self.settings = self.controller.settings
         #: Last applied responsive layout metrics.
-        self.layout = resolve_app_layout(960, 800)
+        self.layout = resolve_app_layout(DEFAULT_PAGE_WIDTH, DEFAULT_PAGE_HEIGHT)
 
         self.title_text = ft.Text("Settings", weight=ft.FontWeight.BOLD)
         self.subtitle_text = ft.Text("Board, gameplay, and clock preferences.")

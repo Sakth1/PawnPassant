@@ -6,6 +6,15 @@ from typing import Optional
 import flet as ft
 import chess
 
+from utils.constants import (
+    BOARD_DRAG_GROUP,
+    DEFAULT_SQUARE_SIZE,
+    DRAG_FEEDBACK_SCALE,
+    DRAG_OPACITY_FEEDBACK,
+    DRAG_OPACITY_VANISH,
+    INVISIBLE_SQUARE_BG,
+    SQUARE_ANIMATION_DURATION_MS,
+)
 from utils.dialogs import safe_update
 from ui.chess_piece import ChessPiece
 
@@ -16,7 +25,7 @@ class Square(ft.Container):
     """Represents one clickable chessboard square in the Flet UI."""
 
     #: Drag/drop group shared by all main-board piece controls.
-    DRAG_GROUP = "chess-piece"
+    DRAG_GROUP = BOARD_DRAG_GROUP
 
     def __init__(
         self,
@@ -28,7 +37,7 @@ class Square(ft.Container):
         on_square_drop=None,
         on_piece_drag_start=None,
         on_piece_drag_complete=None,
-        size=60,
+        size=DEFAULT_SQUARE_SIZE,
     ):
         super().__init__(expand=True)
         #: Zero-based file index, where 0 is the a-file.
@@ -86,7 +95,9 @@ class Square(ft.Container):
         )
         self.content = self.drag_target
         self.margin = 0
-        self.animate = ft.Animation(90, curve=ft.AnimationCurve.EASE_OUT)
+        self.animate = ft.Animation(
+            SQUARE_ANIMATION_DURATION_MS, curve=ft.AnimationCurve.EASE_OUT
+        )
         self._rebuild_indicators()
 
     def _handle_click(self, _event=None):
@@ -230,14 +241,14 @@ class Square(ft.Container):
             content_when_dragging=ft.Container(
                 width=self.width,
                 height=self.height,
-                opacity=0.18,
+                opacity=DRAG_OPACITY_VANISH,
             ),
             content_feedback=ft.Container(
                 width=self.width,
                 height=self.height,
                 alignment=ft.Alignment.CENTER,
-                scale=1.08,
-                opacity=0.96,
+                scale=DRAG_FEEDBACK_SCALE,
+                opacity=DRAG_OPACITY_FEEDBACK,
                 shadow=ft.BoxShadow(
                     blur_radius=max(8, int(self.size * 0.2)),
                     color=ft.Colors.BLACK_38,
@@ -364,7 +375,7 @@ class InvisibleSquare(ft.Container):
         on_square_drop=None,
         on_piece_drag_start=None,
         on_piece_drag_complete=None,
-        size=60,
+        size=DEFAULT_SQUARE_SIZE,
     ):
         super().__init__(expand=True)
         #: Slot coordinate within the captured-pieces grid.
@@ -375,7 +386,7 @@ class InvisibleSquare(ft.Container):
         self.color: chess.Color = color
         self.width = size
         self.height = size
-        self.bgcolor = "#343434"
+        self.bgcolor = INVISIBLE_SQUARE_BG
         self.border_radius = 2
         self.has_piece = False
         self.piece_control: Optional[ft.Control] = None
@@ -465,14 +476,14 @@ class InvisibleSquare(ft.Container):
             content_when_dragging=ft.Container(
                 width=self.width,
                 height=self.height,
-                opacity=0.18,
+                opacity=DRAG_OPACITY_VANISH,
             ),
             content_feedback=ft.Container(
                 width=self.width,
                 height=self.height,
                 alignment=ft.Alignment.CENTER,
-                scale=1.08,
-                opacity=0.96,
+                scale=DRAG_FEEDBACK_SCALE,
+                opacity=DRAG_OPACITY_FEEDBACK,
                 shadow=ft.BoxShadow(
                     blur_radius=max(8, int(self.size * 0.2)),
                     color=ft.Colors.BLACK_38,

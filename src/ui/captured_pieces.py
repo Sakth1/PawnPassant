@@ -6,6 +6,14 @@ import random
 import flet as ft
 from chess import WHITE, BLACK
 
+from utils.constants import (
+    CAPTURED_PANEL_BG,
+    CAPTURE_GRID_COLUMNS,
+    DEFAULT_PAGE_HEIGHT,
+    DEFAULT_PAGE_WIDTH,
+    DEFAULT_SQUARE_SIZE,
+    MAX_CAPTURES,
+)
 from ui.layout import AppLayout, resolve_app_layout
 from ui.square import InvisibleSquare
 from utils.dialogs import safe_update
@@ -27,8 +35,8 @@ class CaputredPieces(ft.Container):
     def __init__(self):
         super().__init__()
         #: Last applied responsive layout metrics.
-        self.layout = resolve_app_layout(960, 800)
-        self.bgcolor = "#1F1F1F"
+        self.layout = resolve_app_layout(DEFAULT_PAGE_WIDTH, DEFAULT_PAGE_HEIGHT)
+        self.bgcolor = CAPTURED_PANEL_BG
         self.border_radius = 16
         self.padding = 12
         self.alignment = ft.Alignment.CENTER
@@ -81,7 +89,7 @@ class CaputredPieces(ft.Container):
             on_square_drop=self._handle_square_drop,
             on_piece_drag_start=self._handle_piece_drag_start,
             on_piece_drag_complete=self._handle_piece_drag_complete,
-            size=60,
+            size=DEFAULT_SQUARE_SIZE,
         )
 
     def _create_invisible_squares(
@@ -90,7 +98,7 @@ class CaputredPieces(ft.Container):
         """Create the initial 16 captured-piece slots for one side."""
 
         squares: list[InvisibleSquare] = []
-        for i in range(16):
+        for i in range(MAX_CAPTURES):
             squares.append(self._invisible_square(prefix, i, piece_colors))
         return squares
 
@@ -98,7 +106,7 @@ class CaputredPieces(ft.Container):
         """Build the fixed 4-column grid that holds captured-piece slots."""
 
         return ft.GridView(
-            runs_count=4,
+            runs_count=CAPTURE_GRID_COLUMNS,
             controls=squares,
             expand=False,
             spacing=4,

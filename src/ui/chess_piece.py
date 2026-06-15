@@ -12,7 +12,13 @@ from pathlib import Path
 import flet as ft
 from chess import Color, Piece
 
-from utils.constants import SYMBOL_MAP
+from utils.constants import (
+    DEFAULT_MOVE_ANIMATION_DURATION_MS,
+    DEFAULT_SQUARE_SIZE,
+    PIECE_CLICK_RESET_DELAY,
+    PIECE_CLICK_SCALE,
+    SYMBOL_MAP,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +34,13 @@ class ChessPiece(ft.Container):
         self.color: Color = piece.color
         self.alignment = ft.Alignment.CENTER
         #: Scale animation used by click feedback.
-        self.animate_scale = ft.Animation(120, curve=ft.AnimationCurve.EASE_OUT)
+        self.animate_scale = ft.Animation(
+            DEFAULT_MOVE_ANIMATION_DURATION_MS, curve=ft.AnimationCurve.EASE_OUT
+        )
         #: Current Flet scale value for transient piece feedback.
         self.scale = 1
         #: Board square size used to derive the rendered image dimensions.
-        self.square_size = 60
+        self.square_size = DEFAULT_SQUARE_SIZE
 
     def to_control(self) -> ft.Control:
         """Build the Flet control used to display the piece on the board.
@@ -45,8 +53,6 @@ class ChessPiece(ft.Container):
         try:
             symbol = self.piece.symbol()
             piece_name = SYMBOL_MAP.get(symbol)
-            # Flet asset paths are relative to the app asset directory, not the
-            # Python module path.
             piece_src = Path("pieces", "default", f"{piece_name}.png").as_posix()
             image_size = max(20, int(self.square_size * 0.94))
             self.width = self.square_size
@@ -77,11 +83,11 @@ class ChessPiece(ft.Container):
         """Temporarily enlarge the piece to acknowledge a direct click."""
 
         page = self.page
-        self.scale = 1.5
+        self.scale = PIECE_CLICK_SCALE
         self.update()
 
         async def reset_scale():
-            await asyncio.sleep(0.16)
+            await asyncio.sleep(PIECE_CLICK_RESET_DELAY)
             self.scale = 1
             self.update()
 

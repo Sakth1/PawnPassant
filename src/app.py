@@ -23,9 +23,19 @@ from ui.settings_page import SettingsView
 from ui.layout import AppLayout, resolve_app_layout
 from ui.routing import RouteManager
 from core.bot_manager import BotManager
-from utils.constants import ASSET_DIR, FONT_DIR
+from utils.constants import (
+    ASSET_DIR,
+    DEFAULT_PAGE_HEIGHT,
+    DEFAULT_PAGE_WIDTH,
+    FONT_DIR,
+    FONT_FAMILY,
+    MIN_PAGE_HEIGHT,
+    MIN_PAGE_WIDTH,
+    NAVIGATION_BAR_HEIGHT,
+)
 from utils.dialogs import safe_pop_dialog, safe_update
 from utils.events import GameEndedEvent, GameStartedEvent
+from utils.game_state import game_state
 from utils.settings import SettingsController
 from utils.signals import bus
 
@@ -34,9 +44,6 @@ logger = logging.getLogger(__name__)
 
 class ChessApp:
     """Build page layout, navigation, dialogs, and optional developer controls."""
-
-    #: Approximate navigation bar height subtracted from usable game content.
-    NAVIGATION_BAR_HEIGHT = 72
 
     def __init__(self, page: ft.Page, dev_mode: bool = False):
         """Create and attach the app shell to a Flet page."""
@@ -47,12 +54,14 @@ class ChessApp:
         #: Whether developer-only controls such as FEN presets are visible.
         self.dev_mode = dev_mode
         #: Current responsive layout snapshot shared by child views.
-        self.layout: AppLayout = resolve_app_layout(960, 800)
+        self.layout: AppLayout = resolve_app_layout(
+            DEFAULT_PAGE_WIDTH, DEFAULT_PAGE_HEIGHT
+        )
 
         self.bot_manager = BotManager()
 
         self.page.fonts = {
-            "RobotoMono": str(Path(FONT_DIR, "RobotoMono-VariableFont_wght.ttf"))
+            FONT_FAMILY: str(Path(FONT_DIR, "RobotoMono-VariableFont_wght.ttf"))
         }
         self.page.title = "Pawn Passant"
         self.page.window.icon = str(Path(ASSET_DIR, "PawnPassant.ico"))
@@ -256,26 +265,26 @@ class ChessApp:
     def _resolve_page_dimensions(self) -> tuple[float, float]:
         """Return usable page dimensions after safe-area and nav adjustments."""
 
-        page_width = getattr(self.page, "width", 0) or 960
-        page_height = getattr(self.page, "height", 0) or 800
+        page_width = getattr(self.page, "width", 0) or DEFAULT_PAGE_WIDTH
+        page_height = getattr(self.page, "height", 0) or DEFAULT_PAGE_HEIGHT
 
         media = getattr(self.page, "media", None)
         padding = getattr(media, "padding", None)
         if padding is not None:
             page_width = max(
-                320.0,
+                MIN_PAGE_WIDTH,
                 page_width
                 - (getattr(padding, "left", 0) or 0)
                 - (getattr(padding, "right", 0) or 0),
             )
             page_height = max(
-                480.0,
+                MIN_PAGE_HEIGHT,
                 page_height
                 - (getattr(padding, "top", 0) or 0)
                 - (getattr(padding, "bottom", 0) or 0),
             )
         if getattr(self.page, "navigation_bar", None) is not None:
-            page_height = max(480.0, page_height - self.NAVIGATION_BAR_HEIGHT)
+            page_height = max(MIN_PAGE_HEIGHT, page_height - NAVIGATION_BAR_HEIGHT)
 
         return page_width, page_height
 
@@ -372,7 +381,7 @@ class ChessApp:
     def _handle_draw_action(self, _event=None):
         """Handle draw button clicks, including optional confirmation."""
 
-        if self.board_view.game_over:
+        if game_state.game_over:
             logger.info("Ignoring draw action because game is already over")
             return
         settings = getattr(getattr(self, "settings_controller", None), "settings", None)
@@ -403,7 +412,7 @@ class ChessApp:
     def _handle_resign_action(self, _event=None):
         """Handle resign button clicks, including optional confirmation."""
 
-        if self.board_view.game_over:
+        if game_state.game_over:
             logger.info("Ignoring resign action because game is already over")
             return
         settings = getattr(getattr(self, "settings_controller", None), "settings", None)
@@ -439,7 +448,7 @@ class ChessApp:
     ):
         """Open a confirmation dialog for draw or resignation actions."""
 
-        if self.board_view.game_over:
+        if game_state.game_over:
             logger.info("Ignoring %s confirmation because game is already over", action)
             return
 
@@ -465,7 +474,7 @@ class ChessApp:
         self.pending_terminal_action = None
         logger.info("Terminal action confirmed action=%s", action)
         self.page.pop_dialog()
-        if self.board_view.game_over:
+        if game_state.game_over:
             safe_update(self.page)
             return
         if action == "draw":
