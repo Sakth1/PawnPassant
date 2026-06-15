@@ -22,6 +22,7 @@ from ui.captured_pieces import CaputredPieces
 from ui.settings_page import SettingsView
 from ui.layout import AppLayout, resolve_app_layout
 from ui.routing import RouteManager
+from core.bot_manager import BotManager
 from utils.constants import ASSET_DIR, FONT_DIR
 from utils.dialogs import safe_pop_dialog, safe_update
 from utils.events import GameEndedEvent, GameStartedEvent
@@ -47,6 +48,8 @@ class ChessApp:
         self.dev_mode = dev_mode
         #: Current responsive layout snapshot shared by child views.
         self.layout: AppLayout = resolve_app_layout(960, 800)
+
+        self.bot_manager = BotManager()
 
         self.page.fonts = {
             "RobotoMono": str(Path(FONT_DIR, "RobotoMono-VariableFont_wght.ttf"))

@@ -18,13 +18,14 @@ class BaseEvent:
     """Marker base class for events emitted on :mod:`utils.signals`."""
 
 
+@dataclass(frozen=True)
 class PieceMovedEvent(BaseEvent):
     """Published after a legal board move is committed.
 
     The event tells clock and side-panel subscribers to advance their state.
     """
-
-    pass
+    board_fen: str
+    active_color: ActiveColor
 
 
 class GameStartedEvent(BaseEvent):

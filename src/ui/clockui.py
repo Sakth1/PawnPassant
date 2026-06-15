@@ -159,7 +159,7 @@ class ClockUI(ft.Container):
         self.game_over = False
         bus.connect(ClockStateEvent, self._handle_clock_state)
         bus.connect(ClockTickEvent, self._handle_clock_tick)
-        bus.connect(PieceMovedEvent, self._handle_piece_moved)
+        bus.connect(PieceMovedEvent, lambda event: self._handle_piece_moved(event))
         bus.connect(GameEndedEvent, self._handle_game_ended)
         bus.connect(SettingsChangedEvent, self._handle_settings_changed)
         self.apply_layout(self.layout)

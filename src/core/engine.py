@@ -12,6 +12,7 @@ from typing import Optional
 from chess import Board, Move, Square, Color, PAWN, square_rank
 
 from core.movetype import MoveType
+from utils.models import ActiveColor
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class Game:
 
         return self.board.fen()
 
-    def get_active_color(self) -> Color:
+    def get_active_color(self) -> ActiveColor:
         """Return the side to move according to the underlying board."""
 
         return self.board.turn

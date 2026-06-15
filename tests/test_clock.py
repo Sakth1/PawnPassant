@@ -242,7 +242,7 @@ class TestClockUi(unittest.TestCase):
         clock_ui.clock = _ClockStub()
 
         clock_ui.on_enter()
-        bus.emit(PieceMovedEvent())
+        bus.emit(PieceMovedEvent(board_fen="", active_color=ActiveColor.WHITE))
         clock_ui.on_exit()
 
         self.assertEqual(clock_ui.clock.start_calls, 1)
