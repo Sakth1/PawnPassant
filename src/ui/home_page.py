@@ -49,7 +49,9 @@ class HomeView(ft.Container):
             "Choose a preset or enter your own time control.",
             text_align=ft.TextAlign.LEFT,
         )
-        self.selection_text = ft.Text(text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD)
+        self.selection_text = ft.Text(
+            text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD
+        )
         self.grid = ft.ResponsiveRow(columns=12)
         self.minutes_input = ft.TextField(
             label="Minutes",
@@ -159,7 +161,7 @@ class HomeView(ft.Container):
                 int(preset["increment"]),
             ),
         )
-    
+
     def _alert_feature_wip(self, feature: str):
         show_alert_dialog(
             self.page,
@@ -381,5 +383,3 @@ class HomeView(ft.Container):
                 time_control[1],
             )
             self.on_time_control_selected(time_control)
-
-

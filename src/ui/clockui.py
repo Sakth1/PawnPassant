@@ -415,5 +415,3 @@ class ClockUI(ft.Container):
         """React to settings updates published by the settings controller."""
 
         self.apply_settings(event.settings)
-
-

@@ -687,7 +687,9 @@ class ChessBoard(ft.Container):
         self._emit_game_end_if_needed()
         # Clock and captured-pieces subscribers react to this after the board is
         # fully updated, which keeps displayed state in move order.
-        bus.emit(PieceMovedEvent(self.game.get_board_fen(), self.game.get_active_color()))
+        bus.emit(
+            PieceMovedEvent(self.game.get_board_fen(), self.game.get_active_color())
+        )
 
     def _emit_game_end_if_needed(self):
         """Publish a game-ended event once the board reaches a terminal state."""

@@ -52,7 +52,8 @@ def configure_logging() -> None:
     # Crash Log (Errors and Criticals)
     try:
         # Use Path.home() which is OS-agnostic.
-        # 'Documents' is the standard folder name on Windows, macOS, and most Linux distros.
+        # 'Documents' is the standard folder name on Windows, macOS,
+        # and most Linux distros.
         crash_dir = Path.home() / "Documents" / "pawn passant crash log"
         crash_log_path = crash_dir / "pawnpassant_crash.log"
         crash_dir.mkdir(parents=True, exist_ok=True)

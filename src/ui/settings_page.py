@@ -271,5 +271,3 @@ class SettingsView(ft.Container):
         self.settings = event.settings
         logger.debug("Settings view refreshed")
         self._rebuild_sections()
-
-

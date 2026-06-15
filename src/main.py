@@ -3,7 +3,7 @@
 import flet as ft
 import logging
 
-from app import EntryPoint
+from app import entry_point
 from utils.logging_config import configure_logging
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ if __name__ == "__main__":
     configure_logging()
     logger.info("Starting Pawn Passant...")
     try:
-        ft.run(EntryPoint)
+        ft.run(entry_point)
     except Exception:
         logger.exception("Unhandled exception occurred in the application")
         raise

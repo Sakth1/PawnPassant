@@ -291,5 +291,3 @@ class CaputredPieces(ft.Container):
             if square.coordinate == coordinate:
                 return square
         return None
-
-

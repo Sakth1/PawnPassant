@@ -513,7 +513,8 @@ class ChessApp:
         self._on_game_enter()
         bus.emit(GameStartedEvent())
 
-def EntryPoint(page: ft.Page):
+
+def entry_point(page: ft.Page):
     """Create the app with dev-mode controls toggled by environment variable."""
 
     dev_mode = os.getenv("PAWNPASSANT_DEV", "").strip().lower() in {

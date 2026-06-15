@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ui.routing import RouteManager
-from utils.signals import bus, SignalBus
+from utils.signals import SignalBus
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Fake page compatible with RouteManager
@@ -204,7 +204,8 @@ class TestSignalBusDisconnect(unittest.TestCase):
     def test_disconnect_raises_for_nonexistent_handler(self):
         self.bus.connect(str, self._handler)
 
-        other = lambda _e: None
+        def other(_e):
+            return None
         with self.assertRaises(ValueError):
             self.bus.disconnect(str, other)
 
@@ -213,7 +214,8 @@ class TestSignalBusDisconnect(unittest.TestCase):
             self.bus.disconnect(int, self._handler)
 
     def test_disconnect_only_removes_exact_handler(self):
-        other = lambda _e: self._calls.append("other")
+        def other(_e):
+            return self._calls.append("other")
         self.bus.connect(str, self._handler)
         self.bus.connect(str, other)
 
@@ -231,8 +233,10 @@ class TestSignalBusErrorIsolation(unittest.TestCase):
         self._calls = []
 
     def test_error_isolation(self):
-        broken = lambda _e: (_ for _ in ()).throw(RuntimeError("oops"))
-        working = lambda _e: self._calls.append("ok")
+        def broken(_e):
+            return (_ for _ in ()).throw(RuntimeError("oops"))
+        def working(_e):
+            return self._calls.append("ok")
 
         self.bus.connect(str, broken)
         self.bus.connect(str, working)
@@ -245,9 +249,12 @@ class TestSignalBusErrorIsolation(unittest.TestCase):
         self.assertEqual(self._calls, ["ok"])
 
     def test_multiple_errors_do_not_cascade(self):
-        broken1 = lambda _e: (_ for _ in ()).throw(RuntimeError("first"))
-        broken2 = lambda _e: (_ for _ in ()).throw(RuntimeError("second"))
-        working = lambda _e: self._calls.append("ok")
+        def broken1(_e):
+            return (_ for _ in ()).throw(RuntimeError("first"))
+        def broken2(_e):
+            return (_ for _ in ()).throw(RuntimeError("second"))
+        def working(_e):
+            return self._calls.append("ok")
 
         self.bus.connect(str, broken1)
         self.bus.connect(str, broken2)

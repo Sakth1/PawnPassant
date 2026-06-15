@@ -24,8 +24,11 @@ class PieceMovedEvent(BaseEvent):
 
     The event tells clock and side-panel subscribers to advance their state.
     """
+
     board_fen: str
+    """FEN representation of the board after the move. Used by stockfish."""
     active_color: ActiveColor
+    """Side to move after the move."""
 
 
 class GameStartedEvent(BaseEvent):

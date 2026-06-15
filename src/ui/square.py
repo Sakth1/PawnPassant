@@ -352,6 +352,7 @@ class Square(ft.Container):
         self.tap_feedback_active = active
         self._refresh_bgcolor(refresh=refresh)
 
+
 class InvisibleSquare(ft.Container):
     """Drop target used for captured-piece slots outside the main board."""
 

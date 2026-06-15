@@ -8,7 +8,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from app import ChessApp
-from ui.board import ChessBoard
 from utils.dialogs import safe_update
 from utils.events import GameEndedEvent, GameStartedEvent
 from utils.signals import bus
@@ -215,7 +214,7 @@ class TestErrorBoundaries(unittest.TestCase):
     def test_broken_page_update_does_not_propagate(self):
         """safe_update must tolerate RuntimeError from detached controls."""
         page = _CrashOnEmptyPopPage()
-        app = ChessApp(page, dev_mode=False)
+        ChessApp(page, dev_mode=False)
 
         original_update = page.update
         page.update = lambda: (_ for _ in ()).throw(RuntimeError("detached"))
