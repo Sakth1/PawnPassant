@@ -258,7 +258,7 @@ class SettingsController:
 
         storage_paths = getattr(self.page, "StoragePaths", None)
         if storage_paths is None:
-            storage_paths = getattr(self.page, "storage_paths", None)
+            storage_paths = getattr(self.page, "StoragePaths", None)
         if storage_paths is None or not hasattr(
             storage_paths, "get_application_support_directory"
         ):
