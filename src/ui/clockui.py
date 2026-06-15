@@ -17,7 +17,7 @@ from utils.events import (
     ClockStateEvent,
     ClockTickEvent,
     GameEndedEvent,
-    PieceModevedEvent,
+    PieceMovedEvent,
     SettingsChangedEvent,
 )
 from utils.models import ActiveColor, AppSettings, TimeControl
@@ -159,7 +159,7 @@ class ClockUI(ft.Container):
         self.game_over = False
         bus.connect(ClockStateEvent, self._handle_clock_state)
         bus.connect(ClockTickEvent, self._handle_clock_tick)
-        bus.connect(PieceModevedEvent, self._handle_piece_moved)
+        bus.connect(PieceMovedEvent, self._handle_piece_moved)
         bus.connect(GameEndedEvent, self._handle_game_ended)
         bus.connect(SettingsChangedEvent, self._handle_settings_changed)
         self.apply_layout(self.layout)
@@ -364,7 +364,7 @@ class ClockUI(ft.Container):
         self.clock.stop()
         logger.info("Clock UI on_exit: clock stopped")
 
-    def _handle_piece_moved(self, _event: PieceModevedEvent):
+    def _handle_piece_moved(self, _event: PieceMovedEvent):
         """Switch clocks and flip their visual order after each committed move."""
 
         if self.game_over:

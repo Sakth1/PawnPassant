@@ -15,7 +15,7 @@ from utils.events import (
     ClockStateEvent,
     ClockTickEvent,
     GameEndedEvent,
-    PieceModevedEvent,
+    PieceMovedEvent,
 )
 from utils.models import ActiveColor
 from utils.signals import bus
@@ -242,7 +242,7 @@ class TestClockUi(unittest.TestCase):
         clock_ui.clock = _ClockStub()
 
         clock_ui.on_enter()
-        bus.emit(PieceModevedEvent())
+        bus.emit(PieceMovedEvent())
         clock_ui.on_exit()
 
         self.assertEqual(clock_ui.clock.start_calls, 1)

@@ -36,7 +36,7 @@ from utils.constants import (
 from utils.dialogs import safe_update
 from utils.events import (
     GameEndedEvent,
-    PieceModevedEvent,
+    PieceMovedEvent,
     PieceCapturedEvent,
     SettingsChangedEvent,
 )
@@ -687,7 +687,7 @@ class ChessBoard(ft.Container):
         self._emit_game_end_if_needed()
         # Clock and captured-pieces subscribers react to this after the board is
         # fully updated, which keeps displayed state in move order.
-        bus.emit(PieceModevedEvent())
+        bus.emit(PieceMovedEvent())
 
     def _emit_game_end_if_needed(self):
         """Publish a game-ended event once the board reaches a terminal state."""

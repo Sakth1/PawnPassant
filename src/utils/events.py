@@ -18,11 +18,10 @@ class BaseEvent:
     """Marker base class for events emitted on :mod:`utils.signals`."""
 
 
-class PieceModevedEvent(BaseEvent):
+class PieceMovedEvent(BaseEvent):
     """Published after a legal board move is committed.
 
-    The misspelling is preserved because callers already import this name. The
-    event tells clock and side-panel subscribers to advance their state.
+    The event tells clock and side-panel subscribers to advance their state.
     """
 
     pass
