@@ -10,6 +10,7 @@ authors = [
 dependencies = [
     "flet>=0.85.3",
     "chess>=1.11.2",
+    "stockfish>=5.2.0",
 ]
 
 [dependency-groups]
