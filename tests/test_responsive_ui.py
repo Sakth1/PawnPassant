@@ -255,7 +255,7 @@ class TestResponsiveAppUi(unittest.TestCase):
         self.assertEqual(page.overlay, [])
         self.assertEqual(app.position_selector.value, "Start Position")
         self.assertEqual(
-            app.board_view.game.get_board_fen(), ChessBoard().game.get_board_fen()
+            app.board_view.game_manager.fen(), ChessBoard().game_manager.fen()
         )
 
     def test_home_selection_updates_clock_and_routes_to_game(self):

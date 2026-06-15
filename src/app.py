@@ -429,7 +429,7 @@ class ChessApp:
     def _emit_resignation(self):
         """Publish a resignation result for the side that is not to move."""
 
-        winner = "Black" if self.board_view.game.board.turn == chess.WHITE else "White"
+        winner = "Black" if self.board_view.game_manager.active_color() == chess.WHITE else "White"
         loser = "White" if winner == "Black" else "Black"
         bus.emit(
             GameEndedEvent(

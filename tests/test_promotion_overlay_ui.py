@@ -49,7 +49,7 @@ class TestPromotionOverlayUi(unittest.TestCase):
         board.load_position("4k3/1P6/8/8/8/8/8/4K3 w - - 0 1")
         board.move_piece("b7", "b8")
 
-        promoted_piece = board.game.piece_at_square(parse_square("b8"))
+        promoted_piece = board.game_manager.piece_at(parse_square("b8"))
         self.assertIsNotNone(promoted_piece)
         self.assertEqual(promoted_piece.piece_type, QUEEN)
 

@@ -108,7 +108,7 @@ class TestChessAppDrawResign(unittest.TestCase):
             mock.assert_called_once()
 
     def test_emit_resignation_determines_winner(self):
-        self.app.board_view.game.board.turn = chess.WHITE
+        # The active color is driven by the board; no direct setter needed.
         from utils.signals import bus as global_bus
         from utils.events import GameEndedEvent
         received = []
