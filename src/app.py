@@ -35,7 +35,7 @@ from utils.constants import (
 )
 from utils.dialogs import safe_pop_dialog, safe_update
 from utils.events import GameEndedEvent, GameStartedEvent
-from utils.game_state import game_state
+from utils.game_state import GameAgainst, game_state
 from utils.settings import SettingsController
 from utils.signals import bus
 
@@ -353,7 +353,7 @@ class ChessApp:
         logger.info("Loading developer board position name=%s", selected_name)
         self.board_view.load_position(selected_fen)
         self.board_view.on_enter()
-        bus.emit(GameStartedEvent())
+        bus.emit(GameStartedEvent(opponent_nature=GameAgainst.COMPUTER))
 
     def _handle_game_started(self, _event: GameStartedEvent):
         """Clear terminal dialogs and return the shell to active-game state."""
@@ -520,7 +520,7 @@ class ChessApp:
         self._route_manager.swap_view("/game")
         await self.page.push_route("/game")
         self._on_game_enter()
-        bus.emit(GameStartedEvent())
+        bus.emit(GameStartedEvent(opponent_nature=game_state.game_against))
 
 
 def entry_point(page: ft.Page):

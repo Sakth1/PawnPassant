@@ -46,7 +46,7 @@ from utils.events import (
     PieceCapturedEvent,
     SettingsChangedEvent,
 )
-from utils.game_state import game_state
+from utils.game_state import GameAgainst, game_state
 from utils.models import AppSettings
 from utils.signals import bus
 
@@ -684,7 +684,7 @@ class ChessBoard(ft.Container):
                 self._update_last_move_on_board()
             case _:
                 pass
-        if self.settings.auto_flip_board:
+        if self.settings.auto_flip_board:# and game_state.game_against == GameAgainst.LOCAL:
             self._flip_board()
         self._emit_game_end_if_needed()
         # Clock and captured-pieces subscribers react to this after the board is

@@ -175,6 +175,7 @@ monkeytype.sqlite3
 docs
 logs
 .ruff_cache
+dev_dairy.md
 
 #agents, AI
 #.agents
