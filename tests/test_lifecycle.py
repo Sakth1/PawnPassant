@@ -206,6 +206,7 @@ class TestSignalBusDisconnect(unittest.TestCase):
 
         def other(_e):
             return None
+
         with self.assertRaises(ValueError):
             self.bus.disconnect(str, other)
 
@@ -216,6 +217,7 @@ class TestSignalBusDisconnect(unittest.TestCase):
     def test_disconnect_only_removes_exact_handler(self):
         def other(_e):
             return self._calls.append("other")
+
         self.bus.connect(str, self._handler)
         self.bus.connect(str, other)
 
@@ -235,6 +237,7 @@ class TestSignalBusErrorIsolation(unittest.TestCase):
     def test_error_isolation(self):
         def broken(_e):
             return (_ for _ in ()).throw(RuntimeError("oops"))
+
         def working(_e):
             return self._calls.append("ok")
 
@@ -251,8 +254,10 @@ class TestSignalBusErrorIsolation(unittest.TestCase):
     def test_multiple_errors_do_not_cascade(self):
         def broken1(_e):
             return (_ for _ in ()).throw(RuntimeError("first"))
+
         def broken2(_e):
             return (_ for _ in ()).throw(RuntimeError("second"))
+
         def working(_e):
             return self._calls.append("ok")
 

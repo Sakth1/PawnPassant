@@ -313,7 +313,7 @@ class TestHomeView(unittest.TestCase):
         )
 
         home_view._select_preset(str(selected_preset["key"]))
-        home_view._handle_primary_action()
+        home_view._handle_play_computer()
 
         self.assertEqual(captured, [(10, 5)])
 
@@ -333,7 +333,7 @@ class TestHomeView(unittest.TestCase):
 
         home_view.minutes_input.value = "12"
         home_view.increment_input.value = "5"
-        home_view._handle_primary_action()
+        home_view._handle_play_computer()
 
         self.assertEqual(captured, [(12, 5)])
 
