@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from ui.app import ChessApp
+from app import ChessApp
 from ui.board import ChessBoard
 from utils.dialogs import safe_update
 from utils.events import GameEndedEvent, GameStartedEvent

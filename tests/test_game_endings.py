@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ui.board import ChessBoard
-from ui.app import ChessApp
+from app import ChessApp
 from ui.clockui import ClockUI
 from utils.events import ClockStateEvent, GameEndedEvent
 from utils.models import ActiveColor

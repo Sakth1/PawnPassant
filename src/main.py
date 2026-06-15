@@ -3,7 +3,7 @@
 import flet as ft
 import logging
 
-from ui.app import EntryPoint
+from app import EntryPoint
 from utils.logging_config import configure_logging
 
 logger = logging.getLogger(__name__)

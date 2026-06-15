@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from chess import Move, parse_square
 
-from ui.app import ChessApp
+from app import ChessApp
 from ui.board import ChessBoard
 from ui.captured_pieces import CaputredPieces
 from ui.clockui import ClockUI
