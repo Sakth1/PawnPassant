@@ -674,7 +674,9 @@ class ChessBoard(ft.Container):
                 self._update_last_move_on_board()
             case _:
                 pass
-        if self.settings.auto_flip_board:# and game_state.game_against == GameAgainst.LOCAL:
+        if (
+            self.settings.auto_flip_board
+        ):  # and game_state.game_against == GameAgainst.LOCAL:
             self._flip_board()
         self._emit_game_end_if_needed()
         # Clock and captured-pieces subscribers react to this after the board is

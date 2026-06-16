@@ -94,6 +94,7 @@ class TestChessAppDrawResign(unittest.TestCase):
     def test_draw_emits_agreement_without_confirmation(self):
         game_state.game_over = False
         from utils.models import AppSettings
+
         self.app.settings_controller.settings = AppSettings(confirm_draw=False)
         with patch.object(self.app, "_emit_draw_agreement") as mock:
             self.app._handle_draw_action()
@@ -102,6 +103,7 @@ class TestChessAppDrawResign(unittest.TestCase):
     def test_resign_emits_without_confirmation(self):
         game_state.game_over = False
         from utils.models import AppSettings
+
         self.app.settings_controller.settings = AppSettings(confirm_resign=False)
         with patch.object(self.app, "_emit_resignation") as mock:
             self.app._handle_resign_action()
@@ -111,6 +113,7 @@ class TestChessAppDrawResign(unittest.TestCase):
         # The active color is driven by the board; no direct setter needed.
         from utils.signals import bus as global_bus
         from utils.events import GameEndedEvent
+
         received = []
         global_bus.connect(GameEndedEvent, lambda e: received.append(e))
         self.app._emit_resignation()
@@ -126,13 +129,17 @@ class TestChessAppGameEnded(unittest.TestCase):
 
     def test_game_ended_shows_dialog(self):
         from utils.events import GameEndedEvent
-        event = GameEndedEvent(winner="White", reason="checkmate", message="White wins.")
+
+        event = GameEndedEvent(
+            winner="White", reason="checkmate", message="White wins."
+        )
         self.app._handle_game_ended(event)
         self.assertEqual(self.app.result_dialog_title.value, "White")
         self.assertEqual(self.app.result_dialog_message.value, "White wins.")
 
     def test_game_ended_without_winner(self):
         from utils.events import GameEndedEvent
+
         event = GameEndedEvent(winner=None, reason="stalemate", message="Draw.")
         self.app._handle_game_ended(event)
         self.assertEqual(self.app.result_dialog_title.value, "Game Over")

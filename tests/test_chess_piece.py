@@ -8,9 +8,14 @@ import chess
 from ui.chess_piece import ChessPiece
 from utils.constants import DEFAULT_SQUARE_SIZE, PIECE_CLICK_SCALE
 
-
-PIECE_CLASSES = [chess.PAWN, chess.KNIGHT, chess.BISHOP,
-                 chess.ROOK, chess.QUEEN, chess.KING]
+PIECE_CLASSES = [
+    chess.PAWN,
+    chess.KNIGHT,
+    chess.BISHOP,
+    chess.ROOK,
+    chess.QUEEN,
+    chess.KING,
+]
 
 
 class TestChessPieceConstruction(unittest.TestCase):
@@ -54,6 +59,7 @@ class TestChessPieceToControl(unittest.TestCase):
 
     def test_to_control_sets_content_to_image(self):
         from flet import Image
+
         p = ChessPiece(chess.Piece(chess.ROOK, chess.BLACK))
         p.to_control()
         self.assertIsInstance(p.content, Image)
@@ -75,6 +81,7 @@ class TestChessPieceSetSquareSize(unittest.TestCase):
 
     def test_minimum_image_size_20(self):
         from flet import Image
+
         p = ChessPiece(chess.Piece(chess.PAWN, chess.WHITE))
         p.to_control()
         p.set_square_size(10)
@@ -88,7 +95,7 @@ class TestChessPieceAnimateClick(unittest.TestCase):
     def test_animate_click_sets_scale(self):
         p = ChessPiece(chess.Piece(chess.PAWN, chess.WHITE))
         # Patch page property so _animate_click doesn't raise RuntimeError
-        with patch.object(ChessPiece, 'page', new_callable=MagicMock):
+        with patch.object(ChessPiece, "page", new_callable=MagicMock):
             p._animate_click()
         self.assertEqual(p.scale, PIECE_CLICK_SCALE)
 

@@ -129,10 +129,17 @@ class TestAppSettingsToDict(unittest.TestCase):
     def test_contains_all_fields(self):
         d = AppSettings().to_dict()
         expected_keys = {
-            "show_legal_moves", "show_tap_feedback", "auto_flip_board",
-            "show_coordinates", "move_animation", "confirm_moves",
-            "promotion_default", "critical_time_seconds",
-            "show_milliseconds_in_critical", "confirm_resign", "confirm_draw",
+            "show_legal_moves",
+            "show_tap_feedback",
+            "auto_flip_board",
+            "show_coordinates",
+            "move_animation",
+            "confirm_moves",
+            "promotion_default",
+            "critical_time_seconds",
+            "show_milliseconds_in_critical",
+            "confirm_resign",
+            "confirm_draw",
         }
         self.assertEqual(set(d.keys()), expected_keys)
 

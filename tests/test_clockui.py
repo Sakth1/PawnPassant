@@ -43,6 +43,7 @@ class TestClockUISetTimeControl(unittest.TestCase):
     def test_set_time_control_resets_game_over(self):
         cui = ClockUI()
         from utils.game_state import game_state
+
         game_state.game_over = True
         cui.set_time_control((5, 3))
         self.assertFalse(game_state.game_over)

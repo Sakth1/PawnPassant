@@ -68,6 +68,7 @@ class TestTicker(unittest.TestCase):
 class TestClockConstruction(unittest.TestCase):
     def test_default_active_color_white(self):
         from utils.models import ActiveColor
+
         # We can't directly construct a Clock easily since it spawns a thread,
         # but we can test ticker initialization
         pass

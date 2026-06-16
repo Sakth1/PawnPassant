@@ -383,6 +383,4 @@ class HomeView(ft.Container):
                 time_control[0],
                 time_control[1],
             )
-            self.on_time_control_selected(
-                time_control
-            )
+            self.on_time_control_selected(time_control)
