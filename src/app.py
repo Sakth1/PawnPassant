@@ -7,9 +7,12 @@ navigation, responsive layout, settings loading, and developer-only board setup.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
+import sys
+import traceback
 from pathlib import Path
 
 import flet as ft
@@ -22,7 +25,10 @@ from ui.captured_pieces import CaputredPieces
 from ui.settings_page import SettingsView
 from ui.layout import AppLayout, resolve_app_layout
 from ui.routing import RouteManager
+from ui.setup_overlay import SetupOverlay
 from core.bot_manager import BotManager
+from core.download_manager import StockfishDownloadManager
+from core.binary_verifier import verify_stockfish_binary
 from utils.constants import (
     ASSET_DIR,
     DEFAULT_PAGE_HEIGHT,
@@ -33,9 +39,17 @@ from utils.constants import (
     MIN_PAGE_WIDTH,
     NAVIGATION_BAR_HEIGHT,
 )
+from ui.task_toast import show_toast
 from utils.dialogs import safe_pop_dialog, safe_update
-from utils.events import GameEndedEvent, GameStartedEvent
+from utils.events import (
+    GameEndedEvent,
+    GameStartedEvent,
+    StockfishDownloadFailedEvent,
+    StockfishInfoReadyEvent,
+)
+from utils.paths import get_stockfish_dir
 from utils.game_state import GameAgainst, game_state
+from utils.models import StockfishGameConfig
 from utils.settings import SettingsController
 from utils.signals import bus
 
@@ -49,6 +63,9 @@ class ChessApp:
         """Create and attach the app shell to a Flet page."""
 
         logger.info("Initializing app shell dev_mode=%s", dev_mode)
+
+        self._install_crash_handlers()
+
         #: Flet page owned by the running application.
         self.page = page
         #: Whether developer-only controls such as FEN presets are visible.
@@ -58,7 +75,12 @@ class ChessApp:
             DEFAULT_PAGE_WIDTH, DEFAULT_PAGE_HEIGHT
         )
 
-        self.bot_manager = BotManager()
+        self.bot_manager: BotManager | None = None
+        self._setup_overlay: SetupOverlay | None = None
+        self._pending_time_control: tuple[int, int] | None = None
+        self._pending_stockfish_config: StockfishGameConfig | None = None
+        self._stockfish_downloader: StockfishDownloadManager | None = None
+        self._checking_binary: bool = False
 
         self.page.fonts = {
             FONT_FAMILY: str(Path(FONT_DIR, "RobotoMono-VariableFont_wght.ttf"))
@@ -70,6 +92,7 @@ class ChessApp:
         self.page.scroll = ft.ScrollMode.AUTO
 
         self.settings_controller = SettingsController(page)
+        self._file_picker = ft.FilePicker()
         # Child controls are long-lived; route changes swap which one is visible
         # rather than reconstructing game state on every navigation event.
         self.board_view = ChessBoard()
@@ -78,7 +101,9 @@ class ChessApp:
             on_resign=self._handle_resign_action,
         )
         self.home_view = HomeView(
-            on_time_control_selected=self._start_game_with_time_control
+            on_time_control_selected=None,
+            on_play_computer=self._handle_open_computer_setup,
+            on_play_someone=self._handle_open_online_setup,
         )
         self.piece_display = CaputredPieces()
         self.result_dialog_title = ft.Text(weight=ft.FontWeight.BOLD)
@@ -177,7 +202,7 @@ class ChessApp:
             content=self.safe_area,
         )
 
-        self.settings_view = SettingsView(self.settings_controller)
+        self.settings_view = SettingsView(self.settings_controller, file_picker=self._file_picker)
         self.view_container = ft.Container(expand=True)
 
         route_to_index = {
@@ -234,6 +259,29 @@ class ChessApp:
         self._apply_responsive_layout()
         self.page.run_task(self.settings_controller.load)
         self._route_manager.navigate("/home")
+
+    @staticmethod
+    def _install_crash_handlers() -> None:
+        def global_exc(exc_type, exc_value, exc_tb):
+            logger.critical(
+                "Unhandled exception: %s",
+                "".join(
+                    traceback.format_exception(exc_type, exc_value, exc_tb)
+                ).rstrip(),
+            )
+        sys.excepthook = global_exc
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        loop.set_exception_handler(
+            lambda _loop, ctx: logger.critical(
+                "Asyncio exception handler: %s",
+                ctx.get("message", ctx),
+            )
+        )
 
     # ── lifecycle callbacks ─────────────────────────────────────────────
 
@@ -352,8 +400,10 @@ class ChessApp:
         selected_fen = ChessBoard.TEST_POSITIONS[selected_name]
         logger.info("Loading developer board position name=%s", selected_name)
         self.board_view.load_position(selected_fen)
-        self.board_view.on_enter()
-        bus.emit(GameStartedEvent(opponent_nature=GameAgainst.COMPUTER))
+        self._pending_stockfish_config = None
+        self._pending_time_control = game_state.time_control
+        game_state.game_against = GameAgainst.COMPUTER
+        self._launch_game()
 
     def _handle_game_started(self, _event: GameStartedEvent):
         """Clear terminal dialogs and return the shell to active-game state."""
@@ -429,7 +479,11 @@ class ChessApp:
     def _emit_resignation(self):
         """Publish a resignation result for the side that is not to move."""
 
-        winner = "Black" if self.board_view.game.board.turn == chess.WHITE else "White"
+        winner = (
+            "Black"
+            if self.board_view.game_manager.active_color() == chess.WHITE
+            else "White"
+        )
         loser = "White" if winner == "Black" else "Black"
         bus.emit(
             GameEndedEvent(
@@ -495,29 +549,268 @@ class ChessApp:
         self.time_control_UI.set_time_control(self.time_control_UI.time_control)
         self._route_manager.navigate("/game")
 
-    def _start_game_with_time_control(self, time_control: tuple[int, int]) -> None:
-        """Start a new game from the home screen's selected time control."""
+    def _handle_open_computer_setup(self, time_control: tuple[int, int]) -> None:
+        """Open the computer setup overlay with the selected time control."""
+        self._pending_time_control = time_control
+        self._pending_stockfish_config = None
+        self._stockfish_downloader = None
 
-        self.time_control_UI.set_time_control(time_control)
         logger.info(
-            "Starting game with time_control_minutes=%s increment_seconds=%s",
+            "Opening computer setup with time_control=%s+%s",
             time_control[0],
             time_control[1],
         )
+
+        settings = self.settings_controller.settings
+        binary_path = settings.stockfish_binary_path
+        binary_available = False
+        asset_name = ""
+        asset_size_bytes = 0
+        if binary_path:
+            valid, _ = verify_stockfish_binary(binary_path)
+            binary_available = valid
+
+        self._setup_overlay = SetupOverlay(
+            page=self.page,
+            file_picker=self._file_picker,
+            mode="computer",
+            binary_available=binary_available,
+            asset_name=asset_name,
+            asset_size_bytes=asset_size_bytes,
+            on_start_game=self._handle_stockfish_start,
+            on_close=self._handle_overlay_closed,
+            on_install_clicked=self._handle_overlay_install_clicked,
+            on_binary_installed=self._handle_binary_installed,
+        )
+        self._setup_overlay.open()
+
+        if not binary_available:
+            self._checking_binary = True
+            self.page.run_task(self._async_fetch_and_update_binary_info)
+
+    def _handle_binary_installed(self, path: str) -> None:
+        """Store the installed binary path in settings."""
+        self.settings_controller.update(stockfish_binary_path=path)
+        logger.info("Binary path saved to settings path=%s", path)
+
+    async def _async_fetch_and_update_binary_info(self) -> None:
+        """Query GitHub for available Stockfish binaries and push info to overlay."""
+        logger.info("Fetching available Stockfish binary info...")
+        if self._setup_overlay is not None:
+            self._setup_overlay.set_fetching()
+
+        downloader = StockfishDownloadManager()
+        downloader.set_storage_dir(get_stockfish_dir(self.page))
+        try:
+            match = await downloader.query_release_async()
+        except Exception as exc:
+            logger.error("Stockfish binary info fetch failed: %s", exc)
+            self._checking_binary = False
+            if self._setup_overlay is not None:
+                self._setup_overlay.set_error(f"Could not fetch binary info: {exc}")
+            return
+
+        self._stockfish_downloader = downloader
+        self._checking_binary = False
+
+        bus.emit(
+            StockfishInfoReadyEvent(
+                release_tag=match.release_tag,
+                asset_name=match.best_asset.name,
+                asset_size_bytes=match.best_asset.size_bytes,
+                asset_subarch=match.best_asset.subarch.value,
+            )
+        )
+
+        if self._setup_overlay is not None:
+            self._setup_overlay.set_ready(
+                match.best_asset.name,
+                match.best_asset.size_bytes,
+            )
+            logger.info(
+                "Binary info pushed to overlay name=%s size=%d",
+                match.best_asset.name,
+                match.best_asset.size_bytes,
+            )
+
+    def _handle_overlay_install_clicked(self) -> None:
+        """Trigger Stockfish download as an async task on the Flet event loop."""
+        self.page.run_task(self._async_download_stockfish)
+
+    async def _async_download_stockfish(self) -> None:
+        """Download Stockfish binary. Runs on the Flet event loop.
+
+        Uses ``query_release_async`` for non-blocking HTTP and offloads the
+        blocking subprocess polling to a thread via ``asyncio.to_thread``.
+        Progress updates are marshalled back to the event loop with
+        ``asyncio.run_coroutine_threadsafe`` so Flet controls are never
+        touched from a background thread.
+        """
+        logger.info("_async_download_stockfish ENTER")
+        try:
+            await self._do_download_stockfish()
+        except Exception as exc:
+            logger.critical(
+                "_async_download_stockfish unhandled exception: %s",
+                exc, exc_info=True,
+            )
+
+    async def _do_download_stockfish(self) -> None:
+        logger.info("_do_download_stockfish ENTER")
+
+        downloader = StockfishDownloadManager()
+        dest_dir = get_stockfish_dir(self.page)
+        downloader.set_storage_dir(dest_dir)
+
+        panel = (
+            self._setup_overlay._stockfish_install_panel
+            if self._setup_overlay
+            else None
+        )
+
+        try:
+            await downloader.query_release_async()
+        except Exception as exc:
+            logger.error("Stockfish query failed: %s", exc)
+            if panel is not None:
+                panel.set_error(f"Failed to query binary info: {exc}")
+            bus.emit(StockfishDownloadFailedEvent(error_message=str(exc)))
+            return
+
+        loop = asyncio.get_running_loop()
+
+        async def _update_ui(downloaded: int, total: int) -> None:
+            if panel is not None:
+                panel.update_progress(downloaded, total)
+
+        def on_progress(downloaded: int, total: int) -> None:
+            asyncio.run_coroutine_threadsafe(
+                _update_ui(downloaded, total), loop
+            )
+
+        logger.info(
+            "Running synchronous download with panel=%s",
+            "available" if panel else "None",
+        )
+        try:
+            downloaded = await asyncio.to_thread(
+                downloader._download_via_subprocess_sync,
+                asset=downloader.last_query.best_asset,
+                dest_dir=dest_dir,
+                progress_callback=on_progress,
+            )
+        except Exception as exc:
+            logger.error("Stockfish download failed: %s", exc)
+            if panel is not None:
+                panel.set_error(f"Download failed: {exc}")
+            show_toast(self.page, f"Download failed: {exc}", is_error=True)
+            bus.emit(StockfishDownloadFailedEvent(error_message=str(exc)))
+            return
+
+        path = str(downloaded.download_path)
+        logger.info("Download succeeded, path=%s", path)
+
+        valid, version = verify_stockfish_binary(path)
+        if not valid:
+            logger.error("Downloaded binary validation failed: %s", version)
+            if panel is not None:
+                panel.set_error(f"Downloaded binary is not compatible: {version}")
+            show_toast(
+                self.page,
+                f"Downloaded binary is not compatible: {version}",
+                is_error=True,
+            )
+            bus.emit(StockfishDownloadFailedEvent(error_message=version))
+            if Path(path).exists():
+                Path(path).unlink()
+            return
+
+        self.settings_controller.update(stockfish_binary_path=path)
+        logger.info("Stockfish downloaded and saved version=%s path=%s", version, path)
+
+        if panel is not None:
+            panel.on_download_complete(path)
+
+        logger.info("_do_download_stockfish EXIT")
+
+    def _handle_open_online_setup(self, time_control: tuple[int, int]) -> None:
+        """Open the online setup overlay with the selected time control."""
+        self._pending_time_control = time_control
+
+        logger.info(
+            "Opening online setup with time_control=%s+%s",
+            time_control[0],
+            time_control[1],
+        )
+
+        self._setup_overlay = SetupOverlay(
+            page=self.page,
+            file_picker=self._file_picker,
+            mode="online",
+            on_play_local=self._handle_local_play,
+            on_close=self._handle_overlay_closed,
+        )
+        self._setup_overlay.open()
+
+    def _handle_stockfish_start(self, config: StockfishGameConfig) -> None:
+        """Start a game against Stockfish with the given configuration."""
+        self._pending_stockfish_config = config
+        logger.info(
+            "Starting Stockfish game config=preset=%s elo=%s",
+            config.preset_name,
+            config.elo,
+        )
+        self._setup_overlay = None
+        game_state.game_against = GameAgainst.COMPUTER
+        self._launch_game()
+
+    def _handle_local_play(self) -> None:
+        """Start a local flip-board game."""
+        logger.info("Starting local flip-board game")
+        self._setup_overlay = None
+        game_state.game_against = GameAgainst.LOCAL
+        self._launch_game()
+
+    def _handle_overlay_closed(self) -> None:
+        """Clean up when the setup overlay is closed without starting."""
+        logger.info("Setup overlay closed without starting game")
+        self._setup_overlay = None
+        self._pending_time_control = None
+        self._pending_stockfish_config = None
+
+    def _launch_game(self) -> None:
+        """Navigate to the game view and start the game session."""
+        tc = self._pending_time_control
+        if tc is None:
+            tc = game_state.time_control
+        self.time_control_UI.set_time_control(tc)
+        game_state.time_control = tc
+
         if self.position_selector is not None:
             self.position_selector.value = "Start Position"
         self.board_view.load_position()
-        self.page.run_task(self._async_start_game)
 
-    async def _async_start_game(self) -> None:
-        """Async game-start: swap view → navigate → start services → emit.
-
-        This is the core of the Option A fix.  By finishing navigation
-        (``page.push_route``) *before* the lifecycle callbacks fire, we
-        guarantee that clock ticks never race against a pending route
-        change on the client side.
-        """
         self._route_manager.swap_view("/game")
+        self.page.run_task(self._async_navigate_and_start)
+
+    async def _async_navigate_and_start(self) -> None:
+        """Push route, start BotManager if needed, then emit start event."""
+
+        if (
+            game_state.game_against == GameAgainst.COMPUTER
+            and self.bot_manager is None
+        ):
+            config = self._pending_stockfish_config or StockfishGameConfig()
+            settings = self.settings_controller.settings
+            binary_path = settings.stockfish_binary_path
+            if binary_path:
+                self.bot_manager = BotManager(
+                    engine_path=binary_path,
+                    config=None,
+                    on_bot_move=self.board_view.play_uci_move,
+                )
+                logger.info("Created BotManager with binary=%s", binary_path)
+
         await self.page.push_route("/game")
         self._on_game_enter()
         bus.emit(GameStartedEvent(opponent_nature=game_state.game_against))

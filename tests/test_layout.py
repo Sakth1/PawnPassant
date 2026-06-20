@@ -2,7 +2,12 @@
 
 import unittest
 
-from ui.layout import AppLayout, MOBILE_BREAKPOINT, TABLET_BREAKPOINT, resolve_app_layout
+from ui.layout import (
+    AppLayout,
+    MOBILE_BREAKPOINT,
+    TABLET_BREAKPOINT,
+    resolve_app_layout,
+)
 
 
 class TestResolveAppLayout(unittest.TestCase):

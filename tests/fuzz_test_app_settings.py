@@ -82,7 +82,13 @@ class AppSettingsFuzz(RuleBasedStateMachine):
 
     @invariant()
     def promotion_default_is_valid(self):
-        assert self.settings.promotion_default in ("ask", "queen", "rook", "bishop", "knight")
+        assert self.settings.promotion_default in (
+            "ask",
+            "queen",
+            "rook",
+            "bishop",
+            "knight",
+        )
 
     @invariant()
     def critical_time_is_int(self):

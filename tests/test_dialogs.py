@@ -42,6 +42,7 @@ class TestSafePopDialog(unittest.TestCase):
 class TestShowAlertDialog(unittest.TestCase):
     def test_show_alert_calls_page_show_dialog(self):
         from utils.dialogs import show_alert_dialog
+
         page = Mock()
         page.overlay = []
 
@@ -51,6 +52,7 @@ class TestShowAlertDialog(unittest.TestCase):
 
     def test_show_alert_dialog_passes_title_and_message(self):
         from utils.dialogs import show_alert_dialog
+
         page = Mock()
         page.overlay = []
 

@@ -7,8 +7,14 @@ from core.movetype import MoveType
 
 class TestMoveType(unittest.TestCase):
     def test_all_members_present(self):
-        expected = {"NORMAL", "CAPTURE", "EN_PASSANT",
-                     "KING_SIDE_CASTLING", "QUEEN_SIDE_CASTLING", "PROMOTION"}
+        expected = {
+            "NORMAL",
+            "CAPTURE",
+            "EN_PASSANT",
+            "KING_SIDE_CASTLING",
+            "QUEEN_SIDE_CASTLING",
+            "PROMOTION",
+        }
         actual = {m.name for m in MoveType}
         self.assertEqual(actual, expected)
 

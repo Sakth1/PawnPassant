@@ -16,13 +16,13 @@ UI re-rendering is a separate concern handled by the signal bus
 
 from __future__ import annotations
 
-import enum
+from enum import Enum, IntEnum
 from typing import Tuple
 
 import chess
 
 
-class GameAgainst(enum.IntEnum):
+class GameAgainst(IntEnum):
     """Identity of the opponent in the current or upcoming game."""
 
     COMPUTER = 1
@@ -30,7 +30,7 @@ class GameAgainst(enum.IntEnum):
     ONLINE = 3
 
 
-class GamePhase(enum.Enum):
+class GamePhase(Enum):
     """Lifecycle stage of the current chess game session."""
 
     NOT_STARTED = "not_started"

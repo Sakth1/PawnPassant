@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import chess
 
 from app import ChessApp
+from utils.constants import DEFAULT_PAGE_HEIGHT, DEFAULT_PAGE_WIDTH, NAVIGATION_BAR_HEIGHT
 from utils.game_state import game_state
 
 
@@ -26,12 +27,16 @@ class FakePage:
         self.run_task = MagicMock()
         self.navigate = MagicMock()
         self.push_route = MagicMock()
+        self.overlay = []
         self.add = MagicMock()
         self.show_dialog = MagicMock()
         self.pop_dialog = MagicMock()
         self.shared_preferences = None
         self.platform = None
         self.media = None
+
+    def update(self):
+        pass
 
     def __setattr__(self, name, value):
         super().__setattr__(name, value)
@@ -94,6 +99,7 @@ class TestChessAppDrawResign(unittest.TestCase):
     def test_draw_emits_agreement_without_confirmation(self):
         game_state.game_over = False
         from utils.models import AppSettings
+
         self.app.settings_controller.settings = AppSettings(confirm_draw=False)
         with patch.object(self.app, "_emit_draw_agreement") as mock:
             self.app._handle_draw_action()
@@ -102,15 +108,17 @@ class TestChessAppDrawResign(unittest.TestCase):
     def test_resign_emits_without_confirmation(self):
         game_state.game_over = False
         from utils.models import AppSettings
+
         self.app.settings_controller.settings = AppSettings(confirm_resign=False)
         with patch.object(self.app, "_emit_resignation") as mock:
             self.app._handle_resign_action()
             mock.assert_called_once()
 
     def test_emit_resignation_determines_winner(self):
-        self.app.board_view.game.board.turn = chess.WHITE
+        # The active color is driven by the board; no direct setter needed.
         from utils.signals import bus as global_bus
         from utils.events import GameEndedEvent
+
         received = []
         global_bus.connect(GameEndedEvent, lambda e: received.append(e))
         self.app._emit_resignation()
@@ -126,13 +134,17 @@ class TestChessAppGameEnded(unittest.TestCase):
 
     def test_game_ended_shows_dialog(self):
         from utils.events import GameEndedEvent
-        event = GameEndedEvent(winner="White", reason="checkmate", message="White wins.")
+
+        event = GameEndedEvent(
+            winner="White", reason="checkmate", message="White wins."
+        )
         self.app._handle_game_ended(event)
         self.assertEqual(self.app.result_dialog_title.value, "White")
         self.assertEqual(self.app.result_dialog_message.value, "White wins.")
 
     def test_game_ended_without_winner(self):
         from utils.events import GameEndedEvent
+
         event = GameEndedEvent(winner=None, reason="stalemate", message="Draw.")
         self.app._handle_game_ended(event)
         self.assertEqual(self.app.result_dialog_title.value, "Game Over")
@@ -145,8 +157,8 @@ class TestChessAppPageDimensions(unittest.TestCase):
         page.height = None
         app = ChessApp(page)
         w, h = app._resolve_page_dimensions()
-        self.assertEqual(w, 500)
-        self.assertEqual(h, 700)
+        self.assertEqual(w, DEFAULT_PAGE_WIDTH)
+        self.assertEqual(h, DEFAULT_PAGE_HEIGHT - NAVIGATION_BAR_HEIGHT)
 
 
 if __name__ == "__main__":
