@@ -11,7 +11,7 @@ from utils.constants import BOARD_SIZE
 class TestChessBoardConstruction(unittest.TestCase):
     def test_creates_game(self):
         board = ChessBoard()
-        self.assertIsNotNone(board.game)
+        self.assertIsNotNone(board.game_manager)
 
     def test_creates_64_squares(self):
         board = ChessBoard()
@@ -55,7 +55,7 @@ class TestChessBoardSelectable(unittest.TestCase):
 
     def test_is_selectable_square_empty_square(self):
         board = ChessBoard()
-        board.game.reset_board()
+        board.game_manager.reset_board()
         is_sel = board._is_selectable_square("e4")
         self.assertFalse(is_sel)
 

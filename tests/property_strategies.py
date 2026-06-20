@@ -4,7 +4,6 @@ from hypothesis import strategies as st
 
 from utils.models import AppSettings, TimeControl
 
-
 time_control_presets = st.sampled_from(
     [v for v in vars(TimeControl).values() if isinstance(v, tuple) and len(v) == 2]
 )
@@ -13,14 +12,10 @@ time_control_presets = st.sampled_from(
 non_negative_ints = st.integers(min_value=0, max_value=2**31 - 1)
 
 
-move_animation_options = st.sampled_from(
-    ["off", "fast", "normal", "slow"]
-)
+move_animation_options = st.sampled_from(["off", "fast", "normal", "slow"])
 
 
-promotion_options = st.sampled_from(
-    ["ask", "queen", "rook", "bishop", "knight"]
-)
+promotion_options = st.sampled_from(["ask", "queen", "rook", "bishop", "knight"])
 
 
 app_settings = st.builds(

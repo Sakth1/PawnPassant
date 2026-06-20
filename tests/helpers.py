@@ -114,16 +114,14 @@ def fake_page_with_settings(payload=None, platform="android", support_dir=None):
 def save_bus_listeners():
     """Deep-copy current bus listeners for later restore."""
     return {
-        event_type: listeners.copy()
-        for event_type, listeners in bus._listeners.items()
+        event_type: listeners.copy() for event_type, listeners in bus._listeners.items()
     }
 
 
 def restore_bus_listeners(saved):
     """Restore bus listeners from a prior save_bus_listeners() call."""
     bus._listeners = {
-        event_type: listeners.copy()
-        for event_type, listeners in saved.items()
+        event_type: listeners.copy() for event_type, listeners in saved.items()
     }
 
 

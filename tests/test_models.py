@@ -75,6 +75,12 @@ class TestAppSettingsDefaults(unittest.TestCase):
     def test_confirm_draw_default(self):
         self.assertTrue(self.settings.confirm_draw)
 
+    def test_stockfish_binary_path_default(self):
+        self.assertEqual(self.settings.stockfish_binary_path, "")
+
+    def test_stockfish_difficulty_default(self):
+        self.assertEqual(self.settings.stockfish_difficulty, "intermediate")
+
 
 class TestAppSettingsFromDict(unittest.TestCase):
     def test_empty_dict_returns_defaults(self):
@@ -129,10 +135,19 @@ class TestAppSettingsToDict(unittest.TestCase):
     def test_contains_all_fields(self):
         d = AppSettings().to_dict()
         expected_keys = {
-            "show_legal_moves", "show_tap_feedback", "auto_flip_board",
-            "show_coordinates", "move_animation", "confirm_moves",
-            "promotion_default", "critical_time_seconds",
-            "show_milliseconds_in_critical", "confirm_resign", "confirm_draw",
+            "show_legal_moves",
+            "show_tap_feedback",
+            "auto_flip_board",
+            "show_coordinates",
+            "move_animation",
+            "confirm_moves",
+            "promotion_default",
+            "critical_time_seconds",
+            "show_milliseconds_in_critical",
+            "confirm_resign",
+            "confirm_draw",
+            "stockfish_binary_path",
+            "stockfish_difficulty",
         }
         self.assertEqual(set(d.keys()), expected_keys)
 

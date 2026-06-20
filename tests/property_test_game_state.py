@@ -6,7 +6,6 @@ import chess
 
 from utils.game_state import GameAgainst, GamePhase, GameState
 
-
 game_against_strategy = st.sampled_from(list(GameAgainst))
 game_phase_strategy = st.sampled_from(list(GamePhase))
 color_strategy = st.sampled_from([chess.WHITE, chess.BLACK])

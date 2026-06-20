@@ -34,8 +34,8 @@ class TestInvalidMoveUi(unittest.TestCase):
 
         self.assertIs(board.square_map["e2"].piece_container, source_before)
         self.assertIsNone(board.square_map["e5"].piece_container)
-        self.assertIsNotNone(board.game.piece_at_square(parse_square("e2")))
-        self.assertIsNone(board.game.piece_at_square(parse_square("e5")))
+        self.assertIsNotNone(board.game_manager.piece_at(parse_square("e2")))
+        self.assertIsNone(board.game_manager.piece_at(parse_square("e5")))
 
 
 if __name__ == "__main__":

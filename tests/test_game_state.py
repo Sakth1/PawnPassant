@@ -34,7 +34,9 @@ class TestGamePhase(unittest.TestCase):
 
     def test_ordering(self):
         phases = list(GamePhase)
-        self.assertEqual(phases, [GamePhase.NOT_STARTED, GamePhase.PLAYING, GamePhase.ENDED])
+        self.assertEqual(
+            phases, [GamePhase.NOT_STARTED, GamePhase.PLAYING, GamePhase.ENDED]
+        )
 
 
 class TestGameState(unittest.TestCase):
@@ -96,12 +98,14 @@ class TestGameStateSingleton(unittest.TestCase):
     def test_singleton_is_same_object(self):
         from utils.game_state import game_state as gs1
         from utils.game_state import game_state as gs2
+
         self.assertIs(gs1, gs2)
 
     def test_singleton_mutation_visible_across_imports(self):
         original = game_state.game_phase
         game_state.game_phase = GamePhase.PLAYING
         from utils.game_state import game_state as gs2
+
         self.assertEqual(gs2.game_phase, GamePhase.PLAYING)
         game_state.game_phase = original
 

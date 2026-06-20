@@ -56,6 +56,7 @@ class TestJsonFileSettingsBackend(unittest.TestCase):
                 await backend.save(data)
                 loaded = await backend.load()
                 self.assertEqual(loaded, data)
+
         asyncio.run(_run())
 
     def test_load_invalid_json_returns_none(self):
@@ -66,6 +67,7 @@ class TestJsonFileSettingsBackend(unittest.TestCase):
                 backend = JsonFileSettingsBackend(path)
                 result = await backend.load()
                 self.assertIsNone(result)
+
         asyncio.run(_run())
 
 
@@ -94,6 +96,7 @@ class TestSettingsController(unittest.TestCase):
     def test_reset_defaults_notifies(self):
         from utils.signals import bus
         from utils.events import SettingsChangedEvent
+
         ctrl = SettingsController()
         received = []
         bus.connect(SettingsChangedEvent, lambda e: received.append(e))
