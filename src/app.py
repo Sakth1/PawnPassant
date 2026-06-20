@@ -12,7 +12,6 @@ import json
 import logging
 import os
 import sys
-import threading
 import traceback
 from pathlib import Path
 
@@ -606,7 +605,7 @@ class ChessApp:
             self._checking_binary = False
             if self._setup_overlay is not None:
                 show_toast(
-                    self._page,
+                    self.page,
                     f"Could not fetch binary info: {exc}",
                     is_error=True,
                 )
@@ -636,28 +635,39 @@ class ChessApp:
             )
 
     def _handle_overlay_install_clicked(self) -> None:
-        """Trigger Stockfish download in a daemon thread (off the event loop)."""
-        threading.Thread(
-            target=self._sync_download_stockfish,
-            daemon=True,
-        ).start()
+        """Trigger Stockfish download as an async task on the Flet event loop."""
+        self.page.run_task(self._async_download_stockfish)
 
-    def _sync_download_stockfish(self) -> None:
-        """Download Stockfish binary. Runs entirely in a daemon thread.
+    async def _async_download_stockfish(self) -> None:
+        """Download Stockfish binary. Runs on the Flet event loop.
 
-        Uses synchronous APIs (``query_release``, ``_download_via_subprocess_sync``)
-        so the Flet event loop never has a long-lived task.
+        Uses ``query_release_async`` for non-blocking HTTP and offloads the
+        blocking subprocess polling to a thread via ``asyncio.to_thread``.
+        Progress updates are marshalled back to the event loop with
+        ``asyncio.run_coroutine_threadsafe`` so Flet controls are never
+        touched from a background thread.
         """
-        logger.info("_sync_download_stockfish ENTER")
+        logger.info("_async_download_stockfish ENTER")
+        try:
+            await self._do_download_stockfish()
+        except Exception as exc:
+            logger.critical(
+                "_async_download_stockfish unhandled exception: %s",
+                exc, exc_info=True,
+            )
+
+    async def _do_download_stockfish(self) -> None:
+        logger.info("_do_download_stockfish ENTER")
 
         downloader = StockfishDownloadManager()
         dest_dir = get_stockfish_dir(self.page)
         downloader.set_storage_dir(dest_dir)
 
         try:
-            downloader.query_release()
+            await downloader.query_release_async()
         except Exception as exc:
             logger.error("Stockfish query failed: %s", exc)
+            show_toast(self.page, f"Failed to query binary info: {exc}", is_error=True)
             bus.emit(StockfishDownloadFailedEvent(error_message=str(exc)))
             return
 
@@ -667,22 +677,33 @@ class ChessApp:
             else None
         )
 
-        def on_progress(downloaded: int, total: int) -> None:
+        loop = asyncio.get_running_loop()
+
+        async def _update_ui(downloaded: int, total: int) -> None:
             if panel is not None:
                 panel.update_progress(downloaded, total)
+
+        def on_progress(downloaded: int, total: int) -> None:
+            asyncio.run_coroutine_threadsafe(
+                _update_ui(downloaded, total), loop
+            )
 
         logger.info(
             "Running synchronous download with panel=%s",
             "available" if panel else "None",
         )
         try:
-            downloaded = downloader._download_via_subprocess_sync(
+            downloaded = await asyncio.to_thread(
+                downloader._download_via_subprocess_sync,
                 asset=downloader.last_query.best_asset,
                 dest_dir=dest_dir,
                 progress_callback=on_progress,
             )
         except Exception as exc:
             logger.error("Stockfish download failed: %s", exc)
+            if panel is not None:
+                panel.reset_download_state()
+            show_toast(self.page, f"Download failed: {exc}", is_error=True)
             bus.emit(StockfishDownloadFailedEvent(error_message=str(exc)))
             return
 
@@ -692,6 +713,13 @@ class ChessApp:
         valid, version = verify_stockfish_binary(path)
         if not valid:
             logger.error("Downloaded binary validation failed: %s", version)
+            if panel is not None:
+                panel.reset_download_state()
+            show_toast(
+                self.page,
+                f"Downloaded binary is not compatible: {version}",
+                is_error=True,
+            )
             bus.emit(StockfishDownloadFailedEvent(error_message=version))
             if Path(path).exists():
                 Path(path).unlink()
@@ -703,7 +731,7 @@ class ChessApp:
         if panel is not None:
             panel.on_download_complete(path)
 
-        logger.info("_sync_download_stockfish EXIT")
+        logger.info("_do_download_stockfish EXIT")
 
     def _handle_open_online_setup(self, time_control: tuple[int, int]) -> None:
         """Open the online setup overlay with the selected time control."""

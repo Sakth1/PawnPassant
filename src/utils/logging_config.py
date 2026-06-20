@@ -73,4 +73,10 @@ def configure_logging() -> None:
     except Exception as e:
         print(f"Warning: Could not initialize crash logger: {e}")
 
-    logging.basicConfig(level=level, handlers=handlers)
+    logging.basicConfig(level=level, handlers=handlers, force=True)
+
+    # Enable Flet internal logging for session lifecycle diagnostics.
+    # Use PAWNPASSANT_FLET_LOG_LEVEL env var (default DEBUG) for control.
+    flet_level_name = os.getenv("PAWNPASSANT_FLET_LOG_LEVEL", "DEBUG").upper()
+    flet_level = getattr(logging, flet_level_name, logging.DEBUG)
+    logging.getLogger("flet").setLevel(flet_level)

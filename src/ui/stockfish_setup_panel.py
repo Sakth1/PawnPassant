@@ -141,8 +141,13 @@ class StockfishInstallPanel(ft.Column):
         self._progress_text.value = "Downloading..."
         logger.info("Install button clicked, starting download...")
         safe_update(self)
+        logger.debug("_handle_install: safe_update completed, invoking callback")
         if self._on_install_clicked:
-            self._on_install_clicked()
+            try:
+                self._on_install_clicked()
+                logger.debug("_handle_install: callback returned successfully")
+            except Exception as exc:
+                logger.error("_handle_install: callback raised: %s", exc, exc_info=True)
 
     def _handle_browse(self, _e=None) -> None:
         logger.info("Browse manual button clicked")
@@ -193,6 +198,20 @@ class StockfishInstallPanel(ft.Column):
         safe_update(self)
         if self._on_installed:
             self._on_installed()
+
+    def reset_download_state(self) -> None:
+        """Reset UI state so the user can retry the download."""
+        self._download_started = False
+        self._download_completed = False
+        self._progress_bar.visible = False
+        self._progress_bar.value = None
+        self._progress_bytes_text.visible = False
+        self._progress_time_text.visible = False
+        self._progress_text.visible = False
+        self._install_button.disabled = False
+        self._browse_button.disabled = False
+        logger.info("Download state reset for retry")
+        safe_update(self)
 
 class StockfishConfigPanel(ft.Column):
     FIXED_OPTIONS = [

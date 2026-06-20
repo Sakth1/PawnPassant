@@ -176,19 +176,29 @@ def _resolve_archive(path: Path) -> Path:
         else:
             return path
 
-        candidates = sorted(
+        candidates = [
             f
             for f in tmp_dir.rglob("*")
             if f.is_file()
             and "stockfish" in f.name.lower()
             and not f.name.startswith(".")
-        )
+        ]
 
         if not candidates:
             logger.warning("No stockfish binary found in archive %s", path)
             return path
 
-        best = candidates[-1]
+        # Prefer .exe on Windows, no-extension on Unix; then pick largest
+        if sys.platform == "win32":
+            exe_files = [f for f in candidates if f.suffix == ".exe"]
+            if exe_files:
+                candidates = exe_files
+        else:
+            noext_files = [f for f in candidates if not f.suffix]
+            if noext_files:
+                candidates = noext_files
+
+        best = max(candidates, key=lambda f: f.stat().st_size)
         exe_name = "stockfish.exe" if sys.platform == "win32" else "stockfish"
         exe_path = path.parent / exe_name
 
