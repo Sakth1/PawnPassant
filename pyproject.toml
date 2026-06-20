@@ -1,6 +1,6 @@
 [project]
 name = "pawnpassant"
-version = "v0.3.0"
+version = "v0.4.0-alpha"
 description = ""
 readme = "README.md"
 requires-python = ">=3.11"

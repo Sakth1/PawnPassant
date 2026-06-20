@@ -176,6 +176,9 @@ docs
 logs
 .ruff_cache
 dev_dairy.md
+src/assets/stockfish
+debugging_screenshots
+.opencode
 
 #agents, AI
 #.agents
