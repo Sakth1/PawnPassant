@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from utils.models import ActiveColor, AppSettings
+from utils.game_state import GameAgainst
 from ui.chess_piece import ChessPiece
 
 
@@ -18,20 +19,25 @@ class BaseEvent:
     """Marker base class for events emitted on :mod:`utils.signals`."""
 
 
-class PieceModevedEvent(BaseEvent):
+@dataclass(frozen=True)
+class PieceMovedEvent(BaseEvent):
     """Published after a legal board move is committed.
 
-    The misspelling is preserved because callers already import this name. The
-    event tells clock and side-panel subscribers to advance their state.
+    The event tells clock and side-panel subscribers to advance their state.
     """
 
-    pass
+    board_fen: str
+    """FEN representation of the board after the move. Used by stockfish."""
+    active_color: ActiveColor
+    """Side to move after the move."""
 
 
+@dataclass(frozen=True)
 class GameStartedEvent(BaseEvent):
     """Published when a fresh game begins or the board is reset for replay."""
 
-    pass
+    opponent_nature: GameAgainst
+    """Identity of the opponent in the current or upcoming game."""
 
 
 @dataclass(frozen=True)
@@ -92,3 +98,63 @@ class PieceCapturedEvent(BaseEvent):
 
     color: ActiveColor
     """Color of the player who made the capture."""
+
+
+# ── Stockfish download workflow events ───────────────────────────────────
+
+
+@dataclass(frozen=True)
+class StockfishInfoReadyEvent(BaseEvent):
+    """Published after release info is fetched and best asset determined.
+
+    UI can listen for this to display download confirmation.
+    """
+
+    release_tag: str
+    """GitHub release tag, e.g. ``"sf_17"``."""
+    asset_name: str
+    """Best-matching asset filename for the current system."""
+    asset_size_bytes: int
+    """Size of the best-matching asset in bytes."""
+    asset_subarch: str
+    """CPU sub-architecture of the best asset, e.g. ``"avx2"``."""
+
+
+@dataclass(frozen=True)
+class StockfishDownloadProgressEvent(BaseEvent):
+    """Emitted during download to drive a progress indicator."""
+
+    bytes_downloaded: int
+    """Bytes transferred so far."""
+    total_bytes: int
+    """Total bytes to transfer."""
+
+
+@dataclass(frozen=True)
+class StockfishDownloadCompleteEvent(BaseEvent):
+    """Emitted when the Stockfish binary has been downloaded and saved."""
+
+    download_path: str
+    """Absolute path to the downloaded binary."""
+    asset_name: str
+    """Name of the downloaded asset."""
+
+
+@dataclass(frozen=True)
+class StockfishDownloadFailedEvent(BaseEvent):
+    """Emitted when the Stockfish download fails for any reason."""
+
+    error_message: str
+    """Human-readable error description."""
+
+
+@dataclass(frozen=True)
+class BinaryVerificationResultEvent(BaseEvent):
+    """Emitted after verifying a Stockfish binary path."""
+
+    valid: bool
+    """Whether the binary is a valid Stockfish executable."""
+    path: str
+    """The path that was verified."""
+    version: str
+    """Version string if valid, or error message if invalid."""

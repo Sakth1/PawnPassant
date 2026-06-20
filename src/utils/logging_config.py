@@ -49,10 +49,20 @@ def configure_logging() -> None:
     except Exception as e:
         print(f"Warning: Could not initialize application log file: {e}")
 
+    # Update lattest.log pointer
+    try:
+        lattest = default_log_dir / "lattest.log"
+        with open(lattest, "w", encoding="utf-8") as f:
+            f.write(f"{log_path.name}\n")
+            f.write(f"# Latest log: {log_path}\n")
+    except Exception as e:
+        print(f"Warning: Could not update lattest.log: {e}")
+
     # Crash Log (Errors and Criticals)
     try:
         # Use Path.home() which is OS-agnostic.
-        # 'Documents' is the standard folder name on Windows, macOS, and most Linux distros.
+        # 'Documents' is the standard folder name on Windows, macOS,
+        # and most Linux distros.
         crash_dir = Path.home() / "Documents" / "pawn passant crash log"
         crash_log_path = crash_dir / "pawnpassant_crash.log"
         crash_dir.mkdir(parents=True, exist_ok=True)
@@ -63,4 +73,10 @@ def configure_logging() -> None:
     except Exception as e:
         print(f"Warning: Could not initialize crash logger: {e}")
 
-    logging.basicConfig(level=level, handlers=handlers)
+    logging.basicConfig(level=level, handlers=handlers, force=True)
+
+    # Enable Flet internal logging for session lifecycle diagnostics.
+    # Use PAWNPASSANT_FLET_LOG_LEVEL env var (default DEBUG) for control.
+    flet_level_name = os.getenv("PAWNPASSANT_FLET_LOG_LEVEL", "DEBUG").upper()
+    flet_level = getattr(logging, flet_level_name, logging.DEBUG)
+    logging.getLogger("flet").setLevel(flet_level)

@@ -239,7 +239,7 @@ class SettingsController:
         if storage is not None:
             return storage
 
-        storage = getattr(self.page, "shared_preferences", None)
+        storage = getattr(self.page, "SharedPreferences", None)
         if storage is not None:
             return storage
 
@@ -247,7 +247,7 @@ class SettingsController:
         if callable(shared_preferences_factory):
             return shared_preferences_factory()
 
-        shared_preferences_factory = getattr(self.page, "shared_preferences", None)
+        shared_preferences_factory = getattr(self.page, "SharedPreferences", None)
         if callable(shared_preferences_factory):
             return shared_preferences_factory()
 
@@ -258,7 +258,7 @@ class SettingsController:
 
         storage_paths = getattr(self.page, "StoragePaths", None)
         if storage_paths is None:
-            storage_paths = getattr(self.page, "storage_paths", None)
+            storage_paths = getattr(self.page, "StoragePaths", None)
         if storage_paths is None or not hasattr(
             storage_paths, "get_application_support_directory"
         ):

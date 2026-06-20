@@ -175,6 +175,11 @@ monkeytype.sqlite3
 docs
 logs
 .ruff_cache
+dev_dairy.md
+debugging_screenshots
+.opencode
+src/assets/stockfish
+
 
 #agents, AI
 #.agents

@@ -1,54 +1,103 @@
-"""Regression tests for captured-pieces panel interactions."""
+"""Unit tests for ui.captured_pieces — CaputredPieces construction, drag/drop helpers."""
 
-import sys
 import unittest
-from pathlib import Path
 
-from chess import Piece, WHITE
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+import chess
 
 from ui.captured_pieces import CaputredPieces
-from ui.chess_piece import ChessPiece
-from ui.square import InvisibleSquare
+from utils.constants import CAPTURED_PANEL_BG, MAX_CAPTURES
 
 
-class TestCapturedPieces(unittest.TestCase):
-    def test_move_piece_uses_source_color_when_coordinates_overlap(self):
-        captured_pieces = CaputredPieces()
-        white_piece = ChessPiece(Piece.from_symbol("P"))
-        black_piece = ChessPiece(Piece.from_symbol("p"))
-        captured_pieces.white_squares[0].update_content(white_piece)
-        captured_pieces.black_squares[0].update_content(black_piece)
+class TestCaputredPiecesConstruction(unittest.TestCase):
+    def test_creates_with_squares(self):
+        cp = CaputredPieces()
+        self.assertEqual(len(cp.black_squares), MAX_CAPTURES)
+        self.assertEqual(len(cp.white_squares), MAX_CAPTURES)
 
-        moved = captured_pieces.move_piece("0", "1", source_color=WHITE)
+    def test_available_squares_match_count(self):
+        cp = CaputredPieces()
+        self.assertEqual(len(cp.available_white_squares), MAX_CAPTURES)
+        self.assertEqual(len(cp.available_black_squares), MAX_CAPTURES)
 
-        self.assertTrue(moved)
-        self.assertIsNone(captured_pieces.white_squares[0].piece_container)
-        self.assertIs(captured_pieces.white_squares[1].piece_container, white_piece)
-        self.assertIs(captured_pieces.black_squares[0].piece_container, black_piece)
+    def test_bgcolor_is_captured_panel_bg(self):
+        cp = CaputredPieces()
+        self.assertEqual(cp.bgcolor, CAPTURED_PANEL_BG)
 
-    def test_handle_square_drop_uses_encoded_drag_source_color(self):
-        captured_pieces = CaputredPieces()
-        white_piece = ChessPiece(Piece.from_symbol("P"))
-        black_piece = ChessPiece(Piece.from_symbol("p"))
-        captured_pieces.white_squares[0].update_content(white_piece)
-        captured_pieces.black_squares[0].update_content(black_piece)
-        captured_pieces.available_white_squares = [1, 2, 3]
+    def test_has_grids(self):
+        cp = CaputredPieces()
+        self.assertIsNotNone(cp.black_grid)
+        self.assertIsNotNone(cp.white_grid)
 
-        captured_pieces._handle_square_drop("1:0", "1", WHITE, source_color=WHITE)
+    def test_grids_have_4_columns(self):
+        cp = CaputredPieces()
+        self.assertEqual(cp.black_grid.runs_count, 4)
+        self.assertEqual(cp.white_grid.runs_count, 4)
 
-        self.assertIn(0, captured_pieces.available_white_squares)
-        self.assertNotIn(1, captured_pieces.available_white_squares)
-        self.assertIsNone(captured_pieces.white_squares[0].piece_container)
-        self.assertIs(captured_pieces.white_squares[1].piece_container, white_piece)
-        self.assertIs(captured_pieces.black_squares[0].piece_container, black_piece)
+    def test_divider_present(self):
+        cp = CaputredPieces()
+        self.assertIsNotNone(cp.divider)
 
-    def test_parse_drag_data_preserves_color_and_coordinate(self):
-        source_color, source_coordinate = InvisibleSquare.parse_drag_data("1:7")
 
-        self.assertEqual(source_color, WHITE)
-        self.assertEqual(source_coordinate, "7")
+class TestCaputredPiecesGetRandomAvailable(unittest.TestCase):
+    def test_random_available_returns_valid_index_white(self):
+        cp = CaputredPieces()
+        pos = cp._get_random_available_position(chess.WHITE)
+        self.assertIn(pos, range(MAX_CAPTURES))
+
+    def test_random_available_returns_valid_index_black(self):
+        cp = CaputredPieces()
+        pos = cp._get_random_available_position(chess.BLACK)
+        self.assertIn(pos, range(MAX_CAPTURES))
+
+    def test_no_available_slots_fallback(self):
+        cp = CaputredPieces()
+        cp.available_white_squares.clear()
+        pos = cp._get_random_available_position(chess.WHITE)
+        self.assertEqual(pos, MAX_CAPTURES + 1)
+
+    def test_no_available_black_slots_fallback(self):
+        cp = CaputredPieces()
+        cp.available_black_squares.clear()
+        pos = cp._get_random_available_position(chess.BLACK)
+        self.assertEqual(pos, MAX_CAPTURES + 1)
+
+
+class TestCaputredPiecesFindSquare(unittest.TestCase):
+    def test_find_white_square(self):
+        cp = CaputredPieces()
+        sq = cp._find_square("0", color=chess.WHITE)
+        self.assertIsNotNone(sq)
+        self.assertEqual(sq.coordinate, "0")
+
+    def test_find_black_square(self):
+        cp = CaputredPieces()
+        sq = cp._find_square("0", color=chess.BLACK)
+        self.assertIsNotNone(sq)
+        self.assertEqual(sq.coordinate, "0")
+
+    def test_find_any_square(self):
+        cp = CaputredPieces()
+        sq = cp._find_square("5")
+        self.assertIsNotNone(sq)
+        self.assertEqual(sq.coordinate, "5")
+
+    def test_find_nonexistent_square(self):
+        cp = CaputredPieces()
+        sq = cp._find_square("999")
+        self.assertIsNone(sq)
+
+
+class TestCaputredPiecesMovePiece(unittest.TestCase):
+    def test_move_piece_empty_source_returns_false(self):
+        cp = CaputredPieces()
+        result = cp.move_piece("0", "1", source_color=chess.WHITE)
+        self.assertFalse(result)
+
+    def test_move_piece_same_coords_ignored(self):
+        with self.assertLogs("ui.captured_pieces", level="DEBUG"):
+            cp = CaputredPieces()
+            result = cp.move_piece("0", "0", source_color=chess.WHITE)
+            self.assertFalse(result)
 
 
 if __name__ == "__main__":

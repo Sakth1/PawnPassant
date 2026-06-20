@@ -8,8 +8,12 @@ rest of the app.
 
 import logging
 from dataclasses import asdict, dataclass, fields
-from typing import Any, Tuple
+from pathlib import Path
+from typing import Any, Optional, Tuple
 import chess
+from enum import Enum
+
+from utils.constants import MOVE_ANIMATION_OPTIONS, PROMOTION_DEFAULT_OPTIONS
 
 logger = logging.getLogger(__name__)
 
@@ -100,10 +104,10 @@ class AppSettings:
     #: Whether draw agreement opens a confirmation dialog before ending the game.
     confirm_draw: bool = True
 
-    #: Accepted persisted values for move animation speed.
-    MOVE_ANIMATION_OPTIONS = {"off", "fast", "normal", "slow"}
-    #: Accepted persisted values for automatic or interactive promotion choice.
-    PROMOTION_DEFAULT_OPTIONS = {"ask", "queen", "rook", "bishop", "knight"}
+    #: Path to the Stockfish engine binary (empty string = not installed).
+    stockfish_binary_path: str = ""
+    #: Last known difficulty preset used for Stockfish games.
+    stockfish_difficulty: str = "intermediate"
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize settings into JSON-compatible primitive values."""
@@ -144,12 +148,9 @@ class AppSettings:
                 if isinstance(value, int) and 0 <= value <= 60:
                     values[key] = value
             elif isinstance(default_value, str):
-                if key == "move_animation" and value in cls.MOVE_ANIMATION_OPTIONS:
+                if key == "move_animation" and value in MOVE_ANIMATION_OPTIONS:
                     values[key] = value
-                elif (
-                    key == "promotion_default"
-                    and value in cls.PROMOTION_DEFAULT_OPTIONS
-                ):
+                elif key == "promotion_default" and value in PROMOTION_DEFAULT_OPTIONS:
                     values[key] = value
                 elif key not in {"move_animation", "promotion_default"}:
                     values[key] = value
@@ -160,3 +161,130 @@ class AppSettings:
         """Return a validated settings copy with the provided field changes."""
 
         return self.from_dict({**self.to_dict(), **changes})
+
+class Arch(Enum):
+    ARM64 = "arm64"
+    ARM = "arm"
+    X86_64 = "x86_64"
+    X86 = "x86"
+    UNKNOWN = "unknown"
+
+    @property
+    def label(self) -> str:
+        labels = {
+            Arch.ARM64: "ARM64 (AArch64)",
+            Arch.ARM: "ARM (32-bit)",
+            Arch.X86_64: "x86-64 (AMD64)",
+            Arch.X86: "x86 (32-bit)",
+            Arch.UNKNOWN: "Unknown",
+        }
+        return labels[self]
+
+
+class Platform(Enum):
+    WINDOWS = "windows"
+    LINUX = "linux"
+    MACOS = "macos"
+    ANDROID = "android"
+    UNKNOWN = "unknown"
+
+    @property
+    def label(self) -> str:
+        labels = {
+            Platform.WINDOWS: "Windows",
+            Platform.LINUX: "Linux",
+            Platform.MACOS: "macOS",
+            Platform.ANDROID: "Android",
+            Platform.UNKNOWN: "Unknown",
+        }
+        return labels[self]
+
+
+class CpuSubarch(Enum):
+    GENERIC = "generic"
+    MODERN = "modern"
+    AVX2 = "avx2"
+    BMI2 = "bmi2"
+    VNNI = "vnni"
+    ARMV8 = "armv8"
+    APPLE_SILICON = "apple_silicon"
+    UNKNOWN = "unknown"
+
+    @property
+    def label(self) -> str:
+        labels = {
+            CpuSubarch.GENERIC: "Generic",
+            CpuSubarch.MODERN: "Modern",
+            CpuSubarch.AVX2: "AVX2",
+            CpuSubarch.BMI2: "BMI2",
+            CpuSubarch.VNNI: "VNNI",
+            CpuSubarch.ARMV8: "ARMv8",
+            CpuSubarch.APPLE_SILICON: "Apple Silicon",
+            CpuSubarch.UNKNOWN: "Unknown",
+        }
+        return labels[self]
+
+
+@dataclass(frozen=True)
+class SystemInfo:
+    arch: Arch
+    platform: Platform
+    subarch: CpuSubarch = CpuSubarch.UNKNOWN
+
+
+@dataclass(frozen=True)
+class StockfishAsset:
+    name: str
+    url: str
+    size_bytes: int
+    platform: Platform
+    arch: Arch
+    subarch: CpuSubarch
+
+
+@dataclass(frozen=True)
+class DownloadedAsset:
+    asset: StockfishAsset
+    download_path: Path
+    downloaded_at: str
+
+
+@dataclass(frozen=True)
+class AssetMatchResult:
+    """Result of fetching and matching Stockfish release assets."""
+
+    release_tag: str
+    best_asset: StockfishAsset
+    all_compatible: tuple[StockfishAsset, ...]
+
+
+@dataclass(frozen=True)
+class EngineConfig:
+    depth: int = 10
+    elo: Optional[int] = None
+    skill_level: Optional[int] = None
+    threads: int = 1
+    hash_mb: int = 256
+
+
+@dataclass(frozen=True)
+class DifficultyPreset:
+    name: str
+    description: str
+    elo_min: int
+    elo_max: int
+    skill_min: int
+    skill_max: int
+    depth_min: int
+    depth_max: int
+
+
+@dataclass
+class StockfishGameConfig:
+    use_preset: bool = True
+    preset_name: str = "intermediate"
+    elo: int = 1350
+    skill_level: Optional[int] = None
+    depth: int = 15
+    threads: int = 1
+    hash_mb: int = 256

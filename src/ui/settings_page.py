@@ -8,10 +8,15 @@ consistent across board, clock, and app shell subscribers.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
 import flet as ft
 
+from core.binary_verifier import verify_stockfish_binary
+from core.download_manager import _resolve_archive
+from ui.task_toast import show_toast
+from utils.constants import DEFAULT_PAGE_HEIGHT, DEFAULT_PAGE_WIDTH
 from ui.layout import AppLayout, resolve_app_layout
 from utils.dialogs import safe_update
 from utils.events import SettingsChangedEvent
@@ -24,20 +29,23 @@ logger = logging.getLogger(__name__)
 class SettingsView(ft.Container):
     """Render grouped settings controls and forward changes to the controller."""
 
-    def __init__(self, controller: SettingsController | None = None):
+    def __init__(self, controller: SettingsController | None = None, file_picker: ft.FilePicker | None = None):
         super().__init__(expand=True)
         #: Controller that validates, emits, and persists settings changes.
         self.controller = controller or SettingsController()
         #: Current settings snapshot reflected by the controls.
         self.settings = self.controller.settings
+        #: File picker for manual binary selection.
+        self._file_picker = file_picker
         #: Last applied responsive layout metrics.
-        self.layout = resolve_app_layout(960, 800)
+        self.layout = resolve_app_layout(DEFAULT_PAGE_WIDTH, DEFAULT_PAGE_HEIGHT)
 
         self.title_text = ft.Text("Settings", weight=ft.FontWeight.BOLD)
         self.subtitle_text = ft.Text("Board, gameplay, and clock preferences.")
         self.board_section = ft.Column(tight=True)
         self.gameplay_section = ft.Column(tight=True)
         self.clock_section = ft.Column(tight=True)
+        self.stockfish_section = ft.Column(tight=True)
         self.reset_button = ft.OutlinedButton(
             "Reset defaults",
             icon=ft.Icons.RESTART_ALT_ROUNDED,
@@ -52,6 +60,7 @@ class SettingsView(ft.Container):
                 self.board_section,
                 self.gameplay_section,
                 self.clock_section,
+                self.stockfish_section,
                 ft.Row(
                     controls=[self.reset_button, self.status_text],
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -83,6 +92,7 @@ class SettingsView(ft.Container):
             self.board_section,
             self.gameplay_section,
             self.clock_section,
+            self.stockfish_section,
         ):
             section.spacing = max(8, layout.gap // 2)
         safe_update(self)
@@ -167,6 +177,10 @@ class SettingsView(ft.Container):
                 self.settings.confirm_draw,
             ),
         ]
+        self.stockfish_section.controls = [
+            self._section_header("Stockfish Engine"),
+            self._binary_path_row(),
+        ]
         self.status_text.value = "Preferences saved locally"
         safe_update(self)
 
@@ -243,6 +257,66 @@ class SettingsView(ft.Container):
         )
         return self._setting_row(label, control)
 
+    def _binary_path_row(self) -> ft.Container:
+        """Show the Stockfish binary path as read-only with a remove option."""
+        path = self.settings.stockfish_binary_path
+        path_text = ft.Text(
+            path if path else "Not installed",
+            size=13,
+            color=ft.Colors.GREY_400 if not path else None,
+            selectable=True,
+            expand=True,
+        )
+
+        select_btn = ft.IconButton(
+            icon=ft.Icons.FOLDER_OPEN,
+            tooltip="Select Stockfish binary",
+            on_click=self._handle_select_binary,
+        )
+        remove_btn = ft.IconButton(
+            icon=ft.Icons.DELETE_OUTLINE,
+            tooltip="Remove Stockfish binary path",
+            on_click=self._handle_remove_stockfish,
+            visible=bool(path),
+        )
+
+        return self._setting_row(
+            "Binary path",
+            ft.Row(
+                controls=[path_text, select_btn, remove_btn],
+                spacing=8,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+        )
+
+    def _handle_select_binary(self, _event=None) -> None:
+        """Open file picker to select a Stockfish binary."""
+        if self._file_picker is None:
+            return
+        self.page.run_task(self._async_pick_binary)
+
+    async def _async_pick_binary(self) -> None:
+        files = await self._file_picker.pick_files(
+            allow_multiple=False,
+            allowed_extensions=["exe", "bin", "zip", ""],
+            dialog_title="Select Stockfish executable or archive",
+        )
+        if not files or not files[0].path:
+            return
+        path = files[0].path
+        logger.info("Settings: user selected path=%s", path)
+        exe_path = str(_resolve_archive(Path(path)))
+        valid, version = verify_stockfish_binary(exe_path)
+        if valid:
+            self.controller.update(stockfish_binary_path=path)
+            show_toast(self.page, f"Valid Stockfish: {version}")
+        else:
+            show_toast(self.page, version, is_error=True)
+
+    def _handle_remove_stockfish(self, _event=None) -> None:
+        """Clear the stored Stockfish binary path."""
+        self.controller.update(stockfish_binary_path="")
+
     def _update_setting(self, key: str, value: Any):
         """Send one setting change to the controller."""
 
@@ -271,5 +345,3 @@ class SettingsView(ft.Container):
         self.settings = event.settings
         logger.debug("Settings view refreshed")
         self._rebuild_sections()
-
-

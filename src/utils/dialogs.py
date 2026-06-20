@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Callable, Optional
 
 import flet as ft
+
+logger = logging.getLogger(__name__)
 
 
 def show_alert_dialog(
@@ -49,5 +52,9 @@ def safe_update(control: ft.Control) -> None:
     """Update a Flet control while tolerating detached-control errors."""
     try:
         control.update()
-    except RuntimeError:
-        pass
+    except RuntimeError as exc:
+        logger.debug("safe_update suppressed RuntimeError: %s", exc)
+    except Exception as exc:
+        logger.warning(
+            "safe_update suppressed unexpected error: %s", exc, exc_info=True
+        )

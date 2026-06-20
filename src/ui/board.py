@@ -1,4 +1,9 @@
-"""Chessboard UI control that coordinates game state, rendering, and interactions."""
+"""Chessboard UI control that renders the board and handles user interactions.
+
+All game logic (move validation, execution, terminal detection) is delegated
+to ``GameManager`` in :mod:`core.game`. This module only owns Flet controls,
+layout, animations, and input event wiring.
+"""
 
 import asyncio
 import logging
@@ -22,24 +27,31 @@ from chess import (
     BLACK,
 )
 
-from core.engine import Game
+from core.game import GameManager
 from core.movetype import MoveType
 from ui.chess_piece import ChessPiece
 from ui.layout import AppLayout, resolve_app_layout
 from ui.square import Square
 from utils.constants import (
+    BOARD_SIZE,
     CASTLING_KING_END_SQUARE,
     CASTLING_KING_START_SQUARE,
     CASTLING_ROOK_END_SQUARE,
     CASTLING_ROOK_START_SQUARE,
+    DEFAULT_MOVE_ANIMATION_DURATION_MS,
+    DEFAULT_PAGE_HEIGHT,
+    DEFAULT_PAGE_WIDTH,
+    MOVE_ANIMATION_DURATIONS,
+    MS_PER_SECOND,
 )
 from utils.dialogs import safe_update
 from utils.events import (
     GameEndedEvent,
-    PieceModevedEvent,
+    PieceMovedEvent,
     PieceCapturedEvent,
     SettingsChangedEvent,
 )
+from utils.game_state import GameAgainst, game_state
 from utils.models import AppSettings
 from utils.signals import bus
 
@@ -52,14 +64,9 @@ class ChessBoard(ft.Container):
     #: Promotion options displayed left-to-right in the picker.
     PROMOTION_OPTIONS = [QUEEN, ROOK, BISHOP, KNIGHT]
     #: Default animation duration used when settings do not override it.
-    MOVE_ANIMATION_DURATION_MS = 120
+    MOVE_ANIMATION_DURATION_MS = DEFAULT_MOVE_ANIMATION_DURATION_MS
     #: User-facing animation speed keys mapped to movement durations.
-    MOVE_ANIMATION_DURATIONS = {
-        "off": 0,
-        "fast": 60,
-        "normal": 120,
-        "slow": 220,
-    }
+    MOVE_ANIMATION_DURATIONS = MOVE_ANIMATION_DURATIONS
     #: Settings values mapped to python-chess promotion piece constants.
     PROMOTION_NAME_TO_PIECE = {
         "queen": QUEEN,
@@ -79,18 +86,18 @@ class ChessBoard(ft.Container):
 
     def __init__(self):
         super().__init__()
-        #: Engine wrapper that owns the authoritative chess position.
-        self.game = Game()
+        #: Game session manager that owns the authoritative chess position.
+        self.game_manager = GameManager()
         #: Algebraic coordinates currently marked as legal move targets.
         self.highlighted_squares: set[str] = set()
         #: Whether visual square order is reversed for black's perspective.
         self.is_flipped = False
         #: Current responsive layout snapshot.
-        self.layout = resolve_app_layout(960, 800)
+        self.layout = resolve_app_layout(DEFAULT_PAGE_WIDTH, DEFAULT_PAGE_HEIGHT)
         #: Pixel size of each square.
         self.square_size = self.layout.board_square_size
         #: Pixel size of the 8x8 board.
-        self.board_side_px = self.square_size * 8
+        self.board_side_px = self.square_size * BOARD_SIZE
         #: Extra one-square lane reserved above the board for promotion UI.
         self.promotion_lane_px = self.square_size
         #: Move waiting for a promotion piece choice.
@@ -102,7 +109,7 @@ class ChessBoard(ft.Container):
         #: Square currently showing tap feedback.
         self.active_tap_feedback_square: Optional[str] = None
         #: Whether board interactions should be ignored after a result.
-        self.game_over = False
+        game_state.game_over = False
         #: Current settings snapshot applied to board behavior.
         self.settings = AppSettings()
         #: Move waiting for confirmation before final commit.
@@ -111,7 +118,7 @@ class ChessBoard(ft.Container):
         )
 
         self.board_frame = ft.GridView(
-            runs_count=8,
+            runs_count=BOARD_SIZE,
             controls=self._create_squares(),
             expand=False,
             spacing=0,
@@ -191,7 +198,7 @@ class ChessBoard(ft.Container):
 
         self.layout = layout
         self.square_size = layout.board_square_size
-        self.board_side_px = self.square_size * 8
+        self.board_side_px = self.square_size * BOARD_SIZE
         self.promotion_lane_px = self.square_size
 
         for board_square in self.squares:
@@ -265,14 +272,14 @@ class ChessBoard(ft.Container):
         """Load a specific FEN position or reset to the standard starting board."""
 
         if fen:
-            self.game.set_board_fen(fen)
+            self.game_manager.load_fen(fen)
             logger.info("Loaded board position fen=%s", fen)
         else:
-            self.game.reset_board()
+            self.game_manager.reset_board()
             logger.info("Reset board to starting position")
         self._hide_promotion_overlay(refresh=False)
         self.is_flipped = False
-        self.game_over = False
+        game_state.game_over = False
         self.board_frame.controls = self.squares
         self._render_board_state()
         self._apply_square_settings(refresh=False)
@@ -311,7 +318,7 @@ class ChessBoard(ft.Container):
         for rank_idx in range(len(RANK_NAMES)):
             for file_idx in range(len(FILE_NAMES)):
                 coords = f"{FILE_NAMES[file_idx]}{RANK_NAMES[rank_idx]}"
-                piece = self.game.piece_at_square(square(file_idx, rank_idx))
+                piece = self.game_manager.piece_at(square(file_idx, rank_idx))
                 if piece is not None:
                     self.square_map[coords].update_content(ChessPiece(piece))
 
@@ -382,18 +389,14 @@ class ChessBoard(ft.Container):
     def _is_selectable_square(self, square_cords: str) -> bool:
         """Return whether the square holds a piece for the side to move."""
 
-        piece_color = self.game.color_of_piece_at_square(parse_square(square_cords))
-        return piece_color is not None and piece_color == self.game.board.turn
+        return self.game_manager.is_selectable(
+            parse_square(square_cords), self.game_manager.active_color()
+        )
 
     def _get_legal_targets(self, from_cords: str) -> list[str]:
         """Collect legal destination coordinates for a piece on the given square."""
 
-        from_sq = parse_square(from_cords)
-        return [
-            square_name(move.to_square)
-            for move in self.game.board.legal_moves
-            if move.from_square == from_sq
-        ]
+        return self.game_manager.legal_targets(parse_square(from_cords))
 
     def _select_square(self, square_cords: str):
         """Select a piece square and reveal its current legal move targets."""
@@ -417,7 +420,7 @@ class ChessBoard(ft.Container):
         """Either play a highlighted move or reveal legal targets for the
         clicked square."""
 
-        if self.promotion_overlay.visible or self.game_over:
+        if self.promotion_overlay.visible or game_state.game_over:
             return
 
         self._set_tap_feedback(click_cords)
@@ -458,7 +461,7 @@ class ChessBoard(ft.Container):
 
         if (
             self.promotion_overlay.visible
-            or self.game_over
+            or game_state.game_over
             or not self._is_selectable_square(from_cords)
         ):
             return
@@ -475,13 +478,13 @@ class ChessBoard(ft.Container):
     def _handle_square_drop(self, from_cords: str, to_cords: str):
         """Handle a piece being dropped onto a square."""
 
-        if self.promotion_overlay.visible or self.game_over:
+        if self.promotion_overlay.visible or game_state.game_over:
             logger.debug(
                 "Ignored square drop from=%s to=%s promotion_visible=%s game_over=%s",
                 from_cords,
                 to_cords,
                 self.promotion_overlay.visible,
-                self.game_over,
+                game_state.game_over,
             )
             return
 
@@ -495,25 +498,14 @@ class ChessBoard(ft.Container):
     def _is_legal_move(self, requested_move: Move) -> bool:
         """Return whether a requested move is currently legal."""
 
-        if requested_move in self.game.board.legal_moves:
-            return True
-
-        if requested_move.promotion is None:
-            for legal_move in self.game.board.legal_moves:
-                if (
-                    legal_move.from_square == requested_move.from_square
-                    and legal_move.to_square == requested_move.to_square
-                ):
-                    return True
-
-        return False
+        return self.game_manager.is_legal(requested_move)
 
     def _en_passant_capture(self):
         """Apply the extra board cleanup required for an en passant capture."""
 
         self._update_last_move_on_board()
-        last_move = self.game.get_last_move()
-        piece_color_is_white: Optional[Color] = self.game.color_of_piece_at_square(
+        last_move = self.game_manager.last_move()
+        piece_color_is_white: Optional[Color] = self.game_manager.color_at(
             last_move.to_square
         )
         if piece_color_is_white is True:
@@ -529,10 +521,10 @@ class ChessBoard(ft.Container):
         """Move the active piece control from the source square to the
         destination square."""
 
-        last_move = self.game.get_last_move()
+        last_move = self.game_manager.last_move()
         self.square_map[square_name(last_move.from_square)].update_content(None)
         self.square_map[square_name(last_move.to_square)].update_content(
-            ChessPiece(self.game.piece_at_square(last_move.to_square))
+            ChessPiece(self.game_manager.piece_at(last_move.to_square))
         )
 
     def _get_piece_at_square(self, square: Square) -> Optional[ChessPiece]:
@@ -543,8 +535,8 @@ class ChessBoard(ft.Container):
     def _queen_side_castling(self):
         """Reposition the rook after a queen-side castle."""
 
-        last_move = self.game.get_last_move()
-        piece_color_is_white: Optional[Color] = self.game.color_of_piece_at_square(
+        last_move = self.game_manager.last_move()
+        piece_color_is_white: Optional[Color] = self.game_manager.color_at(
             last_move.to_square
         )
         if piece_color_is_white is True:
@@ -593,8 +585,8 @@ class ChessBoard(ft.Container):
     def _king_side_castling(self):
         """Reposition the rook after a king-side castle."""
 
-        last_move = self.game.get_last_move()
-        piece_color_is_white: Optional[Color] = self.game.color_of_piece_at_square(
+        last_move = self.game_manager.last_move()
+        piece_color_is_white: Optional[Color] = self.game_manager.color_at(
             last_move.to_square
         )
         if piece_color_is_white is True:
@@ -653,9 +645,9 @@ class ChessBoard(ft.Container):
         to_piece: ChessPiece | None = self.square_map[
             square_name(requested_move.to_square)
         ].piece_container
-        active_color = self.game.get_active_color()
-        move_san = self.game.get_move_san(requested_move)
-        self.game.move(requested_move)
+        active_color = self.game_manager.active_color()
+        move_san = self.game_manager.move_san(requested_move)
+        self.game_manager.push_move(requested_move)
         logger.info(
             "Committed move san=%s uci=%s move_type=%s active_color=%s",
             move_san,
@@ -682,23 +674,21 @@ class ChessBoard(ft.Container):
                 self._update_last_move_on_board()
             case _:
                 pass
-        if self.settings.auto_flip_board:
+        if (
+            self.settings.auto_flip_board
+        ):  # and game_state.game_against == GameAgainst.LOCAL:
             self._flip_board()
         self._emit_game_end_if_needed()
         # Clock and captured-pieces subscribers react to this after the board is
         # fully updated, which keeps displayed state in move order.
-        bus.emit(PieceModevedEvent())
+        bus.emit(
+            PieceMovedEvent(self.game_manager.fen(), self.game_manager.active_color())
+        )
 
     def _emit_game_end_if_needed(self):
         """Publish a game-ended event once the board reaches a terminal state."""
 
-        if not self.game.is_game_over():
-            return
-
-        winner, reason, message = self.game.get_result_summary()
-        self.game_over = True
-        logger.info("Terminal board state winner=%s reason=%s", winner, reason)
-        bus.emit(GameEndedEvent(winner=winner, reason=reason, message=message))
+        self.game_manager.check_game_over()
 
     def _show_promotion_dialog(self, move: Move):
         """Render the promotion picker near the destination square."""
@@ -735,7 +725,7 @@ class ChessBoard(ft.Container):
             self._complete_move(promoted_move, MoveType.PROMOTION)
             return
 
-        piece_color_is_white = self.game.color_of_piece_at_square(move.from_square)
+        piece_color_is_white = self.game_manager.color_at(move.from_square)
         if piece_color_is_white is None:
             logger.warning("Promotion source square is empty move=%s", move.uci())
             promoted_move = Move(
@@ -773,7 +763,7 @@ class ChessBoard(ft.Container):
 
         target_square = self.square_map[square_cords]
         visual_idx = self.board_frame.controls.index(target_square)
-        return visual_idx // 8, visual_idx % 8
+        return visual_idx // BOARD_SIZE, visual_idx % BOARD_SIZE
 
     def _get_center_pixel_of_square(self, square_cords: str) -> tuple[int, int]:
         """Get the center pixel of a square in the current visual grid position."""
@@ -872,13 +862,13 @@ class ChessBoard(ft.Container):
         attached to the page tree.
         """
 
-        self.game_over = False
+        game_state.game_over = False
         logger.info("Board on_enter: interactions enabled")
 
     def on_exit(self):
         """Disable board interactions when leaving the game view."""
 
-        self.game_over = True
+        game_state.game_over = True
         self._clear_interaction_state(clear_tap_feedback=True, refresh=False)
         self._hide_promotion_overlay(refresh=False)
         logger.info("Board on_exit: interactions disabled")
@@ -886,7 +876,7 @@ class ChessBoard(ft.Container):
     def _handle_game_ended(self, _event: GameEndedEvent):
         """Freeze the board once a game result has been declared."""
 
-        self.game_over = True
+        game_state.game_over = True
         logger.info("Board interactions disabled")
         self._clear_interaction_state(clear_tap_feedback=True, refresh=False)
         self._hide_promotion_overlay(refresh=False)
@@ -931,7 +921,7 @@ class ChessBoard(ft.Container):
             self.move_animation_overlay.top = to_pixel[1] - (self.square_size / 2)
             safe_update(self)
 
-            await asyncio.sleep(self._animation_duration_ms() / 1000)
+            await asyncio.sleep(self._animation_duration_ms() / MS_PER_SECOND)
             self.move_animation_overlay.visible = False
             self.move_animation_overlay.content = None
             self._complete_move(requested_move, movement_type)
@@ -950,7 +940,7 @@ class ChessBoard(ft.Container):
                 requested_move.uci(),
             )
             return
-        movement_type = self.game.get_move_type(requested_move)
+        movement_type = self.game_manager.move_type(requested_move)
         if movement_type == MoveType.PROMOTION:
             self.move_piece(from_cords, to_cords)
             return
@@ -979,7 +969,7 @@ class ChessBoard(ft.Container):
                 requested_move.uci(),
             )
             return
-        movement_type = self.game.get_move_type(requested_move)
+        movement_type = self.game_manager.move_type(requested_move)
         if movement_type == MoveType.PROMOTION:
             self._show_promotion_dialog(requested_move)
             return
@@ -991,6 +981,20 @@ class ChessBoard(ft.Container):
 
         self._complete_move(requested_move, movement_type)
 
+    def play_uci_move(self, uci: str) -> None:
+        if game_state.game_over:
+            logger.debug("Ignoring bot move because game is over")
+            return
+        move = Move.from_uci(uci)
+        if not self.game_manager.is_legal(move):
+            logger.warning("Bot proposed illegal move uci=%s", uci)
+            return
+        movement_type = self.game_manager.move_type(move)
+        if movement_type == MoveType.PROMOTION:
+            move = Move(move.from_square, move.to_square, promotion=QUEEN)
+            movement_type = MoveType.PROMOTION
+        self._complete_move(move, movement_type)
+
     def _show_move_confirmation(
         self,
         requested_move: Move,
@@ -1001,7 +1005,7 @@ class ChessBoard(ft.Container):
     ):
         """Open a confirmation dialog before committing a requested move."""
 
-        if self.game_over:
+        if game_state.game_over:
             logger.info("Move confirmation skipped because game is over")
             return
 
@@ -1044,11 +1048,11 @@ class ChessBoard(ft.Container):
         page = self._safe_page()
         if page is not None:
             page.pop_dialog()
-        if pending_move is None or self.game_over:
+        if pending_move is None or game_state.game_over:
             logger.info(
                 "Move confirmation accept ignored pending=%s game_over=%s",
                 pending_move is not None,
-                self.game_over,
+                game_state.game_over,
             )
             return
 
