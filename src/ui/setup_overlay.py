@@ -121,6 +121,22 @@ class SetupOverlay(ft.Container):
         else:
             self._show_online_panel()
 
+    def set_fetching(self) -> None:
+        if self._stockfish_install_panel is not None:
+            self._stockfish_install_panel.set_fetching()
+
+    def set_ready(self, name: str, size_bytes: int) -> None:
+        self._asset_name = name
+        self._asset_size_bytes = size_bytes
+        if self._stockfish_install_panel is not None:
+            self._stockfish_install_panel.set_ready(name, size_bytes)
+            logger.info("Install panel set ready name=%s size=%d", name, size_bytes)
+
+    def set_error(self, message: str) -> None:
+        if self._stockfish_install_panel is not None:
+            self._stockfish_install_panel.set_error(message)
+            logger.info("Install panel set error message=%s", message)
+
     def update_asset_info(self, name: str, size_bytes: int) -> None:
         self._asset_name = name
         self._asset_size_bytes = size_bytes

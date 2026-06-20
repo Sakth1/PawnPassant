@@ -596,6 +596,9 @@ class ChessApp:
     async def _async_fetch_and_update_binary_info(self) -> None:
         """Query GitHub for available Stockfish binaries and push info to overlay."""
         logger.info("Fetching available Stockfish binary info...")
+        if self._setup_overlay is not None:
+            self._setup_overlay.set_fetching()
+
         downloader = StockfishDownloadManager()
         downloader.set_storage_dir(get_stockfish_dir(self.page))
         try:
@@ -604,11 +607,7 @@ class ChessApp:
             logger.error("Stockfish binary info fetch failed: %s", exc)
             self._checking_binary = False
             if self._setup_overlay is not None:
-                show_toast(
-                    self.page,
-                    f"Could not fetch binary info: {exc}",
-                    is_error=True,
-                )
+                self._setup_overlay.set_error(f"Could not fetch binary info: {exc}")
             return
 
         self._stockfish_downloader = downloader
@@ -624,7 +623,7 @@ class ChessApp:
         )
 
         if self._setup_overlay is not None:
-            self._setup_overlay.update_asset_info(
+            self._setup_overlay.set_ready(
                 match.best_asset.name,
                 match.best_asset.size_bytes,
             )
@@ -663,19 +662,20 @@ class ChessApp:
         dest_dir = get_stockfish_dir(self.page)
         downloader.set_storage_dir(dest_dir)
 
-        try:
-            await downloader.query_release_async()
-        except Exception as exc:
-            logger.error("Stockfish query failed: %s", exc)
-            show_toast(self.page, f"Failed to query binary info: {exc}", is_error=True)
-            bus.emit(StockfishDownloadFailedEvent(error_message=str(exc)))
-            return
-
         panel = (
             self._setup_overlay._stockfish_install_panel
             if self._setup_overlay
             else None
         )
+
+        try:
+            await downloader.query_release_async()
+        except Exception as exc:
+            logger.error("Stockfish query failed: %s", exc)
+            if panel is not None:
+                panel.set_error(f"Failed to query binary info: {exc}")
+            bus.emit(StockfishDownloadFailedEvent(error_message=str(exc)))
+            return
 
         loop = asyncio.get_running_loop()
 
@@ -702,7 +702,7 @@ class ChessApp:
         except Exception as exc:
             logger.error("Stockfish download failed: %s", exc)
             if panel is not None:
-                panel.reset_download_state()
+                panel.set_error(f"Download failed: {exc}")
             show_toast(self.page, f"Download failed: {exc}", is_error=True)
             bus.emit(StockfishDownloadFailedEvent(error_message=str(exc)))
             return
@@ -714,7 +714,7 @@ class ChessApp:
         if not valid:
             logger.error("Downloaded binary validation failed: %s", version)
             if panel is not None:
-                panel.reset_download_state()
+                panel.set_error(f"Downloaded binary is not compatible: {version}")
             show_toast(
                 self.page,
                 f"Downloaded binary is not compatible: {version}",

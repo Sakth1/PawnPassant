@@ -44,48 +44,105 @@ class StockfishInstallPanel(ft.Column):
         self._on_browse_manual = on_browse_manual
         self._download_started = False
         self._download_completed = False
+        self._total_bytes: int = 0
+        self._phase: str = "fetching"
 
-        if asset_name:
-            self.set_asset_info(asset_name, asset_size_bytes)
-
-        self._status_text = ft.Text(
-            "Stockfish engine is required to play against the computer.",
-            size=14,
+        # ── Engine icon ─────────────────────────────────────────────────
+        self._engine_icon = ft.Container(
+            content=ft.Icon(
+                ft.Icons.PRECISION_MANUFACTURING,
+                size=40,
+                color=ft.Colors.PRIMARY,
+            ),
+            width=72,
+            height=72,
+            border_radius=36,
+            bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY),
+            alignment=ft.Alignment.CENTER,
         )
 
+        # ── Asset info (hidden during fetch) ────────────────────────────
         self._asset_name = ft.Text("", size=16, weight=ft.FontWeight.BOLD)
         self._asset_size = ft.Text("", size=13)
         self._asset_info = ft.Column(
-            spacing=4,
+            spacing=2,
             controls=[self._asset_name, self._asset_size],
-        )
-
-        self._progress_bar = ft.ProgressBar(
             visible=False,
-            width=400,
-            color=ft.Colors.GREEN_400,
         )
-        self._progress_bytes_text = ft.Text("", size=11, visible=False)
-        self._progress_time_text = ft.Text("", size=11, visible=False, color=ft.Colors.GREY_400)
-        self._progress_text = ft.Text("", size=12, visible=False)
-        self._progress_start_time: float = 0.0
-        self._total_bytes: int = 0
 
+        self._engine_row = ft.Row(
+            spacing=16,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            controls=[self._engine_icon, self._asset_info],
+        )
+
+        # ── Phase status text ────────────────────────────────────────────
+        self._phase_text = ft.Text(
+            "Checking for latest Stockfish engine...",
+            size=14,
+            color=ft.Colors.GREY_400,
+        )
+
+        # ── Progress controls ────────────────────────────────────────────
+        self._progress_bar = ft.ProgressBar(
+            visible=True,
+            width=400,
+            color=ft.Colors.BLUE_400,
+        )
+        self._percentage_text = ft.Text(
+            "", size=28, weight=ft.FontWeight.BOLD, visible=False
+        )
+        self._bytes_text = ft.Text("", size=12, visible=False)
+        self._speed_text = ft.Text(
+            "", size=12, color=ft.Colors.GREY_400, visible=False
+        )
+        self._time_text = ft.Text(
+            "", size=12, color=ft.Colors.GREY_400, visible=False
+        )
+        self._progress_start_time: float = 0.0
+        self._last_downloaded: int = 0
+        self._last_time: float = 0.0
+
+        # ── Error banner ─────────────────────────────────────────────────
+        self._error_banner = ft.Container(
+            visible=False,
+            padding=ft.Padding.all(12),
+            bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.RED_400),
+            border_radius=8,
+            content=ft.Row(
+                spacing=8,
+                controls=[
+                    ft.Icon(ft.Icons.ERROR_OUTLINE, color=ft.Colors.RED_400),
+                    ft.Text("", size=12, color=ft.Colors.RED_400, expand=True),
+                ],
+            ),
+        )
+
+        # ── Buttons ──────────────────────────────────────────────────────
         self._install_button = ft.FilledButton(
             "Install",
             icon=ft.Icons.DOWNLOAD,
             on_click=self._handle_install,
+            disabled=True,
         )
         self._browse_button = ft.OutlinedButton(
             "Browse manually",
             icon=ft.Icons.FOLDER_OPEN,
             on_click=self._handle_browse,
         )
+        self._buttons_row = ft.Row(
+            spacing=12,
+            controls=[self._install_button, self._browse_button],
+        )
+
+        # ── Info banner ──────────────────────────────────────────────────
         self._info_banner = ft.Container(
+            visible=False,
             padding=ft.Padding.all(12),
             bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.BLUE_200),
             border_radius=8,
             content=ft.Row(
+                spacing=8,
                 controls=[
                     ft.Icon(ft.Icons.INFO_OUTLINE, color=ft.Colors.BLUE_200),
                     ft.Text(
@@ -99,22 +156,203 @@ class StockfishInstallPanel(ft.Column):
             ),
         )
 
-        self._buttons_row = ft.Row(
-            spacing=12,
-            controls=[self._install_button, self._browse_button],
+        # ── Card wrapper ─────────────────────────────────────────────────
+        card = ft.Container(
+            padding=ft.Padding.all(20),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border_radius=12,
+            content=ft.Column(
+                spacing=16,
+                controls=[
+                    self._engine_row,
+                    self._phase_text,
+                    self._progress_bar,
+                    self._percentage_text,
+                    ft.Row(
+                        spacing=24,
+                        controls=[
+                            self._bytes_text,
+                            self._speed_text,
+                            self._time_text,
+                        ],
+                    ),
+                    self._error_banner,
+                    self._buttons_row,
+                    self._info_banner,
+                ],
+            ),
         )
 
-        self.controls = [
-            self._status_text,
-            self._info_banner,
-            self._asset_info,
-            ft.Container(height=8),
-            self._buttons_row,
-            self._progress_bar,
-            self._progress_bytes_text,
-            self._progress_time_text,
-            self._progress_text,
-        ]
+        self.controls = [card]
+
+    # ── Phase transitions ──────────────────────────────────────────────
+
+    def set_fetching(self) -> None:
+        self._phase = "fetching"
+        self._phase_text.value = "Checking for latest Stockfish engine..."
+        self._progress_bar.visible = True
+        self._progress_bar.color = ft.Colors.BLUE_400
+        self._progress_bar.value = None
+        self._percentage_text.visible = False
+        self._bytes_text.visible = False
+        self._speed_text.visible = False
+        self._time_text.visible = False
+        self._asset_info.visible = False
+        self._error_banner.visible = False
+        self._install_button.disabled = True
+        self._install_button.text = "Install"
+        self._install_button.icon = ft.Icons.DOWNLOAD
+        self._info_banner.visible = False
+        safe_update(self)
+
+    def set_ready(self, asset_name: str, asset_size_bytes: int) -> None:
+        self._phase = "ready"
+        self._asset_name.value = asset_name
+        if asset_size_bytes > 1_000_000:
+            self._asset_size.value = f"{asset_size_bytes / 1_000_000:.1f} MB"
+        else:
+            self._asset_size.value = f"{asset_size_bytes / 1_000:.0f} KB"
+        self._phase_text.value = "Ready to install Stockfish engine"
+        self._progress_bar.visible = False
+        self._percentage_text.visible = False
+        self._bytes_text.visible = False
+        self._speed_text.visible = False
+        self._time_text.visible = False
+        self._asset_info.visible = True
+        self._error_banner.visible = False
+        self._install_button.disabled = False
+        self._install_button.text = "Install"
+        self._install_button.icon = ft.Icons.DOWNLOAD
+        self._info_banner.visible = True
+        logger.info("Install panel ready name=%s size=%d", asset_name, asset_size_bytes)
+        safe_update(self)
+
+    def set_error(self, message: str) -> None:
+        self._phase = "error"
+        self._phase_text.value = "Setup failed"
+        self._progress_bar.visible = False
+        self._percentage_text.visible = False
+        self._bytes_text.visible = False
+        self._speed_text.visible = False
+        self._time_text.visible = False
+        self._error_banner.visible = True
+        self._error_banner.content.controls[1].value = message
+        self._install_button.disabled = False
+        self._install_button.text = "Retry"
+        self._install_button.icon = ft.Icons.REFRESH
+        self._info_banner.visible = False
+        logger.warning("Install panel error: %s", message)
+        safe_update(self)
+
+    # ── Event handlers ─────────────────────────────────────────────────
+
+    def _handle_install(self, _e=None) -> None:
+        if self._phase == "error":
+            self.reset_download_state()
+            if self._on_install_clicked:
+                self._on_install_clicked()
+            return
+        if self._download_started:
+            return
+        self._download_started = True
+        self._progress_start_time = time.time()
+        self._last_downloaded = 0
+        self._last_time = self._progress_start_time
+
+        self._phase = "downloading"
+        self._phase_text.value = "Downloading Stockfish engine..."
+        self._progress_bar.visible = True
+        self._progress_bar.color = ft.Colors.GREEN_400
+        self._progress_bar.value = 0.0
+        self._percentage_text.visible = True
+        self._percentage_text.value = "0%"
+        self._bytes_text.visible = True
+        self._bytes_text.value = "0 B / ?"
+        self._speed_text.visible = True
+        self._speed_text.value = ""
+        self._time_text.visible = True
+        self._time_text.value = "Starting..."
+        self._asset_info.visible = False
+        self._error_banner.visible = False
+        self._install_button.disabled = True
+        self._info_banner.visible = False
+        safe_update(self)
+        if self._on_install_clicked:
+            try:
+                self._on_install_clicked()
+            except Exception as exc:
+                logger.error("_handle_install: callback raised: %s", exc, exc_info=True)
+
+    def _handle_browse(self, _e=None) -> None:
+        if self._on_browse_manual:
+            self._on_browse_manual()
+
+    def update_progress(self, downloaded: int, total: int) -> None:
+        if self._download_completed or not self._download_started:
+            return
+        total = total or 1
+        self._total_bytes = total
+        pct = downloaded / total
+        self._progress_bar.value = pct
+        self._percentage_text.value = f"{int(pct * 100)}%"
+
+        self._bytes_text.value = f"{_format_bytes(downloaded)} / {_format_bytes(total)}"
+
+        now = time.time()
+        elapsed = now - self._progress_start_time
+        elapsed_str = _format_duration(elapsed)
+
+        dt = now - self._last_time
+        if dt > 0.5:
+            dd = downloaded - self._last_downloaded
+            speed = dd / dt if dt > 0 else 0.0
+            self._last_downloaded = downloaded
+            self._last_time = now
+            if speed > 0:
+                self._speed_text.value = f"{_format_bytes(int(speed))}/s"
+            else:
+                self._speed_text.value = ""
+
+        if pct > 0.01:
+            remaining = elapsed / pct - elapsed
+            remaining_str = _format_duration(remaining)
+            self._time_text.value = f"{elapsed_str} — {remaining_str} remaining"
+        else:
+            self._time_text.value = elapsed_str
+        safe_update(self)
+
+    def on_download_complete(self, path: str) -> None:
+        if self._download_completed:
+            return
+        self._download_completed = True
+
+        self._phase = "verifying"
+        self._phase_text.value = "Verifying downloaded binary..."
+        self._progress_bar.value = None
+        safe_update(self)
+
+        if self._on_installed:
+            self._on_installed()
+
+    def reset_download_state(self) -> None:
+        self._phase = "ready"
+        self._download_started = False
+        self._download_completed = False
+        self._progress_bar.visible = False
+        self._progress_bar.value = None
+        self._percentage_text.visible = False
+        self._bytes_text.visible = False
+        self._speed_text.visible = False
+        self._time_text.visible = False
+        self._error_banner.visible = False
+        self._install_button.disabled = False
+        self._install_button.text = "Install"
+        self._install_button.icon = ft.Icons.DOWNLOAD
+        self._browse_button.disabled = False
+        self._info_banner.visible = True
+        self._asset_info.visible = True
+        logger.info("Download state reset for retry")
+        safe_update(self)
 
     def set_asset_info(self, name: str, size_bytes: int) -> None:
         self._asset_name.value = name
@@ -125,93 +363,6 @@ class StockfishInstallPanel(ft.Column):
         logger.info("Asset info updated name=%s size=%d", name, size_bytes)
         safe_update(self)
 
-    def _handle_install(self, _e=None) -> None:
-        if self._download_started:
-            return
-        self._download_started = True
-        self._progress_start_time = time.time()
-        self._progress_bar.visible = True
-        self._progress_bar.value = 0.0
-        self._progress_bytes_text.visible = True
-        self._progress_time_text.visible = True
-        self._progress_text.visible = True
-        self._progress_text.value = "Starting download..."
-        self._install_button.disabled = True
-        self._browse_button.disabled = True
-        self._progress_text.value = "Downloading..."
-        logger.info("Install button clicked, starting download...")
-        safe_update(self)
-        logger.debug("_handle_install: safe_update completed, invoking callback")
-        if self._on_install_clicked:
-            try:
-                self._on_install_clicked()
-                logger.debug("_handle_install: callback returned successfully")
-            except Exception as exc:
-                logger.error("_handle_install: callback raised: %s", exc, exc_info=True)
-
-    def _handle_browse(self, _e=None) -> None:
-        logger.info("Browse manual button clicked")
-        if self._on_browse_manual:
-            self._on_browse_manual()
-
-    def update_progress(self, downloaded: int, total: int) -> None:
-        """Update progress display from the main thread during download."""
-        if self._download_completed or not self._download_started:
-            return
-        total = total or 1
-        self._total_bytes = total
-        pct = downloaded / total
-        self._progress_bar.value = pct
-
-        self._progress_bytes_text.value = (
-            f"{_format_bytes(downloaded)} / {_format_bytes(total)}"
-        )
-
-        elapsed = time.time() - self._progress_start_time
-        elapsed_str = _format_duration(elapsed)
-        if pct > 0.01:
-            remaining = elapsed / pct - elapsed
-            remaining_str = _format_duration(remaining)
-            self._progress_time_text.value = (
-                f"{elapsed_str} — {remaining_str} remaining"
-            )
-        else:
-            self._progress_time_text.value = elapsed_str
-        safe_update(self)
-
-    def on_download_complete(self, path: str) -> None:
-        """Handle download completion on the main thread.
-
-        Called by ``_async_download_stockfish`` after the download thread
-        finishes, so all Flet control updates happen on the main thread.
-        """
-        if self._download_completed:
-            return
-        self._download_completed = True
-        self._progress_bar.value = 1.0
-        total_str = _format_bytes(self._total_bytes)
-        self._progress_bytes_text.value = f"{total_str} / {total_str}"
-        elapsed = time.time() - self._progress_start_time
-        self._progress_time_text.value = f"{_format_duration(elapsed)} — Done"
-        self._progress_text.value = "Download complete!"
-        logger.info("Download complete path=%s", path)
-        safe_update(self)
-        if self._on_installed:
-            self._on_installed()
-
-    def reset_download_state(self) -> None:
-        """Reset UI state so the user can retry the download."""
-        self._download_started = False
-        self._download_completed = False
-        self._progress_bar.visible = False
-        self._progress_bar.value = None
-        self._progress_bytes_text.visible = False
-        self._progress_time_text.visible = False
-        self._progress_text.visible = False
-        self._install_button.disabled = False
-        self._browse_button.disabled = False
-        logger.info("Download state reset for retry")
-        safe_update(self)
 
 class StockfishConfigPanel(ft.Column):
     FIXED_OPTIONS = [
