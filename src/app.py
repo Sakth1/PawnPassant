@@ -694,7 +694,7 @@ class ChessApp:
         )
         try:
             downloaded = await asyncio.to_thread(
-                downloader._download_via_subprocess_sync,
+                downloader._download_sync,
                 asset=downloader.last_query.best_asset,
                 dest_dir=dest_dir,
                 progress_callback=on_progress,
