@@ -981,6 +981,20 @@ class ChessBoard(ft.Container):
 
         self._complete_move(requested_move, movement_type)
 
+    def play_uci_move(self, uci: str) -> None:
+        if game_state.game_over:
+            logger.debug("Ignoring bot move because game is over")
+            return
+        move = Move.from_uci(uci)
+        if not self.game_manager.is_legal(move):
+            logger.warning("Bot proposed illegal move uci=%s", uci)
+            return
+        movement_type = self.game_manager.move_type(move)
+        if movement_type == MoveType.PROMOTION:
+            move = Move(move.from_square, move.to_square, promotion=QUEEN)
+            movement_type = MoveType.PROMOTION
+        self._complete_move(move, movement_type)
+
     def _show_move_confirmation(
         self,
         requested_move: Move,

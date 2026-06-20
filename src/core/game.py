@@ -135,12 +135,12 @@ class GameManager:
             return winner, "checkmate", f"{winner} wins by checkmate."
         if self.board.is_stalemate():
             return "Draw", "stalemate", "Draw by stalemate."
-        if self.board.is_insufficient_material():
-            return "Draw", "insufficient_material", "Draw by insufficient material."
-        if self.board.is_seventyfive_moves():
-            return "Draw", "seventyfive_moves", "Draw by seventy-five move rule."
         if self.board.is_fivefold_repetition():
             return "Draw", "fivefold_repetition", "Draw by fivefold repetition."
+        if self.board.is_seventyfive_moves():
+            return "Draw", "seventyfive_moves", "Draw by seventy-five move rule."
+        if self.board.is_insufficient_material():
+            return "Draw", "insufficient_material", "Draw by insufficient material."
         return None, "ongoing", ""
 
     # ── Board mutation ─────────────────────────────────────────────────────

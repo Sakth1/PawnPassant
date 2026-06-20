@@ -17,6 +17,7 @@ from ui.clockui import ClockUI
 from ui.home_page import HomeView
 from ui.layout import MAX_SQUARE_SIZE, MIN_SQUARE_SIZE, resolve_app_layout
 from utils.events import GameEndedEvent
+from utils.game_state import GameAgainst, game_state
 from utils.models import AppSettings, TimeControl
 from utils.signals import bus
 
@@ -252,7 +253,7 @@ class TestResponsiveAppUi(unittest.TestCase):
         app._handle_result_dialog_close()
 
         self.assertFalse(app.result_dialog.open)
-        self.assertEqual(page.overlay, [])
+        self.assertNotIn(app.result_dialog, page.overlay)
         self.assertEqual(app.position_selector.value, "Start Position")
         self.assertEqual(
             app.board_view.game_manager.fen(), ChessBoard().game_manager.fen()
@@ -262,7 +263,9 @@ class TestResponsiveAppUi(unittest.TestCase):
         page = _FakePage(width=960, height=800)
         app = ChessApp(page, dev_mode=False)
 
-        app._start_game_with_time_control((10, 5))
+        app._pending_time_control = (10, 5)
+        game_state.game_against = GameAgainst.LOCAL
+        app._launch_game()
 
         self.assertEqual(app.time_control_UI.time_control, (10, 5))
         self.assertEqual(app.view_container.content, app.game_page_view)
@@ -307,7 +310,7 @@ class TestHomeView(unittest.TestCase):
 
     def test_primary_action_returns_selected_time_control(self):
         captured = []
-        home_view = HomeView(on_time_control_selected=captured.append)
+        home_view = HomeView(on_play_computer=captured.append)
         selected_preset = next(
             preset for preset in home_view.presets if preset["value"] == (10, 5)
         )
@@ -329,7 +332,7 @@ class TestHomeView(unittest.TestCase):
 
     def test_primary_action_uses_custom_time_control(self):
         captured = []
-        home_view = HomeView(on_time_control_selected=captured.append)
+        home_view = HomeView(on_play_computer=captured.append)
 
         home_view.minutes_input.value = "12"
         home_view.increment_input.value = "5"

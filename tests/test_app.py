@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import chess
 
 from app import ChessApp
+from utils.constants import DEFAULT_PAGE_HEIGHT, DEFAULT_PAGE_WIDTH, NAVIGATION_BAR_HEIGHT
 from utils.game_state import game_state
 
 
@@ -26,12 +27,16 @@ class FakePage:
         self.run_task = MagicMock()
         self.navigate = MagicMock()
         self.push_route = MagicMock()
+        self.overlay = []
         self.add = MagicMock()
         self.show_dialog = MagicMock()
         self.pop_dialog = MagicMock()
         self.shared_preferences = None
         self.platform = None
         self.media = None
+
+    def update(self):
+        pass
 
     def __setattr__(self, name, value):
         super().__setattr__(name, value)
@@ -152,8 +157,8 @@ class TestChessAppPageDimensions(unittest.TestCase):
         page.height = None
         app = ChessApp(page)
         w, h = app._resolve_page_dimensions()
-        self.assertEqual(w, 500)
-        self.assertEqual(h, 700)
+        self.assertEqual(w, DEFAULT_PAGE_WIDTH)
+        self.assertEqual(h, DEFAULT_PAGE_HEIGHT - NAVIGATION_BAR_HEIGHT)
 
 
 if __name__ == "__main__":

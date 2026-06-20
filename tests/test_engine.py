@@ -151,7 +151,7 @@ class TestGameTerminalConditions(unittest.TestCase):
     def test_checkmate_detected(self):
         game = GameManager()
         game.load_fen("k7/8/1K1R4/8/8/8/8/8 w - - 0 1")
-        game.push_move(Move(parse_square("d6"), parse_square("d7")))
+        game.push_move(Move(parse_square("d6"), parse_square("d8")))
         self.assertTrue(game.is_game_over())
 
     def test_stalemate_detected(self):
@@ -166,7 +166,7 @@ class TestGameTerminalConditions(unittest.TestCase):
 
     def test_seventyfive_move_detected(self):
         game = GameManager()
-        game.load_fen("4k3/8/8/8/8/8/8/4K3 w - - 75 100")
+        game.load_fen("4k3/8/8/8/8/8/8/4K3 w - - 150 100")
         self.assertTrue(game.is_game_over())
 
     def test_fivefold_repetition_detected(self):
@@ -184,7 +184,7 @@ class TestGameWinner(unittest.TestCase):
     def test_winner_checkmate_returns_winning_color(self):
         game = GameManager()
         game.load_fen("k7/8/1K1R4/8/8/8/8/8 w - - 0 1")
-        game.push_move(Move(parse_square("d6"), parse_square("d7")))
+        game.push_move(Move(parse_square("d6"), parse_square("d8")))
         winner = game.get_winner()
         self.assertEqual(winner, "White")
 
@@ -207,7 +207,7 @@ class TestGameResultSummary(unittest.TestCase):
     def test_checkmate_summary(self):
         game = GameManager()
         game.load_fen("k7/8/1K1R4/8/8/8/8/8 w - - 0 1")
-        game.push_move(Move(parse_square("d6"), parse_square("d7")))
+        game.push_move(Move(parse_square("d6"), parse_square("d8")))
         winner, reason, message = game.result_summary()
         self.assertEqual(winner, "White")
         self.assertEqual(reason, "checkmate")
@@ -230,7 +230,7 @@ class TestGameResultSummary(unittest.TestCase):
 
     def test_seventyfive_moves_summary(self):
         game = GameManager()
-        game.load_fen("4k3/8/8/8/8/8/8/4K3 w - - 75 100")
+        game.load_fen("4k3/8/8/8/8/8/8/4K3 w - - 150 100")
         winner, reason, message = game.result_summary()
         self.assertEqual(winner, "Draw")
         self.assertEqual(reason, "seventyfive_moves")

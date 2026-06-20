@@ -15,8 +15,8 @@ from utils.constants import (
     DEFAULT_PAGE_WIDTH,
 )
 from ui.layout import AppLayout, resolve_app_layout
-from utils.dialogs import safe_update, show_alert_dialog
-from utils.models import TimeControl
+from utils.dialogs import safe_update
+from utils.models import TimeControl, StockfishGameConfig
 from utils.game_state import GameAgainst, game_state
 
 logger = logging.getLogger(__name__)
@@ -28,10 +28,16 @@ class HomeView(ft.Container):
     def __init__(
         self,
         on_time_control_selected: Callable[[tuple[int, int]], None] | None = None,
+        on_play_computer: Callable[[tuple[int, int]], None] | None = None,
+        on_play_someone: Callable[[tuple[int, int]], None] | None = None,
     ):
         super().__init__(expand=True)
         #: Callback invoked with ``(minutes, increment_seconds)`` when play starts.
         self.on_time_control_selected = on_time_control_selected
+        #: Callback when "Play Computer" is clicked (opens setup overlay).
+        self._on_play_computer = on_play_computer
+        #: Callback when "Play Someone" is clicked (opens setup overlay).
+        self._on_play_someone = on_play_someone
         #: Last applied responsive layout metrics.
         self.layout = resolve_app_layout(DEFAULT_PAGE_WIDTH, DEFAULT_PAGE_HEIGHT)
         #: Preset dictionaries generated from :class:`utils.models.TimeControl`.
@@ -76,7 +82,7 @@ class HomeView(ft.Container):
         self.play_someone_button = ft.FilledButton(
             "Play someone",
             icon=ft.Icons.PERSON,
-            on_click=self._make_wip_handler(feature="Play someone"),
+            on_click=self._handle_play_someone,
         )
         self.custom_row = ft.ResponsiveRow(columns=12)
         self.footer_row = ft.ResponsiveRow(columns=12)
@@ -159,16 +165,16 @@ class HomeView(ft.Container):
             ),
         )
 
-    def _alert_feature_wip(self, feature: str):
-        show_alert_dialog(
-            self.page,
-            "Work In Progress",
-            f"{feature} feature is Work In Progress.",
-        )
+    def _handle_play_someone(self, _event: ft.ControlEvent | None = None) -> None:
+        """Open the online setup overlay with the selected time control."""
 
-    def _make_wip_handler(self, feature: str):
-        """Return a callable that shows a Work-In-Progress dialog."""
-        return lambda _e=None: self._alert_feature_wip(feature)
+        if self.selected_custom_time_control is None:
+            parsed = self._parse_custom_time_control()
+            if parsed is not None:
+                self.selected_custom_time_control = parsed
+        game_state.game_against = GameAgainst.LOCAL
+        if self._on_play_someone:
+            self._on_play_someone(self.selected_time_control)
 
     @staticmethod
     def _categorize_time_control(minutes: int) -> str:
@@ -362,14 +368,15 @@ class HomeView(ft.Container):
         self._rebuild_view()
 
     def _handle_play_computer(self, _event: ft.ControlEvent | None = None) -> None:
-        """Start a game using the selected preset or valid custom control."""
+        """Open the computer setup overlay with the selected time control."""
 
         if self.selected_custom_time_control is None:
             parsed = self._parse_custom_time_control()
             if parsed is not None:
                 self.selected_custom_time_control = parsed
         game_state.game_against = GameAgainst.COMPUTER
-        self._start_time_control(self.selected_time_control)
+        if self._on_play_computer:
+            self._on_play_computer(self.selected_time_control)
 
     def _start_time_control(
         self,
