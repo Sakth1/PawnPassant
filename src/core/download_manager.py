@@ -10,19 +10,16 @@ Two-phase API:
 2. **Download** — :meth:`download` writes the selected asset to disk.
    Progress is tracked via :meth:`get_progress` which the caller polls.
 
-The async counterpart :meth:`query_release_async` uses ``httpx.AsyncClient``.
-:meth:`download_async` runs the actual HTTP I/O in a child OS process polled
-from a thread-pool thread, keeping the Flet event loop fully responsive.
+:meth:`download_async` runs the actual HTTP I/O in a thread-pool thread,
+keeping the Flet event loop fully responsive.
 """
 
 import asyncio
-import json
 import logging
 import os
 import re
 import shutil
 import stat
-import subprocess
 import sys
 import tarfile
 import tempfile
@@ -32,7 +29,6 @@ from pathlib import Path
 from typing import Callable, Self
 
 import httpx
-import requests
 
 from utils.constants import STOCKFISH_DIR
 from utils.events import StockfishDownloadFailedEvent
@@ -100,10 +96,8 @@ _SUBARCH_PRIORITY = {
     CpuSubarch.UNKNOWN: 0,
 }
 
-#: Path to the standalone download worker script. Spawned as a subprocess
-#: so the Flet event loop never blocks on network I/O.
-_SCRIPT_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
-_DOWNLOAD_WORKER = _SCRIPT_DIR / "download_asset.py"
+#: Chunk size for streaming downloads (bytes).
+_CHUNK_SIZE = 8192
 
 
 def _parse_asset_name(name: str) -> tuple[Platform, Arch, CpuSubarch] | None:
@@ -260,7 +254,7 @@ class StockfishDownloadManager:
         and all compatible assets sorted by subarch priority.
 
         Raises:
-            requests.RequestException: On network or API errors.
+            httpx.HTTPError: On network or API errors.
             RuntimeError: When no compatible asset exists for the current
                 platform/architecture.
         """
@@ -308,7 +302,7 @@ class StockfishDownloadManager:
 
         Raises:
             RuntimeError: When no asset is specified and no query result exists.
-            requests.RequestException: On download errors.
+            httpx.HTTPError: On download errors.
         """
         if asset is None:
             if self._last_match is None:
@@ -337,21 +331,19 @@ class StockfishDownloadManager:
         dest = dest_dir / asset.name
         logger.info("Downloading %s (%d B) -> %s", asset.name, asset.size_bytes, dest)
 
-        resp = requests.get(asset.url, stream=True)
-        resp.raise_for_status()
-
         dest.parent.mkdir(parents=True, exist_ok=True)
         total = asset.size_bytes or 0
         self._progress_downloaded = 0
         self._progress_total = total
         self._progress_started = time.time()
 
-        with open(dest, "wb") as f:
-            for chunk in resp.iter_content(chunk_size=8192):
-                if not chunk:
-                    continue
-                f.write(chunk)
-                self._progress_downloaded += len(chunk)
+        with httpx.Client(timeout=httpx.Timeout(30.0)) as client:
+            with client.stream("GET", asset.url, follow_redirects=True) as resp:
+                resp.raise_for_status()
+                with open(dest, "wb") as f:
+                    for chunk in resp.iter_bytes():
+                        f.write(chunk)
+                        self._progress_downloaded += len(chunk)
 
         _make_executable(dest)
         downloaded_at = time.strftime("%Y-%m-%dT%H:%M:%S")
@@ -396,11 +388,10 @@ class StockfishDownloadManager:
         dest_dir: Path | None = None,
         progress_callback: Callable[[int, int], None] | None = None,
     ) -> DownloadedAsset:
-        """Async download with progress callbacks (every 200 ms).
+        """Async download with progress callbacks.
 
-        The actual download runs in a child OS process, polled from a thread
-        pool thread, so the Flet event loop never blocks on network I/O or
-        control updates.
+        The actual download runs in a thread-pool thread via
+        :meth:`_download_sync` so the Flet event loop never blocks.
         """
         if asset is None:
             if self._last_match is None:
@@ -442,7 +433,7 @@ class StockfishDownloadManager:
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(
             None,
-            self._download_via_subprocess_sync,
+            self._download_sync,
             asset,
             dest_dir,
             progress_callback,
@@ -508,13 +499,13 @@ class StockfishDownloadManager:
         """
         try:
             self.query_release()
-        except (requests.RequestException, RuntimeError) as exc:
+        except (httpx.HTTPError, RuntimeError) as exc:
             logger.error("ensure_stockfish query failed: %s", exc)
             return None
 
         try:
             downloaded = self.download(dest_dir=dest_dir)
-        except (requests.RequestException, RuntimeError) as exc:
+        except (httpx.HTTPError, RuntimeError) as exc:
             logger.error("ensure_stockfish download failed: %s", exc)
             bus.emit(StockfishDownloadFailedEvent(error_message=str(exc)))
             return None
@@ -528,9 +519,10 @@ class StockfishDownloadManager:
     # ── Internal helpers ──────────────────────────────────────────────────
 
     def _fetch_release(self) -> Self:
-        resp = requests.get(_STOCKFISH_API)
-        resp.raise_for_status()
-        data = resp.json()
+        with httpx.Client(timeout=httpx.Timeout(30.0), follow_redirects=True) as client:
+            resp = client.get(_STOCKFISH_API)
+            resp.raise_for_status()
+            data = resp.json()
         self._release_tag = data.get("tag_name", "")
         raw_assets: list[dict] = data.get("assets", [])
 
@@ -596,22 +588,20 @@ class StockfishDownloadManager:
         )
         return candidates
 
-    # ── Subprocess download (pure synchronous, runs in thread pool) ──────
-    # Spawns the download in a child OS process and polls from a thread pool
-    # thread so the Flet event loop is never blocked by I/O or UI updates.
+    # ── Synchronous download (runs in thread pool) ─────────────────────────
+    # Uses httpx streaming so the calling thread blocks on network I/O but the
+    # Flet event loop is never blocked — callers always offload to a thread.
 
-    def _download_via_subprocess_sync(
+    def _download_sync(
         self,
         asset: StockfishAsset,
         dest_dir: Path,
         progress_callback: Callable[[int, int], None] | None = None,
     ) -> DownloadedAsset:
-        """Download *asset* via a child Python process.
+        """Download *asset* using httpx streaming.
 
         Runs entirely in the calling thread (usually a thread-pool thread).
-        The child writes progress as JSON to a temp status file. The caller
-        polls this file every 200 ms and invokes *progress_callback* with
-        ``(downloaded, total)``.
+        Progress is reported via *progress_callback* with ``(downloaded, total)``.
         """
         dest = dest_dir / asset.name
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -620,69 +610,21 @@ class StockfishDownloadManager:
         self._progress_total = total
         self._progress_started = time.time()
 
-        status_file = dest_dir / f".{asset.name}.status"
+        logger.info("Downloading %s -> %s", asset.url, dest)
 
-        logger.info(
-            "Starting download worker (sync): %s %s -> %s",
-            _DOWNLOAD_WORKER.name,
-            asset.url,
-            dest,
-        )
-
-        proc = subprocess.Popen(
-            [sys.executable, str(_DOWNLOAD_WORKER), asset.url, str(dest), str(status_file)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-
-        error: Exception | None = None
-        try:
-            while proc.poll() is None:
-                if status_file.exists():
-                    try:
-                        raw = status_file.read_text(encoding="utf-8")
-                        data = json.loads(raw)
-                    except (json.JSONDecodeError, OSError):
-                        time.sleep(0.2)
-                        continue
-
-                    if "error" in data:
-                        error = RuntimeError(str(data["error"]))
-                        proc.kill()
-                        break
-
-                    if data.get("done"):
-                        self._progress_downloaded = data.get("downloaded", 0)
+        downloaded = 0
+        with httpx.Client(timeout=httpx.Timeout(30.0), follow_redirects=True) as client:
+            with client.stream("GET", asset.url) as resp:
+                resp.raise_for_status()
+                with open(dest, "wb") as f:
+                    for chunk in resp.iter_bytes():
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        self._progress_downloaded = downloaded
                         if progress_callback:
-                            progress_callback(
-                                data.get("downloaded", 0),
-                                data.get("total", 0),
-                            )
-                        break
+                            progress_callback(downloaded, total)
 
-                    downloaded = data.get("downloaded", 0)
-                    current_total = data.get("total", 0)
-                    self._progress_downloaded = downloaded
-                    if progress_callback:
-                        progress_callback(downloaded, current_total)
-
-                time.sleep(0.2)
-
-            proc.wait()
-
-            if proc.returncode != 0 and error is None:
-                error = RuntimeError(
-                    f"Download worker exited with code {proc.returncode}"
-                )
-
-            if error is not None:
-                raise error
-
-            logger.info("Subprocess download completed successfully")
-
-        finally:
-            if status_file.exists():
-                status_file.unlink(missing_ok=True)
+        logger.info("Download completed: %s (%d bytes)", dest.name, downloaded)
 
         _make_executable(dest)
         resolved = _resolve_archive(dest)
