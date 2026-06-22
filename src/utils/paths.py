@@ -27,7 +27,7 @@ def get_stockfish_dir(page=None) -> Path:
 
     platform_name = _resolve_platform(page)
 
-    if platform_name == Platform.ANDROID:
+    if platform_name == Platform.ANDROID.value:
         return Path.home() / ".pawnpassant" / "stockfish"
 
     return STOCKFISH_DIR
