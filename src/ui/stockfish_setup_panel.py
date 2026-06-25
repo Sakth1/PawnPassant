@@ -9,6 +9,8 @@ import flet as ft
 from core.difficulty_presets import DIFFICULTY_PRESETS, get_preset
 from utils.dialogs import safe_update
 from utils.models import StockfishGameConfig
+from utils.log_collector import build_error_report
+
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +106,13 @@ class StockfishInstallPanel(ft.Column):
         self._last_time: float = 0.0
 
         # ── Error banner ─────────────────────────────────────────────────
+        self._copy_log_button = ft.IconButton(
+            icon=ft.Icons.COPY,
+            icon_size=16,
+            icon_color=ft.Colors.RED_400,
+            tooltip="Copy error log",
+            on_click=self._handle_copy_log,
+        )
         self._error_banner = ft.Container(
             visible=False,
             padding=ft.Padding.all(12),
@@ -114,6 +123,7 @@ class StockfishInstallPanel(ft.Column):
                 controls=[
                     ft.Icon(ft.Icons.ERROR_OUTLINE, color=ft.Colors.RED_400),
                     ft.Text("", size=12, color=ft.Colors.RED_400, expand=True),
+                    self._copy_log_button,
                 ],
             ),
         )
@@ -243,6 +253,41 @@ class StockfishInstallPanel(ft.Column):
         self._info_banner.visible = False
         logger.warning("Install panel error: %s", message)
         safe_update(self)
+
+    def _handle_copy_log(self, _e=None) -> None:
+        error_msg = self._error_banner.content.controls[1].value
+        if not error_msg:
+            return
+        report = build_error_report(
+            error_msg=error_msg,
+            page=self.page,
+            recent_lines=30,
+        )
+        self._show_report_inline(report)
+
+    def _show_report_inline(self, report: str) -> None:
+        original = self._error_banner.content.controls[:]
+        self._error_banner.content.controls = [
+            ft.TextField(
+                value=report,
+                read_only=True,
+                multiline=True,
+                min_lines=5,
+                max_lines=12,
+                text_size=11,
+                expand=True,
+            ),
+            ft.IconButton(
+                icon=ft.Icons.ARROW_BACK,
+                tooltip="Back",
+                on_click=lambda e: self._restore_error_banner(original),
+            ),
+        ]
+        self.page.update()
+
+    def _restore_error_banner(self, original: list) -> None:
+        self._error_banner.content.controls = original
+        self.page.update()
 
     # ── Event handlers ─────────────────────────────────────────────────
 

@@ -29,7 +29,12 @@ logger = logging.getLogger(__name__)
 class SettingsView(ft.Container):
     """Render grouped settings controls and forward changes to the controller."""
 
-    def __init__(self, controller: SettingsController | None = None, file_picker: ft.FilePicker | None = None):
+    def __init__(
+        self,
+        controller: SettingsController | None = None,
+        file_picker: ft.FilePicker | None = None,
+        on_open_log_viewer: Callable[[], None] | None = None,
+    ):
         super().__init__(expand=True)
         #: Controller that validates, emits, and persists settings changes.
         self.controller = controller or SettingsController()
@@ -37,6 +42,8 @@ class SettingsView(ft.Container):
         self.settings = self.controller.settings
         #: File picker for manual binary selection.
         self._file_picker = file_picker
+        #: Callback to open the in-app log viewer.
+        self._on_open_log_viewer = on_open_log_viewer
         #: Last applied responsive layout metrics.
         self.layout = resolve_app_layout(DEFAULT_PAGE_WIDTH, DEFAULT_PAGE_HEIGHT)
 
@@ -46,6 +53,7 @@ class SettingsView(ft.Container):
         self.gameplay_section = ft.Column(tight=True)
         self.clock_section = ft.Column(tight=True)
         self.stockfish_section = ft.Column(tight=True)
+        self.debug_section = ft.Column(tight=True)
         self.reset_button = ft.OutlinedButton(
             "Reset defaults",
             icon=ft.Icons.RESTART_ALT_ROUNDED,
@@ -61,6 +69,7 @@ class SettingsView(ft.Container):
                 self.gameplay_section,
                 self.clock_section,
                 self.stockfish_section,
+                self.debug_section,
                 ft.Row(
                     controls=[self.reset_button, self.status_text],
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -181,6 +190,10 @@ class SettingsView(ft.Container):
             self._section_header("Stockfish Engine"),
             self._binary_path_row(),
         ]
+        self.debug_section.controls = [
+            self._section_header("Support"),
+            self._log_viewer_row(),
+        ]
         self.status_text.value = "Preferences saved locally"
         safe_update(self)
 
@@ -288,6 +301,33 @@ class SettingsView(ft.Container):
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
         )
+
+    def _log_viewer_row(self) -> ft.Container:
+        """Create a row that opens the in-app log viewer."""
+        return self._setting_row(
+            "Application Logs",
+            ft.Row(
+                controls=[
+                    ft.Text(
+                        "View and copy diagnostic logs",
+                        size=13,
+                        color=ft.Colors.GREY_400,
+                        expand=True,
+                    ),
+                    ft.IconButton(
+                        icon=ft.Icons.BUG_REPORT,
+                        tooltip="Open log viewer",
+                        on_click=self._handle_open_log_viewer,
+                    ),
+                ],
+                spacing=8,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+        )
+
+    def _handle_open_log_viewer(self, _event=None) -> None:
+        if self._on_open_log_viewer:
+            self._on_open_log_viewer()
 
     def _handle_select_binary(self, _event=None) -> None:
         """Open file picker to select a Stockfish binary."""

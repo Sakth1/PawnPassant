@@ -49,9 +49,12 @@ from utils.events import (
 )
 from utils.paths import get_stockfish_dir
 from utils.game_state import GameAgainst, game_state
+from utils.logging_config import reconfigure_logging
+from utils.log_collector import build_error_report
 from utils.models import StockfishGameConfig
 from utils.settings import SettingsController
 from utils.signals import bus
+from ui.log_viewer_dialog import LogViewerDialog
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +84,10 @@ class ChessApp:
         self._pending_stockfish_config: StockfishGameConfig | None = None
         self._stockfish_downloader: StockfishDownloadManager | None = None
         self._checking_binary: bool = False
+        self._log_viewer: LogViewerDialog | None = None
+
+        reconfigure_logging(self.page)
+        self.page.on_error = self._handle_flet_error
 
         self.page.fonts = {
             FONT_FAMILY: str(Path(FONT_DIR, "RobotoMono-VariableFont_wght.ttf"))
@@ -202,7 +209,11 @@ class ChessApp:
             content=self.safe_area,
         )
 
-        self.settings_view = SettingsView(self.settings_controller, file_picker=self._file_picker)
+        self.settings_view = SettingsView(
+            self.settings_controller,
+            file_picker=self._file_picker,
+            on_open_log_viewer=self._show_log_viewer,
+        )
         self.view_container = ft.Container(expand=True)
 
         route_to_index = {
@@ -814,6 +825,26 @@ class ChessApp:
         await self.page.push_route("/game")
         self._on_game_enter()
         bus.emit(GameStartedEvent(opponent_nature=game_state.game_against))
+
+
+    def _show_log_viewer(self) -> None:
+        """Open the in-app log viewer overlay."""
+        if self._log_viewer is None or self._log_viewer not in self.page.overlay:
+            self._log_viewer = LogViewerDialog(
+                page=self.page,
+                on_close=self._handle_log_viewer_closed,
+            )
+        self._log_viewer.open()
+
+    def _handle_log_viewer_closed(self) -> None:
+        """Cleanup after log viewer is dismissed."""
+        self._log_viewer = None
+
+    def _handle_flet_error(self, e: ft.ControlEvent) -> None:
+        """Handle Flet control-level errors (page.on_error)."""
+        error_data = getattr(e, "data", str(e))
+        logger.error("Flet runtime error: %s", error_data)
+        show_toast(self.page, "An unexpected error occurred", is_error=True)
 
 
 def entry_point(page: ft.Page):
