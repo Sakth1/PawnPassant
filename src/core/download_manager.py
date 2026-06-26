@@ -51,6 +51,15 @@ _STOCKFISH_API = (
     "https://api.github.com/repos/official-stockfish/Stockfish/releases/latest"
 )
 
+# On Android, the official Stockfish binary is statically linked without PIE
+# (ET_EXEC) and rejected by Android 5.0+ linker.  We build our own PIE binary
+# (ET_DYN) hosted on this project's GitHub releases.
+_CUSTOM_ANDROID_REPO = "anomalyco/PawnPassant"
+_CUSTOM_ANDROID_TAG = "stockfish-android-arm64-universal-1"
+_CUSTOM_ANDROID_ASSET = "stockfish-android-arm64-universal.tar.gz"
+_CUSTOM_ANDROID_SHA256 = ""
+_CUSTOM_ANDROID_SIZE = 0
+
 _ASSET_PATTERN = re.compile(
     r"^stockfish-"
     r"(?P<os>windows|linux|macos|android)-"
@@ -286,6 +295,39 @@ class StockfishDownloadManager:
 
     # ── Phase 1: Query ────────────────────────────────────────────────────
 
+    def _query_android_release(self) -> AssetMatchResult:
+        """Return a hardcoded result pointing to our custom PIE binary.
+
+        The official Stockfish Android binary is built with ``-static``, which
+        produces a non-PIE executable (``ET_EXEC``) rejected by the Android 5.0+
+        linker.  We self-host a PIE build (``ET_DYN``) on this project's GitHub
+        releases.
+        """
+        asset = StockfishAsset(
+            name=_CUSTOM_ANDROID_ASSET,
+            url=(
+                f"https://github.com/{_CUSTOM_ANDROID_REPO}/releases/download/"
+                f"{_CUSTOM_ANDROID_TAG}/{_CUSTOM_ANDROID_ASSET}"
+            ),
+            size_bytes=_CUSTOM_ANDROID_SIZE,
+            sha256=_CUSTOM_ANDROID_SHA256,
+            platform=Platform.ANDROID,
+            arch=Arch.ARM64,
+            subarch=CpuSubarch.ARMV8,
+        )
+        result = AssetMatchResult(
+            release_tag=_CUSTOM_ANDROID_TAG,
+            best_asset=asset,
+            all_compatible=(asset,),
+        )
+        self._last_match = result
+        logger.info(
+            "Android custom release: tag=%s asset=%s",
+            result.release_tag,
+            result.best_asset.name,
+        )
+        return result
+
     def query_release(self) -> AssetMatchResult:
         """Fetch release info and return the best asset match for this system.
 
@@ -294,10 +336,12 @@ class StockfishDownloadManager:
         and all compatible assets sorted by subarch priority.
 
         Raises:
-            httpx.HTTPError: On network or API errors.
+            httpx.HTTPError: On network or API errors (non-Android).
             RuntimeError: When no compatible asset exists for the current
                 platform/architecture.
         """
+        if self._platform == Platform.ANDROID:
+            return self._query_android_release()
         self._fetch_release()
         asset = self._find_best_asset()
         if asset is None:
@@ -406,6 +450,8 @@ class StockfishDownloadManager:
 
     async def query_release_async(self) -> AssetMatchResult:
         """Async fetch + match. Zero threads."""
+        if self._platform == Platform.ANDROID:
+            return self._query_android_release()
         await self._fetch_release_async()
         asset = self._find_best_asset()
         if asset is None:

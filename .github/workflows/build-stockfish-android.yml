@@ -1,0 +1,111 @@
+name: Build Stockfish (Android)
+
+on:
+  workflow_dispatch:
+    inputs:
+      stockfish_tag:
+        description: Stockfish git tag or branch
+        required: false
+        default: master
+        type: string
+      arch:
+        description: Target architecture
+        required: false
+        default: arm64-universal
+        type: choice
+        options:
+          - arm64-universal
+          - armv8
+          - armv7-neon
+      create_release:
+        description: Create a GitHub release with the built binary
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install QEMU and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user binfmt-support
+
+      - name: Install Android NDK
+        run: |
+          NDKV="27.2.12479018"
+          ANDROID_ROOT=/usr/local/lib/android
+          ANDROID_SDK_ROOT=$ANDROID_ROOT/sdk
+          SDKMANAGER=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager
+          echo "y" | $SDKMANAGER "ndk;$NDKV"
+          ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/$NDKV
+          ANDROID_NDK_BIN=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin
+          echo "ANDROID_NDK_BIN=$ANDROID_NDK_BIN" >> $GITHUB_ENV
+
+      - name: Verify compiler
+        run: |
+          ${{ env.ANDROID_NDK_BIN }}/aarch64-linux-android29-clang++ --version
+
+      - name: Build Stockfish
+        id: build
+        env:
+          ARCH: ${{ github.event.inputs.arch || 'arm64-universal' }}
+          STOCKFISH_TAG: ${{ github.event.inputs.stockfish_tag || 'master' }}
+        run: |
+          chmod +x scripts/build_stockfish_android.sh
+          bash scripts/build_stockfish_android.sh
+          echo "ARCHIVE_NAME=stockfish-android-$ARCH.tar.gz" >> $GITHUB_OUTPUT
+
+      - name: Compute SHA256
+        id: sha
+        run: |
+          ARCHIVE="${{ steps.build.outputs.ARCHIVE_NAME }}"
+          echo "SHA256=$(sha256sum "$ARCHIVE" | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "SIZE=$(stat --format=%s "$ARCHIVE")" >> $GITHUB_OUTPUT
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.build.outputs.ARCHIVE_NAME }}
+          path: ${{ steps.build.outputs.ARCHIVE_NAME }}
+          retention-days: 30
+
+      - name: Create release and upload binary
+        if: github.event.inputs.create_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE_NAME: ${{ steps.build.outputs.ARCHIVE_NAME }}
+          SHA256: ${{ steps.sha.outputs.SHA256 }}
+          SIZE: ${{ steps.sha.outputs.SIZE }}
+          ARCH: ${{ github.event.inputs.arch || 'arm64-universal' }}
+        run: |
+          TAG="stockfish-android-${ARCH}-$(date +%Y%m%d)"
+
+          # Delete existing tag/release if it exists
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          git tag -d "$TAG" 2>/dev/null || true
+
+          # Create release and upload
+          gh release create "$TAG" \
+            --title "Stockfish Android ($ARCH) - $(date +%Y-%m-%d)" \
+            --notes "Built from Stockfish tag: ${{ github.event.inputs.stockfish_tag || 'master' }}
+
+          **PIE binary** - This build uses \`-pie\` instead of \`-static\` so Android's linker accepts it.
+
+          | Property | Value |
+          |---|---|
+          | Architecture | $ARCH |
+          | SHA256 | \`$SHA256\` |
+          | Size | $SIZE bytes |
+          " \
+            "$ARCHIVE_NAME"
