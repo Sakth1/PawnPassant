@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Callable
@@ -11,9 +12,7 @@ from ui.online_setup_panel import OnlineSetupPanel
 from ui.task_toast import show_toast
 from core.binary_verifier import verify_stockfish_binary
 from core.download_manager import _resolve_archive
-from utils.events import BinaryVerificationResultEvent
 from utils.models import StockfishGameConfig
-from utils.signals import bus
 
 logger = logging.getLogger(__name__)
 
@@ -227,16 +226,22 @@ class SetupOverlay(ft.Container):
         if not path:
             logger.warning("File picker returned empty path")
             return
+
+        if self._stockfish_install_panel:
+            self._stockfish_install_panel.set_verifying()
+        await asyncio.sleep(0)
+
         logger.info("User selected path=%s", path)
-        exe_path = str(_resolve_archive(Path(path)))
-        valid, version = verify_stockfish_binary(exe_path)
+        loop = asyncio.get_running_loop()
+        exe_path = await loop.run_in_executor(
+            None, lambda: str(_resolve_archive(Path(path)))
+        )
+        valid, version = await loop.run_in_executor(
+            None, verify_stockfish_binary, exe_path
+        )
+
         if valid:
             logger.info("Picked binary verified version=%s path=%s", version, path)
-            bus.emit(
-                BinaryVerificationResultEvent(
-                    valid=True, path=path, version=version
-                )
-            )
             if self._stockfish_install_panel:
                 self._stockfish_install_panel.set_asset_info(
                     Path(path).name, Path(path).stat().st_size
@@ -245,11 +250,8 @@ class SetupOverlay(ft.Container):
             self._on_installed_with_path(path)
         else:
             logger.warning("Picked binary invalid path=%s error=%s", path, version)
-            bus.emit(
-                BinaryVerificationResultEvent(
-                    valid=False, path=path, version=version
-                )
-            )
+            if self._stockfish_install_panel:
+                self._stockfish_install_panel.set_error(version)
             show_toast(self._page, version, is_error=True)
 
     def _on_installed_with_path(self, path: str) -> None:

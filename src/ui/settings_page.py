@@ -7,6 +7,7 @@ consistent across board, clock, and app shell subscribers.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any
@@ -279,6 +280,7 @@ class SettingsView(ft.Container):
             color=ft.Colors.GREY_400 if not path else None,
             selectable=True,
             expand=True,
+            overflow=ft.TextOverflow.ELLIPSIS,
         )
 
         select_btn = ft.IconButton(
@@ -344,14 +346,29 @@ class SettingsView(ft.Container):
         if not files or not files[0].path:
             return
         path = files[0].path
+
+        self.status_text.value = "Verifying selected binary..."
+        safe_update(self)
+        await asyncio.sleep(0)
+
         logger.info("Settings: user selected path=%s", path)
-        exe_path = str(_resolve_archive(Path(path)))
-        valid, version = verify_stockfish_binary(exe_path)
+        loop = asyncio.get_running_loop()
+        exe_path = await loop.run_in_executor(
+            None, lambda: str(_resolve_archive(Path(path)))
+        )
+        valid, version = await loop.run_in_executor(
+            None, verify_stockfish_binary, exe_path
+        )
+
         if valid:
             self.controller.update(stockfish_binary_path=path)
+            self.status_text.value = f"Valid Stockfish: {version}"
             show_toast(self.page, f"Valid Stockfish: {version}")
         else:
+            self.status_text.value = version
+            self.status_text.color = ft.Colors.RED_400
             show_toast(self.page, version, is_error=True)
+        safe_update(self)
 
     def _handle_remove_stockfish(self, _event=None) -> None:
         """Clear the stored Stockfish binary path."""

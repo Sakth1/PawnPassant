@@ -28,4 +28,4 @@ def show_toast(
         duration=duration_seconds * 1000,
         behavior=ft.SnackBarBehavior.FLOATING,
     )
-    page.show_snack_bar(snackbar)
+    page.show_dialog(snackbar)

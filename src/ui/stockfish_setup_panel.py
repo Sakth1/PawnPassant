@@ -64,7 +64,7 @@ class StockfishInstallPanel(ft.Column):
         )
 
         # ── Asset info (hidden during fetch) ────────────────────────────
-        self._asset_name = ft.Text("", size=16, weight=ft.FontWeight.BOLD)
+        self._asset_name = ft.Text("", size=16, weight=ft.FontWeight.BOLD, overflow=ft.TextOverflow.ELLIPSIS)
         self._asset_size = ft.Text("", size=13)
         self._asset_info = ft.Column(
             spacing=2,
@@ -235,6 +235,22 @@ class StockfishInstallPanel(ft.Column):
         self._install_button.icon = ft.Icons.DOWNLOAD
         self._info_banner.visible = True
         logger.info("Install panel ready name=%s size=%d", asset_name, asset_size_bytes)
+        safe_update(self)
+
+    def set_verifying(self) -> None:
+        self._phase = "verifying"
+        self._phase_text.value = "Verifying selected binary..."
+        self._progress_bar.visible = True
+        self._progress_bar.value = None
+        self._progress_bar.color = ft.Colors.BLUE_400
+        self._percentage_text.visible = False
+        self._bytes_text.visible = False
+        self._speed_text.visible = False
+        self._time_text.visible = False
+        self._asset_info.visible = False
+        self._error_banner.visible = False
+        self._install_button.disabled = True
+        self._info_banner.visible = False
         safe_update(self)
 
     def set_error(self, message: str) -> None:

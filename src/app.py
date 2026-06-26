@@ -291,6 +291,7 @@ class ChessApp:
             lambda _loop, ctx: logger.critical(
                 "Asyncio exception handler: %s",
                 ctx.get("message", ctx),
+                exc_info=ctx.get("exception"),
             )
         )
 
@@ -390,7 +391,7 @@ class ChessApp:
                     event_data = json.loads(payload)
                     selected_name = event_data.get("value") or event_data.get("key")
                 except json.JSONDecodeError:
-                    logger.warning("Failed to decode board setup payload=%s", payload)
+                    logger.warning("Failed to decode board setup payload=%s", payload, exc_info=True)
                     selected_name = payload
             else:
                 selected_name = payload
@@ -615,7 +616,7 @@ class ChessApp:
         try:
             match = await downloader.query_release_async()
         except Exception as exc:
-            logger.error("Stockfish binary info fetch failed: %s", exc)
+            logger.error("Stockfish binary info fetch failed: %s", exc, exc_info=True)
             self._checking_binary = False
             if self._setup_overlay is not None:
                 self._setup_overlay.set_error(f"Could not fetch binary info: {exc}")
@@ -682,7 +683,7 @@ class ChessApp:
         try:
             await downloader.query_release_async()
         except Exception as exc:
-            logger.error("Stockfish query failed: %s", exc)
+            logger.error("Stockfish query failed: %s", exc, exc_info=True)
             if panel is not None:
                 panel.set_error(f"Failed to query binary info: {exc}")
             bus.emit(StockfishDownloadFailedEvent(error_message=str(exc)))
@@ -711,7 +712,7 @@ class ChessApp:
                 progress_callback=on_progress,
             )
         except Exception as exc:
-            logger.error("Stockfish download failed: %s", exc)
+            logger.error("Stockfish download failed: %s", exc, exc_info=True)
             if panel is not None:
                 panel.set_error(f"Download failed: {exc}")
             show_toast(self.page, f"Download failed: {exc}", is_error=True)

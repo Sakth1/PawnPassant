@@ -269,6 +269,7 @@ class LogViewerDialog(ft.Container):
                     color=color,
                     weight=weight,
                     selectable=True,
+                    overflow=ft.TextOverflow.ELLIPSIS,
                 ),
             )
 

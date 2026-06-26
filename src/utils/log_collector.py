@@ -116,11 +116,22 @@ def read_recent_logs(
 
     lines = text.splitlines()
     entries: list[dict[str, Any]] = []
+    current_tb: list[str] = []
     for line in lines:
         parsed = parse_log_line(line)
         if parsed is not None:
+            if current_tb:
+                parsed["_tb"] = current_tb
+                current_tb = []
             if _level_index(parsed["level"]) >= min_index:
                 entries.append(parsed)
+        else:
+            stripped = line.strip()
+            if stripped:
+                current_tb.append(line)
+
+    if current_tb and entries:
+        entries[-1].setdefault("_tb", []).extend(current_tb)
 
     return entries[-max_lines:]
 
@@ -173,6 +184,11 @@ def build_error_report(
         lines.append("----------------------------------------")
         for entry in recent:
             lines.append(entry["raw"])
+            tb_lines = entry.get("_tb")
+            if tb_lines:
+                lines.append("")
+                lines.extend(tb_lines)
+                lines.append("")
     else:
         lines.append("(No recent log entries found.)")
 

@@ -17,6 +17,7 @@ keeping the Flet event loop fully responsive.
 import asyncio
 import logging
 import os
+import platform
 import re
 import shutil
 import stat
@@ -131,12 +132,19 @@ def _parse_asset_name(name: str) -> tuple[Platform, Arch, CpuSubarch] | None:
 
 
 def _make_executable(path: Path) -> None:
-    """Ensure the binary has executable permissions (Unix/macOS/Android)."""
+    """Ensure the binary has executable permissions (Unix/macOS/Android).
+
+    Skip on Android where the filesystem is typically mounted ``noexec``,
+    making chmod both unnecessary and impossible.
+    """
+    if platform.system() == "Linux" and os.path.exists("/system/bin/sh"):
+        logger.info("Skipping chmod on Android filesystem for %s", path)
+        return
     try:
         current = path.stat().st_mode
         path.chmod(current | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     except OSError:
-        logger.warning("Could not set executable permission on %s", path)
+        logger.warning("Could not set executable permission on %s", path, exc_info=True)
 
 
 def _resolve_archive(path: Path) -> Path:
@@ -206,11 +214,14 @@ def _resolve_archive(path: Path) -> Path:
         return exe_path.resolve()
 
     except (zipfile.BadZipFile, tarfile.TarError, OSError) as exc:
-        logger.error("Extraction failed for %s: %s", path, exc)
+        logger.error("Extraction failed for %s: %s", path, exc, exc_info=True)
         return path
 
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+resolve_archive = _resolve_archive
 
 
 class StockfishDownloadManager:
@@ -500,13 +511,13 @@ class StockfishDownloadManager:
         try:
             self.query_release()
         except (httpx.HTTPError, RuntimeError) as exc:
-            logger.error("ensure_stockfish query failed: %s", exc)
+            logger.error("ensure_stockfish query failed: %s", exc, exc_info=True)
             return None
 
         try:
             downloaded = self.download(dest_dir=dest_dir)
         except (httpx.HTTPError, RuntimeError) as exc:
-            logger.error("ensure_stockfish download failed: %s", exc)
+            logger.error("ensure_stockfish download failed: %s", exc, exc_info=True)
             bus.emit(StockfishDownloadFailedEvent(error_message=str(exc)))
             return None
 

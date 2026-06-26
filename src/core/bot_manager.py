@@ -1,4 +1,6 @@
 import logging
+import os
+import platform
 from collections.abc import Callable
 
 import chess
@@ -10,6 +12,14 @@ from utils.models import EngineConfig, StockfishGameConfig
 from utils.signals import bus
 
 logger = logging.getLogger(__name__)
+
+
+def _android_linker_prefix() -> list[str] | None:
+    if "ANDROID_ROOT" in os.environ:
+        machine = platform.machine()
+        linker = "/system/bin/linker64" if "64" in machine else "/system/bin/linker"
+        return [linker]
+    return None
 
 
 class BotManager:
@@ -39,8 +49,10 @@ class BotManager:
             params["Threads"] = self._config.threads
         if self._config.hash_mb != 256:
             params["Hash"] = self._config.hash_mb
+        linker_prefix = _android_linker_prefix()
+        effective_path = linker_prefix + [engine_path] if linker_prefix else engine_path
         self.stockfish = Stockfish(
-            path=engine_path,
+            path=effective_path,
             depth=self._config.depth,
             parameters=params or None,
         )
