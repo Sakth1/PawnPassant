@@ -15,6 +15,7 @@ keeping the Flet event loop fully responsive.
 """
 
 import asyncio
+import hashlib
 import logging
 import os
 import platform
@@ -54,7 +55,7 @@ _ASSET_PATTERN = re.compile(
     r"^stockfish-"
     r"(?P<os>windows|linux|macos|android)-"
     r"(?:(?P<arch>x86-64|arm64|i686)-)?"
-    r"(?P<variant>avx2|modern|bmi2|vnni|apple-silicon|armv8)?"
+    r"(?P<variant>avx2|modern|bmi2|vnni|apple-silicon|armv8|armv8-dotprod)?"
     r"(?:\..+)?$",
 )
 
@@ -79,10 +80,12 @@ _SUBARCH_FROM_ASSET = {
     "vnni": CpuSubarch.VNNI,
     "apple-silicon": CpuSubarch.APPLE_SILICON,
     "armv8": CpuSubarch.ARMV8,
+    "armv8-dotprod": CpuSubarch.ARMV8_DOTPROD,
 }
 
 _INFERRED_ARCH = {
     "armv8": Arch.ARM64,
+    "armv8-dotprod": Arch.ARM64,
     "apple-silicon": Arch.ARM64,
 }
 
@@ -92,6 +95,7 @@ _SUBARCH_PRIORITY = {
     CpuSubarch.AVX2: 4,
     CpuSubarch.APPLE_SILICON: 4,
     CpuSubarch.MODERN: 3,
+    CpuSubarch.ARMV8_DOTPROD: 3,
     CpuSubarch.ARMV8: 2,
     CpuSubarch.GENERIC: 1,
     CpuSubarch.UNKNOWN: 0,
@@ -99,6 +103,27 @@ _SUBARCH_PRIORITY = {
 
 #: Chunk size for streaming downloads (bytes).
 _CHUNK_SIZE = 8192
+
+
+def _verify_sha256(path: Path, expected: str) -> bool:
+    """Return True if *path* matches *expected* SHA-256 hex digest."""
+    if not expected:
+        return True
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        while True:
+            block = f.read(65536)
+            if not block:
+                break
+            h.update(block)
+    actual = h.hexdigest()
+    if actual == expected:
+        return True
+    logger.error(
+        "SHA256 mismatch for %s: expected=%s actual=%s",
+        path, expected, actual,
+    )
+    return False
 
 
 def _parse_asset_name(name: str) -> tuple[Platform, Arch, CpuSubarch] | None:
@@ -137,7 +162,7 @@ def _make_executable(path: Path) -> None:
     Skip on Android where the filesystem is typically mounted ``noexec``,
     making chmod both unnecessary and impossible.
     """
-    if platform.system() == "Linux" and os.path.exists("/system/bin/sh"):
+    if get_sys_platform() == "android":
         logger.info("Skipping chmod on Android filesystem for %s", path)
         return
     try:
@@ -157,8 +182,9 @@ def _resolve_archive(path: Path) -> Path:
     suffix = path.suffix.lower()
     is_tar_gz = suffix == ".gz" and path.name.lower().endswith(".tar.gz")
     is_tgz = suffix == ".tgz"
+    is_tar = suffix == ".tar"
 
-    if suffix not in (".zip", ".gz", ".tgz") and not is_tar_gz:
+    if suffix not in (".zip", ".gz", ".tgz", ".tar") and not is_tar_gz:
         return path
 
     if not path.exists():
@@ -174,6 +200,9 @@ def _resolve_archive(path: Path) -> Path:
                 zf.extractall(str(tmp_dir))
         elif is_tar_gz or is_tgz:
             with tarfile.open(str(path), "r:gz") as tf:
+                tf.extractall(str(tmp_dir))
+        elif is_tar:
+            with tarfile.open(str(path), "r:") as tf:
                 tf.extractall(str(tmp_dir))
         else:
             return path
@@ -356,11 +385,18 @@ class StockfishDownloadManager:
                         f.write(chunk)
                         self._progress_downloaded += len(chunk)
 
+        if not _verify_sha256(dest, asset.sha256):
+            raise RuntimeError(
+                f"SHA256 mismatch for {dest.name}. "
+                "The download may be corrupted or tampered with."
+            )
+
         _make_executable(dest)
+        resolved = _resolve_archive(dest)
         downloaded_at = time.strftime("%Y-%m-%dT%H:%M:%S")
         result = DownloadedAsset(
             asset=asset,
-            download_path=dest.resolve(),
+            download_path=resolved.resolve(),
             downloaded_at=downloaded_at,
         )
         logger.info("Downloaded %s (%d bytes)", dest.name, asset.size_bytes)
@@ -478,6 +514,7 @@ class StockfishDownloadManager:
                         name=raw["name"],
                         url=raw.get("browser_download_url", ""),
                         size_bytes=raw.get("size", 0),
+                        sha256=raw.get("sha256", ""),
                         platform=platform_val,
                         arch=arch_val,
                         subarch=subarch_val,
@@ -549,6 +586,7 @@ class StockfishDownloadManager:
                     name=raw["name"],
                     url=raw.get("browser_download_url", ""),
                     size_bytes=raw.get("size", 0),
+                    sha256=raw.get("sha256", ""),
                     platform=platform_val,
                     arch=arch_val,
                     subarch=subarch_val,
@@ -636,6 +674,12 @@ class StockfishDownloadManager:
                             progress_callback(downloaded, total)
 
         logger.info("Download completed: %s (%d bytes)", dest.name, downloaded)
+
+        if not _verify_sha256(dest, asset.sha256):
+            raise RuntimeError(
+                f"SHA256 mismatch for {dest.name}. "
+                "The download may be corrupted or tampered with."
+            )
 
         _make_executable(dest)
         resolved = _resolve_archive(dest)

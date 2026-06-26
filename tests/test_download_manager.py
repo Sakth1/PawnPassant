@@ -1,6 +1,8 @@
 """Tests for core.download_manager — _resolve_archive."""
+import io
 import shutil
 import sys
+import tarfile
 import tempfile
 import unittest
 import zipfile
@@ -56,6 +58,49 @@ class TestResolveArchive(unittest.TestCase):
     def test_bad_zip_returns_unchanged(self):
         f = self._tmp / "corrupt.zip"
         f.write_bytes(b"not a zip file")
+        result = _resolve_archive(f)
+        self.assertEqual(result, f)
+
+    def test_extracts_tar_with_stockfish_binary(self):
+        tar_path = self._tmp / "stockfish-android-armv8.tar"
+        with tarfile.open(str(tar_path), "w") as tf:
+            info = tarfile.TarInfo(name="stockfish-android-armv8")
+            info.size = len(b"fake binary content")
+            info.type = tarfile.REGTYPE
+            tf.addfile(info, io.BytesIO(b"fake binary content"))
+
+        result = _resolve_archive(tar_path)
+        self.assertTrue(result.name.startswith("stockfish"))
+        self.assertFalse(tar_path.exists(), "Archive should be deleted")
+        self.assertEqual(result.parent, self._tmp)
+
+    def test_extracts_tar_gz_with_stockfish_binary(self):
+        tgz_path = self._tmp / "stockfish-linux-x86-64-modern.tar.gz"
+        with tarfile.open(str(tgz_path), "w:gz") as tf:
+            info = tarfile.TarInfo(name="stockfish-linux-x86-64-modern")
+            info.size = len(b"fake binary content")
+            info.type = tarfile.REGTYPE
+            tf.addfile(info, io.BytesIO(b"fake binary content"))
+
+        result = _resolve_archive(tgz_path)
+        self.assertTrue(result.name.startswith("stockfish"))
+        self.assertFalse(tgz_path.exists(), "Archive should be deleted")
+        self.assertEqual(result.parent, self._tmp)
+
+    def test_tar_without_stockfish_returns_unchanged(self):
+        tar_path = self._tmp / "data.tar"
+        with tarfile.open(str(tar_path), "w") as tf:
+            info = tarfile.TarInfo(name="random_file.txt")
+            info.size = len(b"hello")
+            info.type = tarfile.REGTYPE
+            tf.addfile(info, io.BytesIO(b"hello"))
+
+        result = _resolve_archive(tar_path)
+        self.assertEqual(result, tar_path)
+
+    def test_bad_tar_returns_unchanged(self):
+        f = self._tmp / "corrupt.tar"
+        f.write_bytes(b"not a tar file")
         result = _resolve_archive(f)
         self.assertEqual(result, f)
 

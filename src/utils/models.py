@@ -207,6 +207,7 @@ class CpuSubarch(Enum):
     BMI2 = "bmi2"
     VNNI = "vnni"
     ARMV8 = "armv8"
+    ARMV8_DOTPROD = "armv8_dotprod"
     APPLE_SILICON = "apple_silicon"
     UNKNOWN = "unknown"
 
@@ -219,6 +220,7 @@ class CpuSubarch(Enum):
             CpuSubarch.BMI2: "BMI2",
             CpuSubarch.VNNI: "VNNI",
             CpuSubarch.ARMV8: "ARMv8",
+            CpuSubarch.ARMV8_DOTPROD: "ARMv8 DotProd",
             CpuSubarch.APPLE_SILICON: "Apple Silicon",
             CpuSubarch.UNKNOWN: "Unknown",
         }
@@ -237,6 +239,7 @@ class StockfishAsset:
     name: str
     url: str
     size_bytes: int
+    sha256: str
     platform: Platform
     arch: Arch
     subarch: CpuSubarch

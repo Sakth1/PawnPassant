@@ -35,7 +35,8 @@ def _verify_via_linker(linker: str, path: str) -> tuple[bool, str]:
     for line in stdout.splitlines():
         if line.startswith("id name Stockfish"):
             return True, line.strip()
-    return False, "No version string found in linker output."
+    preview = stdout[:200].replace("\n", " | ")
+    return False, f"No version string in linker output. Linker said: {preview}"
 
 
 def verify_stockfish_binary(path: str) -> tuple[bool, str]:
