@@ -25,7 +25,7 @@ class TestSetupOverlay(unittest.TestCase):
         )
         self.assertIsNotNone(overlay)
         self.assertEqual(overlay._mode, "computer")
-        self.assertIsNotNone(overlay._stockfish_install_panel)
+        self.assertIsNotNone(overlay._install_panel)
 
     def test_creates_computer_mode_with_config_panel(self):
         overlay = SetupOverlay(
@@ -35,7 +35,7 @@ class TestSetupOverlay(unittest.TestCase):
             binary_available=True,
         )
         self.assertIsNotNone(overlay)
-        self.assertIsNotNone(overlay._stockfish_config_panel)
+        self.assertIsNotNone(overlay._config_panel)
 
     def test_creates_online_mode(self):
         overlay = SetupOverlay(
@@ -67,9 +67,9 @@ class TestSetupOverlay(unittest.TestCase):
             mode="computer",
             binary_available=False,
         )
-        self.assertIsNotNone(overlay._stockfish_install_panel)
+        self.assertIsNotNone(overlay._install_panel)
         overlay.show_config_panel()
-        self.assertIsNotNone(overlay._stockfish_config_panel)
+        self.assertIsNotNone(overlay._config_panel)
 
     def test_panel_transition_config_to_install(self):
         overlay = SetupOverlay(
@@ -78,9 +78,9 @@ class TestSetupOverlay(unittest.TestCase):
             mode="computer",
             binary_available=True,
         )
-        self.assertIsNotNone(overlay._stockfish_config_panel)
+        self.assertIsNotNone(overlay._config_panel)
         overlay.show_install_panel()
-        self.assertIsNotNone(overlay._stockfish_install_panel)
+        self.assertIsNotNone(overlay._install_panel)
 
     def test_file_picker_stored(self):
         overlay = SetupOverlay(page=self.page, file_picker=self.file_picker, mode="computer")

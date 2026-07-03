@@ -9,12 +9,12 @@ class TestBinaryVerificationResultEvent(unittest.TestCase):
     def test_valid_event_creation(self):
         event = BinaryVerificationResultEvent(
             valid=True,
-            path="/usr/local/bin/stockfish",
-            version="Stockfish 17",
+            path="/usr/local/bin/lc0",
+            version="Lc0 0.32.1",
         )
         self.assertTrue(event.valid)
-        self.assertEqual(event.path, "/usr/local/bin/stockfish")
-        self.assertEqual(event.version, "Stockfish 17")
+        self.assertEqual(event.path, "/usr/local/bin/lc0")
+        self.assertEqual(event.version, "Lc0 0.32.1")
 
     def test_invalid_event_creation(self):
         event = BinaryVerificationResultEvent(

@@ -44,10 +44,8 @@ FONT_DIR = Path(ASSET_DIR, "fonts")
 #: Font family name used by Flet clock timer controls.
 FONT_FAMILY = "RobotoMono"
 
-#: Directory used for downloaded Stockfish engine binaries (desktop).
-#: On desktop, binaries are stored alongside bundled assets. On Android, use
-#: :func:`utils.paths.get_stockfish_dir` for the runtime-appropriate path.
-STOCKFISH_DIR: Path = Path(ROOT_DIR) / "assets" / "stockfish"
+#: Directory used for downloaded engine binaries (desktop fallback).
+ENGINE_DIR: Path = Path(ROOT_DIR) / "assets" / "engine"
 
 
 # ── Castling square maps ────────────────────────────────────────────────────

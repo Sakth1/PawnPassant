@@ -1,72 +1,32 @@
-"""Platform-aware storage paths for Stockfish binaries and app data.
-
-Follows the same pattern as :mod:`utils.settings` — resolves storage
-directories based on the running platform so that desktop builds store
-binaries alongside bundled assets while mobile builds use the app sandbox.
-"""
-
 import asyncio
+import glob
 import logging
 import os
 from pathlib import Path
 
-from utils.constants import STOCKFISH_DIR
+from utils.constants import ENGINE_DIR
 from utils.system import get_sys_platform
 
 logger = logging.getLogger(__name__)
 
-_ENV_OVERRIDE_KEY = "STOCKFISH_BINARY_DIR"
+_ENV_ENGINE_OVERRIDE_KEY = "ENGINE_BINARY_DIR"
 
 
-def get_stockfish_dir(page=None) -> Path:
-    """Return the platform-appropriate directory for Stockfish binaries.
-
-    Resolution order:
-      1. ``STOCKFISH_BINARY_DIR`` environment variable (escape hatch).
-      2. Android → Flet StoragePaths or ``~/.pawnpassant/stockfish``.
-      3. Desktop → ``STOCKFISH_DIR`` (bundled ``assets/stockfish``).
-
-    Args:
-        page: Optional Flet page object for more accurate platform detection
-              (matches the pattern used by :class:`utils.settings.SettingsController`).
-              When ``None``, falls back to :func:`utils.system.get_sys_platform`.
-
-    Returns:
-        A writable directory path. The directory may not exist yet — callers
-        should create it with ``mkdir(parents=True, exist_ok=True)``.
-    """
-    env_dir = os.environ.get(_ENV_OVERRIDE_KEY)
+def get_engine_dir(page=None) -> Path:
+    env_dir = os.environ.get(_ENV_ENGINE_OVERRIDE_KEY)
     if env_dir:
-        resolved = Path(env_dir)
-        logger.info("Using %s override: %s", _ENV_OVERRIDE_KEY, resolved)
-        return resolved
-
+        return Path(env_dir)
     from utils.models import Platform
-
     platform_name = _resolve_platform(page)
-
     if platform_name == Platform.ANDROID.value:
-        path = _android_stockfish_dir(page)
-        logger.info("Android Stockfish directory -> %s", path)
-        return path
-
-    logger.info("Desktop Stockfish directory -> %s", STOCKFISH_DIR)
-    return STOCKFISH_DIR
+        return _android_engine_dir(page)
+    return ENGINE_DIR
 
 
-def _android_stockfish_dir(page) -> Path:
-    """Return a writable directory for Stockfish binaries on Android.
-
-    Resolution order:
-      1. ``FLET_APP_STORAGE_DATA`` environment variable (Flet sandbox,
-         always writable on Android).
-      2. Flet's ``StoragePaths.get_application_support_directory()``.
-      3. ``~/.pawnpassant/stockfish`` (last resort).
-    """
+def _android_engine_dir(page) -> Path:
     env_data = os.environ.get("FLET_APP_STORAGE_DATA")
     if env_data:
-        return Path(env_data) / "pawnpassant" / "stockfish"
-
+        return Path(env_data) / "pawnpassant" / "engine"
     if page is not None:
         storage_paths = getattr(page, "StoragePaths", None)
         if storage_paths is not None and hasattr(
@@ -79,36 +39,16 @@ def _android_stockfish_dir(page) -> Path:
                 )
                 path_str = future.result(timeout=5)
                 if path_str:
-                    return Path(path_str) / "pawnpassant" / "stockfish"
+                    return Path(path_str) / "pawnpassant" / "engine"
             except (RuntimeError, Exception):
-                logger.debug("Could not resolve StoragePaths", exc_info=True)
-
-    return Path.home() / ".pawnpassant" / "stockfish"
+                logger.debug("Could not resolve StoragePaths for engine", exc_info=True)
+    return Path.home() / ".pawnpassant" / "engine"
 
 
 def get_log_dir(page=None) -> Path:
-    """Return the platform-appropriate directory for application log files.
-
-    Resolution order:
-      1. ``FLET_APP_STORAGE_DATA`` environment variable (Flet sandbox,
-         always writable on Android).
-      2. Flet's ``StoragePaths.get_application_support_directory()``.
-      3. ``~/.pawnpassant/logs`` (last resort).
-
-    Args:
-        page: Optional Flet page for accurate platform detection.
-              Pass ``None`` during early initialisation (before the page
-              exists); the directory will be re-resolved later when the
-              page is available.
-
-    Returns:
-        A writable directory path. The directory may not exist yet —
-        callers should create it with ``mkdir(parents=True, exist_ok=True)``.
-    """
     env_data = os.environ.get("FLET_APP_STORAGE_DATA")
     if env_data:
         return Path(env_data) / "pawnpassant" / "logs"
-
     if page is not None:
         storage_paths = getattr(page, "StoragePaths", None)
         if storage_paths is not None and hasattr(
@@ -124,24 +64,66 @@ def get_log_dir(page=None) -> Path:
                     return Path(path_str) / "pawnpassant" / "logs"
             except (RuntimeError, Exception):
                 logger.debug("Could not resolve StoragePaths for logs", exc_info=True)
-
     return Path.home() / ".pawnpassant" / "logs"
 
 
-def _resolve_platform(page) -> str:
-    """Extract the normalized platform name, favouring the system platform when
-    Flet's runtime value is inconsistent with the detected system platform
-    (e.g., Android label on a non-Android kernel) to avoid writing to
-    non-writable paths.
-    """
-    from utils.models import Platform
+def get_active_engine_path(
+    page=None,
+    source: str = "bundled",
+    downloaded_path: str = "",
+    engine_name: str = "lc0",
+) -> Path | None:
+    if source == "bundled":
+        bundled = get_bundled_engine_path(page, engine_name)
+        if bundled is not None:
+            return bundled
+    elif source == "downloaded" and downloaded_path:
+        p = Path(downloaded_path)
+        if p.exists():
+            return p.resolve()
+    downloaded = get_downloaded_engine_path(page, engine_name)
+    if downloaded is not None:
+        return downloaded
+    return get_bundled_engine_path(page, engine_name)
 
+
+def get_bundled_engine_path(page=None, engine_name: str = "lc0") -> Path | None:
+    env_lib = os.environ.get("FLET_APP_LIB_DIR")
+    so_name = f"lib{engine_name}.so"
+    if env_lib:
+        candidate = Path(env_lib) / so_name
+        if candidate.exists():
+            return candidate.resolve()
+    for p in [
+        f"/data/app/*/lib/arm64/{so_name}",
+        f"/data/app/*/lib/arm/{so_name}",
+        f"/data/app/*/lib/*/{so_name}",
+    ]:
+        matches = sorted(glob.glob(p))
+        for m in matches:
+            return Path(m).resolve()
+    desktop = ENGINE_DIR / so_name
+    if desktop.exists():
+        return desktop.resolve()
+    return None
+
+
+def get_downloaded_engine_path(page=None, engine_name: str = "lc0") -> Path | None:
+    eng_dir = get_engine_dir(page)
+    exe_name = f"{engine_name}.exe" if os.name == "nt" else engine_name
+    candidate = eng_dir / exe_name
+    if candidate.exists():
+        return candidate.resolve()
+    return None
+
+
+def _resolve_platform(page) -> str:
+    from utils.models import Platform
     if page is not None:
         platform = getattr(page, "platform", None)
         if platform is not None:
             value = getattr(platform, "value", platform)
             flet_platform = str(value).strip().lower()
-
             if flet_platform == Platform.ANDROID.value:
                 sys_platform = get_sys_platform()
                 if sys_platform != Platform.ANDROID:
@@ -151,7 +133,5 @@ def _resolve_platform(page) -> str:
                         sys_platform.value,
                     )
                     return sys_platform.value
-
             return flet_platform
-
     return get_sys_platform().value

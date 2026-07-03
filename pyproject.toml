@@ -1,7 +1,7 @@
 [project]
 name = "pawnpassant"
 version = "v0.4.2-alpha"
-description = "A cross-platform chess game with full rules enforcement, chess clock, and Stockfish AI, built with Flet."
+description = "A cross-platform chess game with full rules enforcement, chess clock, and Leela Chess Zero AI, built with Flet."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
@@ -10,8 +10,6 @@ authors = [
 dependencies = [
     "flet>=0.85.3",
     "chess>=1.11.2",
-    "httpx>=0.28.0",
-    "stockfish>=5.2.0",
 ]
 
 [dependency-groups]
@@ -27,7 +25,7 @@ org = "com.mycompany"
 product = "Pawn Passant"
 company = "Flet"
 copyright = "Copyright (C) 2023-2026 by Flet"
-source_packages = ["chess", "stockfish"]
+source_packages = ["chess"]
 
 [tool.flet.android]
 permissions = ["android.permission.INTERNET"]
@@ -35,7 +33,6 @@ split_per_abi = false
 compile_packages = true
 dependencies = [
     "chess>=1.11.2",
-    "stockfish>=5.2.0",
 ]
 
 [tool.flet.app]
@@ -43,6 +40,15 @@ path = "src"
 
 [tool.pawnpassant.release]
 binary_name = "Pawn-Passant"
+
+# ── Android engine setup ─────────────────────────────────────────────
+# Lc0 is NOT bundled in the APK. The engine binary and neural network
+# weights are downloaded at runtime from GitHub and lczero.org
+# respectively, under user control via the in-app download UI.
+#
+# On Android the Lc0 APK release contains liblc0.so + libopenblas.so
+# which are extracted to the app data directory and executed with
+# LD_LIBRARY_PATH pointing at the same directory.
 
 [tool.ruff]
 line-length = 88
