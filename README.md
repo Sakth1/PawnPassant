@@ -32,7 +32,7 @@
 
 ## Overview
 
-Pawn Passant is a cross-platform chess application built with [Flet](https://flet.dev/), a Python framework that wraps Flutter for native desktop, mobile, and web UIs. It delivers a polished chess experience with full rules enforcement, move animations, a configurable chess clock, and an AI opponent powered by Stockfish.
+Pawn Passant is a cross-platform chess application built with [Flet](https://flet.dev/), a Python framework that wraps Flutter for native desktop, mobile, and web UIs. It delivers a polished chess experience with full rules enforcement, move animations, a configurable chess clock, and an AI opponent powered by Leela Chess Zero (Lc0).
 
 The application separates game logic from presentation. The backend uses [`python-chess`](https://python-chess.readthedocs.io/) for move validation and rules enforcement, while the frontend provides a responsive, interactive interface. Components communicate through an event-driven signal bus, keeping the architecture modular and testable.
 
@@ -170,7 +170,7 @@ Settings are persisted automatically. On Windows they are stored at `%APPDATA%\p
 ## Current Limitations
 
 - **Draw agreement** — Only the current player can offer a draw; the opponent cannot accept or reject it yet.
-- **AI opponent** — The Stockfish integration is scaffolded but the bot does not yet make moves automatically.
+- **AI opponent** — The Lc0 integration is scaffolded but the bot does not yet make moves automatically.
 - **Local multiplayer** — The "Play someone" option is marked as a work in progress.
 - **Online multiplayer** — The game state defines an `ONLINE` mode, but no networking implementation exists.
 - **Captured piece drag feedback** — Placeholder hooks exist but the drag interaction is not functional.
@@ -196,7 +196,7 @@ Settings are persisted automatically. On Windows they are stored at `%APPDATA%\p
 
 ### Planned
 
-- [ ] **AI opponent** — Complete Stockfish integration so the computer plays moves with time-aware decision making
+- [ ] **AI opponent** — Complete Lc0 integration so the computer plays moves with time-aware decision making
 - [ ] **"Play someone" mode** — Local two-player (pass-and-play) mode
 - [ ] **Draw agreement flow** — Allow the opposing player to accept or reject a draw offer
 - [ ] **Online multiplayer** — Networked play against remote opponents

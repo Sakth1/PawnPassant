@@ -163,14 +163,13 @@ class OnlineSetupPanel(ft.Column):
         try:
             page = self.page
             if page:
-                self._wip_snack.open = True
-                page.show_snack_bar(self._wip_snack)
+                page.show_dialog(self._wip_snack)
         except RuntimeError:
-            pass
+            logger.warning("Failed to show WIP snackbar", exc_info=True)
 
 
 def safe_update(control: ft.Control) -> None:
     try:
         control.update()
     except RuntimeError:
-        pass
+        logger.debug("safe_update suppressed RuntimeError", exc_info=True)

@@ -16,7 +16,7 @@ from utils.constants import (
 )
 from ui.layout import AppLayout, resolve_app_layout
 from utils.dialogs import safe_update
-from utils.models import TimeControl, StockfishGameConfig
+from utils.models import TimeControl
 from utils.game_state import GameAgainst, game_state
 
 logger = logging.getLogger(__name__)

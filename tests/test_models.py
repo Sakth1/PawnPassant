@@ -75,11 +75,11 @@ class TestAppSettingsDefaults(unittest.TestCase):
     def test_confirm_draw_default(self):
         self.assertTrue(self.settings.confirm_draw)
 
-    def test_stockfish_binary_path_default(self):
-        self.assertEqual(self.settings.stockfish_binary_path, "")
+    def test_engine_binary_path_default(self):
+        self.assertEqual(self.settings.engine_binary_path, "")
 
-    def test_stockfish_difficulty_default(self):
-        self.assertEqual(self.settings.stockfish_difficulty, "intermediate")
+    def test_engine_difficulty_default(self):
+        self.assertEqual(self.settings.engine_difficulty, "intermediate")
 
 
 class TestAppSettingsFromDict(unittest.TestCase):
@@ -146,8 +146,11 @@ class TestAppSettingsToDict(unittest.TestCase):
             "show_milliseconds_in_critical",
             "confirm_resign",
             "confirm_draw",
-            "stockfish_binary_path",
-            "stockfish_difficulty",
+            "engine_binary_path",
+            "engine_source",
+            "engine_downloaded_path",
+            "engine_difficulty",
+            "engine_type",
         }
         self.assertEqual(set(d.keys()), expected_keys)
 

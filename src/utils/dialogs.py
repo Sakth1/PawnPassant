@@ -53,8 +53,6 @@ def safe_update(control: ft.Control) -> None:
     try:
         control.update()
     except RuntimeError as exc:
-        logger.debug("safe_update suppressed RuntimeError: %s", exc)
+        logger.debug("safe_update suppressed RuntimeError: %s", exc, exc_info=True)
     except Exception as exc:
-        logger.warning(
-            "safe_update suppressed unexpected error: %s", exc, exc_info=True
-        )
+        logger.warning("safe_update suppressed unexpected error: %s", exc, exc_info=True)

@@ -1,21 +1,87 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+import shutil
+import sys
+import tarfile
+import tempfile
+import zipfile
 from pathlib import Path
 from typing import Callable
 
 import flet as ft
 
-from ui.stockfish_setup_panel import StockfishConfigPanel, StockfishInstallPanel
+from ui.engine_setup_panel import EngineConfigPanel, EngineInstallPanel
 from ui.online_setup_panel import OnlineSetupPanel
 from ui.task_toast import show_toast
-from core.binary_verifier import verify_stockfish_binary
-from core.download_manager import _resolve_archive
-from utils.events import BinaryVerificationResultEvent
-from utils.models import StockfishGameConfig
-from utils.signals import bus
+from core.engine_verify import verify_engine_binary
+from utils.models import Lc0GameConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_archive_to_binary(path: Path, engine_name: str = "lc0") -> Path:
+    suffix = path.suffix.lower()
+    is_tar_gz = suffix == ".gz" and path.name.lower().endswith(".tar.gz")
+    is_tgz = suffix == ".tgz"
+
+    if suffix not in (".zip", ".gz", ".tgz", ".tar") and not is_tar_gz:
+        return path
+
+    if not path.exists():
+        return path
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="engine_extract_"))
+    logger.info("Extracting %s -> %s", path, tmp_dir)
+
+    try:
+        if suffix == ".zip":
+            with zipfile.ZipFile(str(path), "r") as zf:
+                zf.extractall(str(tmp_dir))
+        elif is_tar_gz or is_tgz:
+            with tarfile.open(str(path), "r:gz") as tf:
+                tf.extractall(str(tmp_dir))
+        elif suffix == ".tar":
+            with tarfile.open(str(path), "r:") as tf:
+                tf.extractall(str(tmp_dir))
+        else:
+            return path
+
+        candidates = [f for f in tmp_dir.rglob("*") if f.is_file() and not f.name.startswith(".")]
+
+        if not candidates:
+            logger.warning("No files found in archive %s", path)
+            return path
+
+        if sys.platform == "win32":
+            exe_files = [f for f in candidates if f.suffix == ".exe"]
+            if exe_files:
+                candidates = exe_files
+        else:
+            noext_files = [f for f in candidates if not f.suffix]
+            if noext_files:
+                candidates = noext_files
+
+        best = max(candidates, key=lambda f: f.stat().st_size)
+        exe_name = f"{engine_name}.exe" if sys.platform == "win32" else engine_name
+        exe_path = path.parent / exe_name
+
+        shutil.move(str(best), str(exe_path))
+        try:
+            current = exe_path.stat().st_mode
+            exe_path.chmod(current | 0o111)
+        except OSError:
+            pass
+
+        logger.info("Extracted %s -> %s", best.name, exe_path)
+        return exe_path.resolve()
+
+    except (zipfile.BadZipFile, tarfile.TarError, OSError) as exc:
+        logger.error("Extraction failed for %s: %s", path, exc, exc_info=True)
+        return path
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 class SetupOverlay(ft.Container):
@@ -25,13 +91,18 @@ class SetupOverlay(ft.Container):
         file_picker: ft.FilePicker,
         mode: str = "computer",
         binary_available: bool = False,
-        on_start_game: Callable[[StockfishGameConfig], None] | None = None,
+        on_start_game: Callable[[Lc0GameConfig], None] | None = None,
         on_play_local: Callable[[], None] | None = None,
         on_close: Callable[[], None] | None = None,
         on_install_clicked: Callable[[], None] | None = None,
         on_binary_installed: Callable[[str], None] | None = None,
         asset_name: str = "",
         asset_size_bytes: int = 0,
+        engine_name: str = "Leela Chess Zero",
+        bundled_version: str = "",
+        has_downloaded_version: bool = False,
+        on_activate_downloaded: Callable[[], None] | None = None,
+        available_networks: list | None = None,
     ):
         super().__init__()
         self._page = page
@@ -44,6 +115,11 @@ class SetupOverlay(ft.Container):
         self._on_binary_installed = on_binary_installed
         self._asset_name = asset_name
         self._asset_size_bytes = asset_size_bytes
+        self._engine_name = engine_name
+        self._bundled_version = bundled_version
+        self._has_downloaded_version = has_downloaded_version
+        self._on_activate_downloaded = on_activate_downloaded
+        self._available_networks = available_networks
 
         self._title_text = ft.Text(
             "Play vs Computer" if mode == "computer" else "Play Someone",
@@ -64,10 +140,7 @@ class SetupOverlay(ft.Container):
 
         self._panel_container = ft.Container(
             expand=True,
-            content=ft.Column(
-                spacing=0,
-                scroll=ft.ScrollMode.AUTO,
-            ),
+            content=ft.Column(spacing=0, scroll=ft.ScrollMode.AUTO),
         )
 
         card = ft.Container(
@@ -109,8 +182,8 @@ class SetupOverlay(ft.Container):
         )
         self.visible = False
 
-        self._stockfish_config_panel: StockfishConfigPanel | None = None
-        self._stockfish_install_panel: StockfishInstallPanel | None = None
+        self._config_panel: EngineConfigPanel | None = None
+        self._install_panel: EngineInstallPanel | None = None
         self._online_panel: OnlineSetupPanel | None = None
 
         if mode == "computer":
@@ -122,34 +195,31 @@ class SetupOverlay(ft.Container):
             self._show_online_panel()
 
     def set_fetching(self) -> None:
-        if self._stockfish_install_panel is not None:
-            self._stockfish_install_panel.set_fetching()
+        if self._install_panel is not None:
+            self._install_panel.set_fetching()
 
-    def set_ready(self, name: str, size_bytes: int) -> None:
+    def set_ready(self, name: str, size_bytes: int, sha256: str = "", platform: str = "", arch: str = "") -> None:
         self._asset_name = name
         self._asset_size_bytes = size_bytes
-        if self._stockfish_install_panel is not None:
-            self._stockfish_install_panel.set_ready(name, size_bytes)
-            logger.info("Install panel set ready name=%s size=%d", name, size_bytes)
+        if self._install_panel is not None:
+            self._install_panel.set_ready(name, size_bytes, sha256, platform, arch)
 
     def set_error(self, message: str) -> None:
-        if self._stockfish_install_panel is not None:
-            self._stockfish_install_panel.set_error(message)
-            logger.info("Install panel set error message=%s", message)
+        if self._install_panel is not None:
+            self._install_panel.set_error(message)
 
     def update_asset_info(self, name: str, size_bytes: int) -> None:
         self._asset_name = name
         self._asset_size_bytes = size_bytes
-        if self._stockfish_install_panel is not None:
-            self._stockfish_install_panel.set_asset_info(name, size_bytes)
-            logger.info("Asset info pushed to install panel name=%s", name)
+        if self._install_panel is not None:
+            self._install_panel.set_asset_info(name, size_bytes)
 
     def open(self) -> None:
         if self not in self._page.overlay:
             self.visible = True
             self._page.overlay.append(self)
             self._page.update()
-            logger.info("Overlay opened mode=%s", self._mode)
+            logger.info("Overlay opened mode=%s engine=%s", self._mode, self._engine_name)
 
     def close(self) -> None:
         self.visible = False
@@ -168,23 +238,28 @@ class SetupOverlay(ft.Container):
 
     def _show_install_panel(self) -> None:
         logger.debug("Showing install panel")
-        self._stockfish_install_panel = StockfishInstallPanel(
+        self._install_panel = EngineInstallPanel(
             on_installed=lambda: self._show_config_panel(),
             on_install_clicked=self._on_install_clicked,
             on_browse_manual=self._on_browse_manual,
             asset_name=self._asset_name,
             asset_size_bytes=self._asset_size_bytes,
+            engine_name=self._engine_name,
+            bundled_version=self._bundled_version,
+            has_downloaded_version=self._has_downloaded_version,
+            on_activate_downloaded=self._on_activate_downloaded,
         )
-        self._panel_container.content = self._stockfish_install_panel
+        self._panel_container.content = self._install_panel
         self._page.update()
 
     def _show_config_panel(self) -> None:
         logger.debug("Showing config panel")
-        self._stockfish_config_panel = StockfishConfigPanel(
+        self._config_panel = EngineConfigPanel(
             on_start_game=self._on_start_game_callback,
-            on_back=self._show_install_panel if not self._binary_check() else None,
+            on_back=self._show_install_panel,
+            available_networks=self._available_networks,
         )
-        self._panel_container.content = self._stockfish_config_panel
+        self._panel_container.content = self._config_panel
         self._page.update()
 
     def _show_online_panel(self) -> None:
@@ -197,10 +272,7 @@ class SetupOverlay(ft.Container):
         self._panel_container.content = self._online_panel
         self._page.update()
 
-    def _binary_check(self) -> bool:
-        return bool(self._page and hasattr(self._page, "session") and False)
-
-    def _on_start_game_callback(self, config: StockfishGameConfig) -> None:
+    def _on_start_game_callback(self, config: Lc0GameConfig) -> None:
         self.close()
         if self._on_start_game:
             self._on_start_game(config)
@@ -218,7 +290,7 @@ class SetupOverlay(ft.Container):
         files = await self._file_picker.pick_files(
             allow_multiple=False,
             allowed_extensions=["exe", "bin", "zip", ""],
-            dialog_title="Select Stockfish executable or archive",
+            dialog_title="Select engine executable or archive",
         )
         if not files:
             logger.info("File picker cancelled by user")
@@ -227,29 +299,30 @@ class SetupOverlay(ft.Container):
         if not path:
             logger.warning("File picker returned empty path")
             return
+
+        if self._install_panel:
+            self._install_panel.set_verifying()
+        await asyncio.sleep(0)
+
         logger.info("User selected path=%s", path)
-        exe_path = str(_resolve_archive(Path(path)))
-        valid, version = verify_stockfish_binary(exe_path)
+        loop = asyncio.get_running_loop()
+        exe_path = await loop.run_in_executor(
+            None, lambda: str(_resolve_archive_to_binary(Path(path)))
+        )
+        valid, version = await loop.run_in_executor(
+            None, verify_engine_binary, exe_path
+        )
+
         if valid:
             logger.info("Picked binary verified version=%s path=%s", version, path)
-            bus.emit(
-                BinaryVerificationResultEvent(
-                    valid=True, path=path, version=version
-                )
-            )
-            if self._stockfish_install_panel:
-                self._stockfish_install_panel.set_asset_info(
-                    Path(path).name, Path(path).stat().st_size
-                )
-            show_toast(self._page, f"Valid Stockfish binary: {version}")
+            if self._install_panel:
+                self._install_panel.set_asset_info(Path(path).name, Path(path).stat().st_size)
+            show_toast(self._page, f"Valid engine: {version}")
             self._on_installed_with_path(path)
         else:
             logger.warning("Picked binary invalid path=%s error=%s", path, version)
-            bus.emit(
-                BinaryVerificationResultEvent(
-                    valid=False, path=path, version=version
-                )
-            )
+            if self._install_panel:
+                self._install_panel.set_error(version)
             show_toast(self._page, version, is_error=True)
 
     def _on_installed_with_path(self, path: str) -> None:

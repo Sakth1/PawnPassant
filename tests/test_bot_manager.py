@@ -1,60 +1,61 @@
-"""Unit tests for core.bot_manager — BotManager construction, event wiring."""
+"""Tests for core.bot_manager — BotManager with EngineManager."""
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from core.bot_manager import BotManager
-from utils.events import PieceMovedEvent
-from utils.models import EngineConfig, StockfishGameConfig
-from utils.signals import bus
+from utils.models import Lc0GameConfig
 
 
-class TestBotManagerConstruction(unittest.TestCase):
-    @patch("core.bot_manager.Stockfish")
-    def test_creates_stockfish(self, mock_stockfish):
-        bm = BotManager(engine_path="/mock/stockfish")
-        mock_stockfish.assert_called_once_with(
-            path="/mock/stockfish", depth=10, parameters=None
+class TestBotManager(unittest.TestCase):
+    @patch("core.bot_manager.EngineManager")
+    def test_creates_engine_manager(self, mock_engine_cls):
+        bm = BotManager(engine_path="/mock/lc0")
+        mock_engine_cls.assert_called_once()
+        call_kwargs = mock_engine_cls.call_args[1]
+        self.assertEqual(call_kwargs["engine_path"], "/mock/lc0")
+
+    @patch("core.bot_manager.EngineManager")
+    def test_start_starts_engine(self, mock_engine_cls):
+        mock_engine = mock_engine_cls.return_value
+        bm = BotManager(engine_path="/mock/lc0")
+        result = bm.start()
+        mock_engine.start.assert_called_once()
+        self.assertTrue(result)
+
+    @patch("core.bot_manager.EngineManager")
+    def test_stop_stops_engine(self, mock_engine_cls):
+        mock_engine = mock_engine_cls.return_value
+        bm = BotManager(engine_path="/mock/lc0")
+        bm.start()
+        bm.stop()
+        mock_engine.stop.assert_called_once()
+
+    @patch("core.bot_manager.EngineManager")
+    def test_accepts_lc0_game_config(self, mock_engine_cls):
+        config = Lc0GameConfig(
+            network_name="T1-256x10-distilled",
+            network_path="/weights/t1.pb.gz",
+            backend="blas",
+            threads=4,
+            temperature=0.5,
         )
+        bm = BotManager(engine_path="/mock/lc0", config=config)
+        self.assertEqual(bm._config.network_name, "T1-256x10-distilled")
+        self.assertEqual(bm._config.backend, "blas")
 
-    @patch("core.bot_manager.Stockfish")
-    def test_accepts_stockfish_game_config(self, mock_stockfish):
-        config = StockfishGameConfig(
-            elo=1500,
-            skill_level=12,
-            depth=12,
-            threads=2,
-            hash_mb=128,
-        )
-        bm = BotManager(engine_path="/mock/stockfish", config=config)
-        self.assertEqual(bm._config.elo, 1500)
-        self.assertEqual(bm._config.depth, 12)
-
-    @patch("core.bot_manager.Stockfish")
-    def test_accepts_engine_config(self, mock_stockfish):
-        config = EngineConfig(
-            elo=2000,
-            depth=20,
+    @patch("core.bot_manager.EngineManager")
+    def test_set_config_updates_uci_options(self, mock_engine_cls):
+        mock_engine = mock_engine_cls.return_value
+        bm = BotManager(engine_path="/mock/lc0")
+        new_config = Lc0GameConfig(
+            network_name="BT4-it332",
+            network_path="/weights/bt4.pb.gz",
+            backend="cuda",
             threads=4,
         )
-        bm = BotManager(engine_path="/mock/stockfish", config=config)
-        self.assertEqual(bm._config.elo, 2000)
-        self.assertEqual(bm._config.depth, 20)
-        self.assertEqual(bm._config.threads, 4)
-
-
-class TestBotManagerEventHandler(unittest.TestCase):
-    @patch("core.bot_manager.Stockfish")
-    def test_handles_piece_moved_event(self, mock_stockfish):
-        """BotManager subscribes to PieceMovedEvent without error."""
-        bm = BotManager(engine_path="/mock/stockfish")
-        bus.emit(PieceMovedEvent("fen_string", "white"))
-
-    @patch("core.bot_manager.Stockfish")
-    def test_multiple_events_do_not_crash(self, mock_stockfish):
-        bm = BotManager(engine_path="/mock/stockfish")
-        for _ in range(5):
-            bus.emit(PieceMovedEvent("fen_string", "black"))
+        bm.set_config(new_config)
+        mock_engine.configure.assert_called_once()
 
 
 if __name__ == "__main__":

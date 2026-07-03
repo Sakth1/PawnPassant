@@ -1,4 +1,4 @@
-"""Stockfish difficulty presets with randomized parameter ranges.
+"""Difficulty presets with randomized parameter ranges.
 
 Each preset defines min/max ranges for ELO, skill level, and depth.
 At game start, the actual parameters are randomly selected within each range.
@@ -49,7 +49,7 @@ DIFFICULTY_PRESETS: dict[str, DifficultyPreset] = {
     ),
     "master": DifficultyPreset(
         name="Master",
-        description="Maximum Stockfish strength with full analysis depth.",
+        description="Maximum engine strength with full analysis depth.",
         elo_min=2500,
         elo_max=3190,
         skill_min=20,

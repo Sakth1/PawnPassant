@@ -71,7 +71,7 @@ class SharedPreferencesSettingsBackend:
             try:
                 decoded = json.loads(raw_settings)
             except json.JSONDecodeError:
-                logger.warning("Ignoring malformed shared-preferences settings payload")
+                logger.warning("Ignoring malformed shared-preferences settings payload", exc_info=True)
                 return None
             return decoded if isinstance(decoded, dict) else None
         return None
@@ -95,7 +95,7 @@ class JsonFileSettingsBackend:
             logger.exception("Failed to read settings file path=%s", self.file_path)
             return None
         except json.JSONDecodeError:
-            logger.warning("Ignoring malformed settings file path=%s", self.file_path)
+            logger.warning("Ignoring malformed settings file path=%s", self.file_path, exc_info=True)
             return None
 
     async def save(self, payload: dict[str, Any]) -> None:
