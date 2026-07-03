@@ -133,7 +133,13 @@ def read_recent_logs(
     if current_tb and entries:
         entries[-1].setdefault("_tb", []).extend(current_tb)
 
-    return entries[-max_lines:]
+    result = entries[-max_lines:]
+    if len(result) < 10 and log_path is not None:
+        logger.debug(
+            "read_recent_logs returned only %d entries (requested %d) from %s",
+            len(result), max_lines, log_path,
+        )
+    return result
 
 
 def _level_index(level_name: str) -> int:
@@ -148,7 +154,7 @@ def build_error_report(
     error_msg: str,
     extra_info: dict[str, str] | None = None,
     page=None,
-    recent_lines: int = 50,
+    recent_lines: int = 20,
 ) -> str:
     """Build a complete copyable error report.
 

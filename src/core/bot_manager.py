@@ -20,8 +20,6 @@ logger = logging.getLogger(__name__)
 def _android_linker_prefix(engine_path: str) -> list[str] | None:
     if "ANDROID_ROOT" not in os.environ:
         return None
-    if "lib" in engine_path and ".so" in engine_path:
-        return None
     machine = _platform.machine()
     linker = "/system/bin/linker64" if "64" in machine else "/system/bin/linker"
     return [linker]

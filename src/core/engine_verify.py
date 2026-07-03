@@ -270,7 +270,7 @@ def _find_linker() -> str | None:
 
 
 def _verify_via_uci(path: str, extra_args: list[str] | None = None) -> tuple[bool, str]:
-    cmd = [path] + (extra_args or [])
+    cmd = (extra_args or []) + [path]
     try:
         proc = subprocess.Popen(
             cmd,
@@ -309,6 +309,9 @@ def verify_engine_binary(path: str) -> tuple[bool, str]:
         return False, "Not a file."
 
     if _is_android():
+        if not os.access(path, os.X_OK):
+            logger.warning("Binary lacks execute permission path=%s", path)
+
         diag = read_elf_diagnostics(path)
         compatible, reason = _check_android_compatible(diag)
         if not compatible:

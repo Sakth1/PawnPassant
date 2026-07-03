@@ -87,7 +87,7 @@ class EngineManager:
                 return True
             try:
                 self._proc = subprocess.Popen(
-                    [self._engine_path] + self._extra_args,
+                    (self._extra_args or []) + [self._engine_path],
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
