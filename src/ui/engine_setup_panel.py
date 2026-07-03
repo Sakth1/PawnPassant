@@ -44,14 +44,12 @@ class EngineInstallPanel(ft.Column):
         bundled_version: str = "",
         has_downloaded_version: bool = False,
         on_activate_downloaded: Callable[[], None] | None = None,
-        on_check_updates: Callable[[], None] | None = None,
     ):
         super().__init__(spacing=16, scroll=ft.ScrollMode.AUTO)
         self._on_installed = on_installed
         self._on_install_clicked = on_install_clicked
         self._on_browse_manual = on_browse_manual
         self._on_activate_downloaded = on_activate_downloaded
-        self._on_check_updates = on_check_updates
         self._engine_name = engine_name
         self._download_started = False
         self._download_completed = False
@@ -168,13 +166,6 @@ class EngineInstallPanel(ft.Column):
             controls=[self._downloaded_status, self._activate_button],
         )
 
-        self._check_updates_button = ft.OutlinedButton(
-            "Check for updates",
-            icon=ft.Icons.UPDATE,
-            on_click=self._handle_check_updates,
-            visible=not bool(bundled_version),
-        )
-
         self._info_banner = ft.Container(
             visible=False,
             padding=ft.Padding.all(12),
@@ -216,7 +207,6 @@ class EngineInstallPanel(ft.Column):
                         ],
                     ),
                     self._error_banner,
-                    self._check_updates_button,
                     self._buttons_row,
                     self._info_banner,
                 ],
@@ -378,14 +368,9 @@ class EngineInstallPanel(ft.Column):
         if self._on_activate_downloaded:
             self._on_activate_downloaded()
 
-    def _handle_check_updates(self, _e=None) -> None:
-        if self._on_check_updates:
-            self._on_check_updates()
-
     def set_bundled_status(self, version: str) -> None:
         self._bundled_status.visible = True
         self._bundled_status.controls[1].value = f"{self._engine_name} {version} (bundled)"
-        self._check_updates_button.visible = True
         safe_update(self)
 
     def show_downloaded_available(self, version: str) -> None:
