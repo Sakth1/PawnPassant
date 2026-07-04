@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import platform as _platform
+import threading
 from collections.abc import Callable
 
 import chess
@@ -42,10 +43,13 @@ class BotManager:
         engine_path: str,
         config: Lc0GameConfig | None = None,
         on_bot_move: Callable[[str], None] | None = None,
+        page=None,
     ):
         self._config = config or Lc0GameConfig()
         self._on_bot_move = on_bot_move
         self._engine_path = engine_path
+        self._page = page
+        self._search_lock = threading.Lock()
 
         lc0_opts = Lc0Options()
         if self._config.network_path:
@@ -85,24 +89,55 @@ class BotManager:
         if not self._started or not self.engine.is_ready():
             return
 
-        self.engine.set_fen(event.board_fen)
-        tc = game_state.time_control
-        if tc:
-            minutes, increment = tc
-            wtime = btime = (minutes * 60 * 1000) // 40
-            winc = binc = increment * 1000
-            best_move = self.engine.go_with_time(
-                wtime=wtime,
-                btime=btime,
-                winc=winc,
-                binc=binc,
-            )
-        else:
-            best_move = self.engine.go_with_time(movetime=5000)
+        if not self._search_lock.acquire(blocking=False):
+            logger.debug("Bot search already in progress, skipping move event")
+            return
 
-        if best_move and self._on_bot_move:
-            logger.info("Bot plays %s", best_move)
-            self._on_bot_move(best_move)
+        threading.Thread(
+            target=self._do_search,
+            args=(event.board_fen,),
+            daemon=True,
+        ).start()
+
+    def _do_search(self, fen: str) -> None:
+        try:
+            self.engine.set_fen(fen)
+
+            max_playouts = self._config.max_playouts
+            if max_playouts > 0:
+                best_move = self.engine.go_with_time(
+                    nodes=max_playouts,
+                    time=60.0,
+                )
+            else:
+                tc = game_state.time_control
+                if tc:
+                    minutes, increment = tc
+                    wtime = btime = (minutes * 60 * 1000) // 40
+                    winc = binc = increment * 1000
+                    best_move = self.engine.go_with_time(
+                        wtime=wtime,
+                        btime=btime,
+                        winc=winc,
+                        binc=binc,
+                    )
+                else:
+                    best_move = self.engine.go_with_time(time=5.0)
+
+            if best_move and self._on_bot_move:
+                logger.info("Bot plays %s", best_move)
+                if self._page:
+                    self._page.run_task(self._async_apply_bot_move, best_move)
+                else:
+                    self._on_bot_move(best_move)
+        except Exception:
+            logger.exception("Bot search failed")
+        finally:
+            self._search_lock.release()
+
+    async def _async_apply_bot_move(self, uci: str) -> None:
+        if self._on_bot_move:
+            self._on_bot_move(uci)
 
     def set_config(self, config: Lc0GameConfig) -> None:
         self._config = config
@@ -115,6 +150,8 @@ class BotManager:
             uci_opts["Threads"] = str(config.threads)
         if config.minibatch_size != 256:
             uci_opts["MinibatchSize"] = str(config.minibatch_size)
+        if config.temperature != 0.0:
+            uci_opts["Temperature"] = str(config.temperature)
         self.engine.configure(uci_opts)
 
     def stop(self) -> None:

@@ -36,6 +36,8 @@ class EngineDownloadConfig:
     binary_name: str
     archive_binary_name: str
     archive_extra_files: dict[str, str | None] = field(default_factory=dict)
+    label: str = ""
+    description: str = ""
 
 
 def _build_github_api_url(repo: str, endpoint: str) -> str:
@@ -131,6 +133,42 @@ def get_release_assets(config: EngineDownloadConfig) -> list[EngineAsset]:
     return assets
 
 
+def get_all_release_assets(repo: str) -> list[EngineAsset]:
+    endpoint = "releases/latest"
+    url = _build_github_api_url(repo, endpoint)
+    try:
+        data = _github_api_get(url)
+    except Exception as exc:
+        logger.warning("Failed to fetch latest release: %s; falling back to list", exc)
+        try:
+            data = _github_api_get(_build_github_api_url(repo, "releases?per_page=5"))
+        except Exception as exc2:
+            logger.error("Failed to fetch releases list: %s", exc2)
+            return []
+
+    release = _release_from_api(data)
+    if not release:
+        return []
+
+    tag = release.get("tag_name", "unknown")
+    logger.info("Found release %s for %s", tag, repo)
+
+    assets: list[EngineAsset] = []
+    for a in release.get("assets", []):
+        name = a.get("name", "")
+        asset = EngineAsset(
+            name=name,
+            url=a["browser_download_url"],
+            size=a.get("size", 0),
+        )
+        assets.append(asset)
+
+    for asset in assets:
+        asset.sha256 = _fetch_sha256(asset)
+
+    return assets
+
+
 def get_all_platform_assets(configs: list[EngineDownloadConfig]) -> dict[str, list[EngineAsset]]:
     result: dict[str, list[EngineAsset]] = {}
     seen_repos: set[str] = set()
@@ -138,11 +176,11 @@ def get_all_platform_assets(configs: list[EngineDownloadConfig]) -> dict[str, li
         if cfg.github_repo in seen_repos:
             continue
         seen_repos.add(cfg.github_repo)
-        assets = get_release_assets(cfg)
+        all_assets = get_all_release_assets(cfg.github_repo)
         for other_cfg in configs:
             if other_cfg.github_repo != cfg.github_repo:
                 continue
-            filtered = [a for a in assets if other_cfg.asset_name_filter in a.name]
+            filtered = [a for a in all_assets if other_cfg.asset_name_filter in a.name]
             if filtered:
                 result[other_cfg.asset_name_filter] = filtered
     return result
@@ -271,14 +309,20 @@ def extract_archive(
 
     if _is_zip(archive_path):
         with zipfile.ZipFile(archive_path, "r") as zf:
-            _extract_zip_entry(zf, config.archive_binary_name, dest_dir, config.binary_name, extracted)
-            for internal_name, rename in config.archive_extra_files.items():
-                _extract_zip_entry(zf, internal_name, dest_dir, rename, extracted)
+            if config.archive_extra_files:
+                for internal_name, rename in config.archive_extra_files.items():
+                    _extract_zip_entry(zf, internal_name, dest_dir, rename, extracted)
+                _extract_zip_entry(zf, config.archive_binary_name, dest_dir, config.binary_name, extracted)
+            else:
+                _extract_all_zip(zf, dest_dir, config.binary_name, extracted)
     elif _is_targz(archive_path):
         with tarfile.open(archive_path, "r:gz") as tf:
-            _extract_tar_entry(tf, config.archive_binary_name, dest_dir, config.binary_name, extracted)
-            for internal_name, rename in config.archive_extra_files.items():
-                _extract_tar_entry(tf, internal_name, dest_dir, rename, extracted)
+            if config.archive_extra_files:
+                for internal_name, rename in config.archive_extra_files.items():
+                    _extract_tar_entry(tf, internal_name, dest_dir, rename, extracted)
+                _extract_tar_entry(tf, config.archive_binary_name, dest_dir, config.binary_name, extracted)
+            else:
+                _extract_all_tar(tf, dest_dir, config.binary_name, extracted)
 
     if config.binary_name not in extracted:
         raise FileNotFoundError(
@@ -333,6 +377,45 @@ def _extract_tar_entry(
     _make_executable(target_path)
     extracted[target_name] = target_path
     logger.debug("Extracted %s -> %s", entry, target_path)
+
+
+def _extract_all_zip(
+    zf: zipfile.ZipFile,
+    dest_dir: Path,
+    binary_name: str,
+    extracted: dict[str, Path],
+) -> None:
+    for name in zf.namelist():
+        if name.endswith("/"):
+            continue
+        target_name = Path(name).name
+        target_path = dest_dir / target_name
+        with zf.open(name) as src, open(target_path, "wb") as dst:
+            shutil.copyfileobj(src, dst)
+        _make_executable(target_path)
+        extracted[target_name] = target_path
+        logger.debug("Extracted %s -> %s", name, target_path)
+
+
+def _extract_all_tar(
+    tf: tarfile.TarFile,
+    dest_dir: Path,
+    binary_name: str,
+    extracted: dict[str, Path],
+) -> None:
+    for member in tf.getmembers():
+        if not member.isfile():
+            continue
+        target_name = Path(member.name).name
+        target_path = dest_dir / target_name
+        with tf.extractfile(member) as src:
+            if src is None:
+                continue
+            with open(target_path, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+        _make_executable(target_path)
+        extracted[target_name] = target_path
+        logger.debug("Extracted %s -> %s", member.name, target_path)
 
 
 def _make_executable(path: Path) -> None:

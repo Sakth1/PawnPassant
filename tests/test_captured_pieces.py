@@ -1,103 +1,111 @@
-"""Unit tests for ui.captured_pieces — CaputredPieces construction, drag/drop helpers."""
+"""Unit tests for ui.captured_pieces — compact CaputredPieces component."""
 
 import unittest
 
 import chess
 
 from ui.captured_pieces import CaputredPieces
-from utils.constants import CAPTURED_PANEL_BG, MAX_CAPTURES
+from ui.chess_piece import ChessPiece
+from utils.events import PieceCapturedEvent
+
+
+class _FakeChessPiece:
+    """Minimal fake matching the ChessPiece interface used by events."""
+
+    def __init__(self, piece: chess.Piece):
+        self.piece = piece
 
 
 class TestCaputredPiecesConstruction(unittest.TestCase):
-    def test_creates_with_squares(self):
+    def test_creates_empty(self):
         cp = CaputredPieces()
-        self.assertEqual(len(cp.black_squares), MAX_CAPTURES)
-        self.assertEqual(len(cp.white_squares), MAX_CAPTURES)
+        self.assertEqual(len(cp._captured), 0)
+        self.assertIsNone(cp._capturing_side)
 
-    def test_available_squares_match_count(self):
+    def test_creates_with_capturing_side(self):
+        cp = CaputredPieces(capturing_side=chess.WHITE)
+        self.assertEqual(cp._capturing_side, chess.WHITE)
+
+    def test_default_icon_size(self):
         cp = CaputredPieces()
-        self.assertEqual(len(cp.available_white_squares), MAX_CAPTURES)
-        self.assertEqual(len(cp.available_black_squares), MAX_CAPTURES)
+        self.assertEqual(cp._icon_size, 20)
 
-    def test_bgcolor_is_captured_panel_bg(self):
+
+class TestCaputredPiecesCaptureHandler(unittest.TestCase):
+    def test_adds_captured_piece(self):
         cp = CaputredPieces()
-        self.assertEqual(cp.bgcolor, CAPTURED_PANEL_BG)
+        piece = _FakeChessPiece(chess.Piece(chess.QUEEN, chess.WHITE))
+        event = PieceCapturedEvent(piece=piece, color=chess.WHITE)
+        cp._handle_piece_captured(event)
+        self.assertEqual(len(cp._captured), 1)
+        self.assertEqual(cp._captured[0].piece_type, chess.QUEEN)
 
-    def test_has_grids(self):
+    def test_filters_by_capturing_side(self):
+        cp = CaputredPieces(capturing_side=chess.WHITE)
+        piece = _FakeChessPiece(chess.Piece(chess.PAWN, chess.WHITE))
+        event = PieceCapturedEvent(piece=piece, color=chess.BLACK)
+        cp._handle_piece_captured(event)
+        self.assertEqual(len(cp._captured), 0)
+
+    def test_allows_matching_side(self):
+        cp = CaputredPieces(capturing_side=chess.BLACK)
+        piece = _FakeChessPiece(chess.Piece(chess.ROOK, chess.WHITE))
+        event = PieceCapturedEvent(piece=piece, color=chess.BLACK)
+        cp._handle_piece_captured(event)
+        self.assertEqual(len(cp._captured), 1)
+
+    def test_no_filter_accepts_all(self):
+        cp = CaputredPieces(capturing_side=None)
+        piece_w = _FakeChessPiece(chess.Piece(chess.PAWN, chess.WHITE))
+        piece_b = _FakeChessPiece(chess.Piece(chess.QUEEN, chess.BLACK))
+        cp._handle_piece_captured(PieceCapturedEvent(piece=piece_w, color=chess.WHITE))
+        cp._handle_piece_captured(PieceCapturedEvent(piece=piece_b, color=chess.BLACK))
+        self.assertEqual(len(cp._captured), 2)
+
+
+class TestCaputredPiecesRebuild(unittest.TestCase):
+    def test_empty_rebuild(self):
         cp = CaputredPieces()
-        self.assertIsNotNone(cp.black_grid)
-        self.assertIsNotNone(cp.white_grid)
+        cp._rebuild_display()
+        self.assertEqual(len(cp._piece_row.controls), 0)
 
-    def test_grids_have_4_columns(self):
+    def test_single_capture_shows_one_icon(self):
         cp = CaputredPieces()
-        self.assertEqual(cp.black_grid.runs_count, 4)
-        self.assertEqual(cp.white_grid.runs_count, 4)
+        cp._captured.append(chess.Piece(chess.QUEEN, chess.WHITE))
+        cp._rebuild_display()
+        self.assertGreater(len(cp._piece_row.controls), 0)
+        self.assertTrue(cp._label.visible)
 
-    def test_divider_present(self):
+    def test_label_hidden_when_empty(self):
         cp = CaputredPieces()
-        self.assertIsNotNone(cp.divider)
+        cp._rebuild_display()
+        self.assertFalse(cp._label.visible)
 
-
-class TestCaputredPiecesGetRandomAvailable(unittest.TestCase):
-    def test_random_available_returns_valid_index_white(self):
+    def test_label_visible_when_pieces_exist(self):
         cp = CaputredPieces()
-        pos = cp._get_random_available_position(chess.WHITE)
-        self.assertIn(pos, range(MAX_CAPTURES))
+        cp._captured.append(chess.Piece(chess.PAWN, chess.BLACK))
+        cp._rebuild_display()
+        self.assertTrue(cp._label.visible)
 
-    def test_random_available_returns_valid_index_black(self):
+    def test_duplicates_grouped_with_count(self):
         cp = CaputredPieces()
-        pos = cp._get_random_available_position(chess.BLACK)
-        self.assertIn(pos, range(MAX_CAPTURES))
+        for _ in range(3):
+            cp._captured.append(chess.Piece(chess.KNIGHT, chess.WHITE))
+        cp._rebuild_display()
+        text_controls = [
+            c for c in cp._piece_row.controls
+            if isinstance(c, ChessPiece.__class__)
+        ]
+        self.assertGreater(len(cp._piece_row.controls), 1)
 
-    def test_no_available_slots_fallback(self):
+
+class TestCaputredPiecesReset(unittest.TestCase):
+    def test_reset_clears_pieces(self):
         cp = CaputredPieces()
-        cp.available_white_squares.clear()
-        pos = cp._get_random_available_position(chess.WHITE)
-        self.assertEqual(pos, MAX_CAPTURES + 1)
-
-    def test_no_available_black_slots_fallback(self):
-        cp = CaputredPieces()
-        cp.available_black_squares.clear()
-        pos = cp._get_random_available_position(chess.BLACK)
-        self.assertEqual(pos, MAX_CAPTURES + 1)
-
-
-class TestCaputredPiecesFindSquare(unittest.TestCase):
-    def test_find_white_square(self):
-        cp = CaputredPieces()
-        sq = cp._find_square("0", color=chess.WHITE)
-        self.assertIsNotNone(sq)
-        self.assertEqual(sq.coordinate, "0")
-
-    def test_find_black_square(self):
-        cp = CaputredPieces()
-        sq = cp._find_square("0", color=chess.BLACK)
-        self.assertIsNotNone(sq)
-        self.assertEqual(sq.coordinate, "0")
-
-    def test_find_any_square(self):
-        cp = CaputredPieces()
-        sq = cp._find_square("5")
-        self.assertIsNotNone(sq)
-        self.assertEqual(sq.coordinate, "5")
-
-    def test_find_nonexistent_square(self):
-        cp = CaputredPieces()
-        sq = cp._find_square("999")
-        self.assertIsNone(sq)
-
-
-class TestCaputredPiecesMovePiece(unittest.TestCase):
-    def test_move_piece_empty_source_returns_false(self):
-        cp = CaputredPieces()
-        result = cp.move_piece("0", "1", source_color=chess.WHITE)
-        self.assertFalse(result)
-
-    def test_move_piece_same_coords_ignored(self):
-        with self.assertLogs("ui.captured_pieces", level="DEBUG"):
-            cp = CaputredPieces()
-            result = cp.move_piece("0", "0", source_color=chess.WHITE)
-            self.assertFalse(result)
+        cp._captured.append(chess.Piece(chess.KING, chess.WHITE))
+        cp.reset()
+        self.assertEqual(len(cp._captured), 0)
+        self.assertEqual(len(cp._piece_row.controls), 0)
 
 
 if __name__ == "__main__":

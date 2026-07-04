@@ -60,6 +60,53 @@ DIFFICULTY_PRESETS: dict[str, DifficultyPreset] = {
 }
 
 
+DIFFICULTY_LABELS: dict[str, tuple[int, int]] = {
+    "Beginner": (100, 400),
+    "Casual": (400, 800),
+    "Intermediate": (800, 1400),
+    "Advanced": (1400, 2000),
+    "Expert": (2000, 2600),
+    "Master": (2600, 3000),
+}
+
+
+def elo_to_playouts(elo: int) -> int:
+    if elo >= 2800:
+        return 0
+    if elo >= 2400:
+        return 100000
+    if elo >= 2000:
+        return 30000
+    if elo >= 1600:
+        return 10000
+    if elo >= 1200:
+        return 3000
+    if elo >= 800:
+        return 1000
+    if elo >= 400:
+        return 200
+    return 50
+
+
+def elo_to_temperature(elo: int) -> float:
+    if elo <= 200:
+        return 2.0
+    if elo <= 400:
+        return 1.5
+    if elo <= 600:
+        return 1.0
+    if elo <= 800:
+        return 0.5
+    if elo <= 1200:
+        return 0.2
+    return 0.0
+
+
+def rating_context(elo: int) -> str:
+    sep = "  \u00b7  "
+    return f"Lichess ~{elo}{sep}Chess.com ~{max(100, elo - 200)}"
+
+
 def get_preset(name: str) -> DifficultyPreset | None:
     return DIFFICULTY_PRESETS.get(name)
 

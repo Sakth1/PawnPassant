@@ -206,6 +206,8 @@ class Lc0GameConfig:
     minibatch_size: int = 256
     temperature: float = 0.0
     cpuct: float = 3.4
+    elo: int = 1500
+    max_playouts: int = 0
 
 
 @dataclass

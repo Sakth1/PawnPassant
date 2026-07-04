@@ -1,301 +1,119 @@
-"""Captured-pieces panel and drag/drop reordering support."""
+"""Compact captured-pieces panel.
+
+Displays captured pieces as a horizontal row of small icons sorted by value,
+matching the style used by Chess.com and Lichess — minimal, compact, and
+non-dominant.
+"""
+
+from __future__ import annotations
 
 import logging
-import random
+from collections import Counter
 
+import chess
 import flet as ft
-from chess import WHITE, BLACK
 
-from utils.constants import (
-    CAPTURED_PANEL_BG,
-    CAPTURE_GRID_COLUMNS,
-    DEFAULT_PAGE_HEIGHT,
-    DEFAULT_PAGE_WIDTH,
-    DEFAULT_SQUARE_SIZE,
-    MAX_CAPTURES,
-)
-from ui.layout import AppLayout, resolve_app_layout
-from ui.square import InvisibleSquare
+from ui.chess_piece import ChessPiece
 from utils.dialogs import safe_update
 from utils.events import PieceCapturedEvent
-from utils.models import ActiveColor
 from utils.signals import bus
 
 logger = logging.getLogger(__name__)
 
+PIECE_SORT_ORDER = {
+    chess.QUEEN: 0,
+    chess.ROOK: 1,
+    chess.BISHOP: 2,
+    chess.KNIGHT: 3,
+    chess.PAWN: 4,
+}
+
 
 class CaputredPieces(ft.Container):
-    """Display captured pieces in separate white/black grids.
+    """Compact horizontal strip of captured piece icons.
 
-    The class name is intentionally preserved for compatibility with existing
-    imports. Captures arrive through :class:`utils.events.PieceCapturedEvent`,
-    and pieces can be rearranged within their color grid by drag/drop.
+    When *capturing_side* is ``None`` all captures are shown. When set to
+    ``chess.WHITE`` or ``chess.BLACK`` only captures by that side are
+    displayed — used by the split-layout game page.
     """
 
-    def __init__(self):
+    def __init__(self, capturing_side: int | None = None):
         super().__init__()
-        #: Last applied responsive layout metrics.
-        self.layout = resolve_app_layout(DEFAULT_PAGE_WIDTH, DEFAULT_PAGE_HEIGHT)
-        self.bgcolor = CAPTURED_PANEL_BG
-        self.border_radius = 16
-        self.padding = 12
-        self.alignment = ft.Alignment.CENTER
+        self._capturing_side = capturing_side
+        self._captured: list[chess.Piece] = []
 
-        #: Slots used to display captured black pieces.
-        self.black_squares: list[InvisibleSquare] = self._create_invisible_squares(
-            "black", BLACK
+        self._icon_size = 20
+
+        self._piece_row = ft.Row(spacing=2, controls=[])
+        self._label = ft.Text(
+            "Captures" if capturing_side is None else "",
+            size=10,
+            color=ft.Colors.GREY_500,
+            visible=False,
         )
-        #: Slots used to display captured white pieces.
-        self.white_squares: list[InvisibleSquare] = self._create_invisible_squares(
-            "white", WHITE
-        )
-        #: Empty white-grid slot indexes available for future captures.
-        self.available_white_squares: list[int] = list(range(len(self.white_squares)))
-        #: Empty black-grid slot indexes available for future captures.
-        self.available_black_squares: list[int] = list(range(len(self.black_squares)))
-        self.black_grid: ft.GridView = self._build_square_grid(self.black_squares)
-        self.white_grid: ft.GridView = self._build_square_grid(self.white_squares)
-        self.divider = ft.Container(
-            height=1,
-            bgcolor=ft.Colors.WHITE_24,
-        )
+
         self.content = ft.Column(
-            controls=[
-                self.black_grid,
-                self.divider,
-                self.white_grid,
-            ],
-            spacing=10,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            alignment=ft.MainAxisAlignment.CENTER,
-            expand=True,
+            spacing=2,
+            controls=[self._label, self._piece_row],
         )
+
         bus.connect(
             PieceCapturedEvent, lambda event: self._handle_piece_captured(event)
         )
-        self.apply_layout(self.layout)
 
-    def _invisible_square(self, prefix, position, piece_colors) -> InvisibleSquare:
-        """Create one captured-piece slot for a color-specific drag group."""
-
-        return InvisibleSquare(
-            coordinate=str(position),
-            color=piece_colors,
-            drag_drop_group=(
-                "captured-chess-piece-white"
-                if piece_colors
-                else "captured-chess-piece-black"
-            ),
-            on_square_drop=self._handle_square_drop,
-            on_piece_drag_start=self._handle_piece_drag_start,
-            on_piece_drag_complete=self._handle_piece_drag_complete,
-            size=DEFAULT_SQUARE_SIZE,
-        )
-
-    def _create_invisible_squares(
-        self, prefix: str, piece_colors
-    ) -> list[InvisibleSquare]:
-        """Create the initial 16 captured-piece slots for one side."""
-
-        squares: list[InvisibleSquare] = []
-        for i in range(MAX_CAPTURES):
-            squares.append(self._invisible_square(prefix, i, piece_colors))
-        return squares
-
-    def _build_square_grid(self, squares: list[InvisibleSquare]) -> ft.GridView:
-        """Build the fixed 4-column grid that holds captured-piece slots."""
-
-        return ft.GridView(
-            runs_count=CAPTURE_GRID_COLUMNS,
-            controls=squares,
-            expand=False,
-            spacing=4,
-            run_spacing=4,
-            padding=4,
-        )
-
-    def apply_layout(self, layout: AppLayout):
-        """Resize captured-piece grids to match the main board layout."""
-
-        self.layout = layout
-        self.width = layout.piece_panel_width
-        self.padding = max(8, int(layout.gap * 0.75))
-        self.border_radius = max(12, int(layout.timer_radius * 0.8))
-
-        # Use same square size as main board
-        capture_square_size = layout.board_square_size * 0.97
-        for square in self.black_squares + self.white_squares:
-            square.apply_size(capture_square_size)
-
-        # Use 4x4 grid layout for captured pieces
-        grid_spacing = max(4, int(layout.gap * 0.35))
-        runs_count = 4
-
-        for grid in (self.black_grid, self.white_grid):
-            grid.runs_count = runs_count
-            grid.spacing = grid_spacing
-            grid.run_spacing = grid_spacing
-
-        self.divider.width = max(80, int(layout.piece_panel_width * 0.72))
-        self.content.spacing = max(10, int(layout.gap * 0.65))
-        safe_update(self)
-
-    def _get_random_available_position(self, is_white_capture: ActiveColor):
-        """Pick an empty slot for a newly captured piece.
-
-        Random placement gives the captured-piece panel a loose tabletop feel
-        while the available-slot lists still prevent accidental overwrite.
-        """
-
-        available_squares: list[int] = (
-            self.available_white_squares
-            if is_white_capture
-            else self.available_black_squares
-        )
-        if available_squares != []:
-            return random.choice(available_squares)
-        else:
-            if is_white_capture:
-                return len(self.white_squares) + 1
-            else:
-                return len(self.black_squares) + 1
-
-    def _handle_piece_captured(self, event: PieceCapturedEvent):
-        """Place a captured piece into the capturing side's panel."""
-
-        is_white_capture: ActiveColor = event.color
-        random_available_pos: int = self._get_random_available_position(
-            is_white_capture
-        )
-        logger.info(
-            "Captured piece received color=%s slot=%s",
-            "white" if is_white_capture else "black",
-            random_available_pos,
-        )
-        if is_white_capture:
-            try:
-                self.white_squares[random_available_pos].update_content(event.piece)
-                self.available_white_squares.remove(random_available_pos)
-            except IndexError:
-                self.white_squares.append(
-                    self._invisible_square("white", random_available_pos, WHITE)
-                )
-                self.white_squares[-1].update_content(event.piece)
-        else:
-            try:
-                self.black_squares[random_available_pos].update_content(event.piece)
-                self.available_black_squares.remove(random_available_pos)
-            except IndexError:
-                self.black_squares.append(
-                    self._invisible_square("black", random_available_pos, BLACK)
-                )
-                self.black_squares[-1].update_content(event.piece)
-
-        safe_update(self)
-
-    def _handle_piece_drag_start(self, _from_cords: str):
-        """Reserved hook for future captured-piece drag feedback."""
-
+    def apply_layout(self, _layout) -> None:
         pass
 
-    def _handle_piece_drag_complete(self, _from_cords: str, piece_color):
-        """Reserved hook for future captured-piece drag completion feedback."""
-
-        pass
-
-    def _handle_square_drop(
-        self,
-        from_cords: str,
-        to_cords: str,
-        piece_color,
-        source_color: int | None = None,
-    ):
-        """Move a captured piece between empty slots in its own color grid."""
-
-        try:
-            if ":" in str(from_cords):
-                # Drag data includes color because white and black grids can use
-                # the same numeric slot coordinate.
-                parsed_source_color, parsed_from_cords = (
-                    InvisibleSquare.parse_drag_data(str(from_cords))
-                )
-                from_cords = parsed_from_cords
-                if source_color is None:
-                    source_color = parsed_source_color
-
-            if from_cords == to_cords:
-                return
-            moved = self.move_piece(
-                from_cords=str(from_cords),
-                to_cords=str(to_cords),
-                source_color=source_color,
-            )
-            if not moved:
-                return
-            from_cords = int(from_cords)
-            to_cords = int(to_cords)
-            if piece_color:
-                self.available_white_squares.append(from_cords)
-                self.available_white_squares.remove(to_cords)
-            else:
-                self.available_black_squares.append(from_cords)
-                self.available_black_squares.remove(to_cords)
-        except Exception:
-            logger.exception(
-                "Failed to move captured piece from=%s to=%s source_color=%s",
-                from_cords,
-                to_cords,
-                source_color,
-            )
-
-    def move_piece(
-        self, from_cords: str, to_cords: str, source_color: int | None = None
-    ) -> bool:
-        """Move a captured piece control from one slot to another.
-
-        Returns:
-            ``True`` when a piece was moved; otherwise ``False`` when the source
-            is empty, the target is occupied, or the color/coordinate is invalid.
-        """
-
-        source_square = self._find_square(from_cords, color=source_color)
-        target_square = self._find_square(to_cords, color=source_color)
-        if source_square is None or target_square is None or target_square.has_piece:
-            logger.debug(
-                "Captured piece move rejected from=%s to=%s source_color=%s",
-                from_cords,
-                to_cords,
-                source_color,
-            )
-            return False
-
-        chess_piece = source_square.piece_container
-        if chess_piece is None:
-            logger.debug("Captured piece move rejected empty_source=%s", from_cords)
-            return False
-        source_square.update_content(None)
-        target_square.update_content(chess_piece)
-        logger.info(
-            "Captured piece moved from=%s to=%s source_color=%s",
-            source_square.coordinate,
-            target_square.coordinate,
-            source_color,
+    def _make_small_icon(self, piece: chess.Piece) -> ft.Container:
+        cp = ChessPiece(piece)
+        cp.square_size = self._icon_size
+        return ft.Container(
+            content=cp.to_control(),
+            width=self._icon_size + 2,
+            height=self._icon_size + 2,
         )
-        return True
 
-    def _find_square(
-        self, coordinate: str, color: int | None = None
-    ) -> InvisibleSquare | None:
-        """Find a captured-piece slot by coordinate and optional color group."""
+    def _handle_piece_captured(self, event: PieceCapturedEvent) -> None:
+        if self._capturing_side is not None and event.color != self._capturing_side:
+            return
+        self._captured.append(event.piece.piece)
+        self._rebuild_display()
+        safe_update(self)
 
-        if color == WHITE:
-            squares = self.white_squares
-        elif color == BLACK:
-            squares = self.black_squares
-        else:
-            squares = self.black_squares + self.white_squares
+    def _rebuild_display(self) -> None:
+        if not self._captured:
+            self._piece_row.controls = []
+            self._label.visible = False
+            return
 
-        for square in squares:
-            if square.coordinate == coordinate:
-                return square
-        return None
+        counts: Counter[tuple[int, bool]] = Counter()
+        for p in self._captured:
+            counts[(p.piece_type, p.color)] += 1
+
+        sorted_keys = sorted(
+            counts.keys(),
+            key=lambda k: (PIECE_SORT_ORDER.get(k[0], 99), k[1]),
+        )
+
+        controls: list[ft.Control] = []
+        for piece_type, color in sorted_keys:
+            count = counts[(piece_type, color)]
+            controls.append(self._make_small_icon(chess.Piece(piece_type, color)))
+            if count > 1:
+                controls.append(
+                    ft.Container(
+                        ft.Text(
+                            f"\u00d7{count}",
+                            size=9,
+                            color=ft.Colors.GREY_400,
+                        ),
+                        margin=ft.Margin(0, 0, 4, 0),
+                    )
+                )
+
+        self._piece_row.controls = controls
+        self._label.visible = True
+
+    def reset(self) -> None:
+        self._captured.clear()
+        self._rebuild_display()

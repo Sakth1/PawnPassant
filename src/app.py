@@ -20,7 +20,7 @@ from ui.layout import AppLayout, resolve_app_layout
 from ui.routing import RouteManager
 from ui.setup_overlay import SetupOverlay
 from core.bot_manager import BotManager
-from core.engine_download import EngineDownloadConfig, download_and_extract, get_release_assets
+from core.engine_download import EngineDownloadConfig, download_and_extract, get_all_release_assets
 from core.engine_verify import verify_engine_binary
 from core.lc0_config import (
     DEFAULT_LC0_CONFIGS,
@@ -30,6 +30,7 @@ from core.lc0_config import (
     LC0_MACOS_CONFIG,
     Lc0Options,
     get_default_options_for_platform,
+    get_platform_configs,
     recommend_backends_for_system,
 )
 from core.weights_downloader import download_network, get_available_networks, get_cached_networks
@@ -78,16 +79,6 @@ def _get_lc0_config_for_platform() -> dict:
     if os.name == "nt":
         return dict(LC0_WINDOWS_CPU_CONFIG)
     return dict(LC0_MACOS_CONFIG)
-
-
-def _get_lc0_asset_name_filter() -> str:
-    sys_platform = platform_from_page()
-    cfg = DEFAULT_LC0_CONFIGS.get(sys_platform)
-    if cfg:
-        return cfg["asset_name_filter"]
-    if os.name == "nt":
-        return LC0_WINDOWS_CPU_CONFIG["asset_name_filter"]
-    return LC0_MACOS_CONFIG["asset_name_filter"]
 
 
 def platform_from_page(page=None) -> str:
@@ -153,7 +144,16 @@ class ChessApp:
             on_play_computer=self._handle_open_computer_setup,
             on_play_someone=self._handle_open_online_setup,
         )
+
+        # Combined capture panel (backward compat for tests)
         self.piece_display = CaputredPieces()
+
+        # Split capture panels for 3b layout
+        self.opponent_captures = CaputredPieces(capturing_side=chess.BLACK)
+        self.player_captures = CaputredPieces(capturing_side=chess.WHITE)
+
+        self.time_control_UI._external_layout = True
+
         self.result_dialog_title = ft.Text(weight=ft.FontWeight.BOLD)
         self.result_dialog_message = ft.Text(text_align=ft.TextAlign.CENTER)
         self.result_dialog = ft.AlertDialog(
@@ -179,35 +179,61 @@ class ChessApp:
             actions_alignment=ft.MainAxisAlignment.END,
         )
 
+        # Board slot (used in both old test layout and new game layout)
+        self.board_slot = ft.Container(
+            content=self.board_view,
+            alignment=ft.Alignment.CENTER,
+        )
+
+        # Backward compat slots kept for existing tests
+        self.piece_display_slot = ft.Container(
+            content=self.piece_display,
+            alignment=ft.Alignment.CENTER,
+        )
+        self.clock_slot = ft.Container(
+            content=self.time_control_UI,
+            alignment=ft.Alignment.CENTER,
+        )
         self.content_row = ft.ResponsiveRow(
             columns=12,
             alignment=ft.MainAxisAlignment.CENTER,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=self.layout.gap,
             run_spacing=self.layout.gap,
-            controls=[],
+            controls=[self.piece_display_slot, self.board_slot, self.clock_slot],
         )
 
-        self.board_slot = ft.Container(
-            content=self.board_view,
-            alignment=ft.Alignment.CENTER,
-            col={"xs": 12, "md": 7},
+        # 3b layout: opponent timer + captures / board / player timer + captures + actions
+        self.top_section = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Container(content=self.time_control_UI.black_timer, expand=1),
+                    ft.Container(content=self.opponent_captures, expand=3),
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+            ),
         )
-        self.clock_slot = ft.Container(
-            content=self.time_control_UI,
-            alignment=ft.Alignment.CENTER,
-            col={"xs": 12, "md": 2},
+
+        self.bottom_section = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Container(content=self.time_control_UI.white_timer, expand=1),
+                    ft.Container(content=self.player_captures, expand=2),
+                    ft.Container(content=self.time_control_UI.action_bar, expand=1),
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+            ),
         )
-        self.piece_display_slot = ft.Container(
-            content=self.piece_display,
-            alignment=ft.Alignment.CENTER,
-            col={"xs": 12, "md": 3},
+
+        self.game_page_column = ft.Column(
+            controls=[
+                self.top_section,
+                self.board_slot,
+                self.bottom_section,
+            ],
+            spacing=self.layout.gap,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
-        self.content_row.controls = [
-            self.piece_display_slot,
-            self.board_slot,
-            self.clock_slot,
-        ]
 
         if self.dev_mode:
             self.position_selector = ft.Dropdown(
@@ -221,10 +247,10 @@ class ChessApp:
                 on_select=self._handle_position_change,
                 on_text_change=self._handle_position_change,
             )
-            root_controls = [self.content_row]
+            root_controls = [self.game_page_column]
         else:
             self.position_selector = None
-            root_controls = [self.content_row]
+            root_controls = [self.game_page_column]
 
         self.root_column = ft.Column(
             controls=root_controls,
@@ -347,14 +373,21 @@ class ChessApp:
         self.layout = resolve_app_layout(page_width, page_height)
         self.board_view.apply_layout(self.layout)
         self.piece_display.apply_layout(self.layout)
+        self.opponent_captures.apply_layout(self.layout)
+        self.player_captures.apply_layout(self.layout)
         self.time_control_UI.apply_layout(self.layout)
         self.home_view.apply_layout(self.layout)
         self.settings_view.apply_layout(self.layout)
-        self.content_row.spacing = self.layout.gap
-        self.content_row.run_spacing = self.layout.gap
+
+        # Backward-compat slot sizing for existing tests
         self.piece_display_slot.col = {"xs": 12, "md": self.layout.piece_col}
         self.board_slot.col = {"xs": 12, "md": self.layout.board_col}
         self.clock_slot.col = {"xs": 12, "md": self.layout.clock_col}
+
+        # New 3b layout sizing
+        self.content_row.spacing = self.layout.gap
+        self.content_row.run_spacing = self.layout.gap
+        self.game_page_column.spacing = self.layout.gap
         self.root_column.spacing = self.layout.gap
         self.safe_area.minimum_padding = 0
         self.content_container.padding = ft.Padding.all(self.layout.padding)
@@ -569,52 +602,92 @@ class ChessApp:
         if self._setup_overlay is not None:
             self._setup_overlay.set_fetching()
 
-        asset_filter = _get_lc0_asset_name_filter()
-        config = EngineDownloadConfig(
-            github_repo="LeelaChessZero/lc0",
-            asset_name_filter=asset_filter,
-            binary_name="lc0",
-            archive_binary_name="lc0",
-        )
-
-        try:
-            assets = await asyncio.to_thread(get_release_assets, config)
-        except Exception as exc:
-            logger.error("Lc0 binary info fetch failed: %s", exc, exc_info=True)
+        platform_configs = get_platform_configs()
+        if not platform_configs:
             self._checking_binary = False
             if self._setup_overlay is not None:
-                self._setup_overlay.set_error(f"Could not fetch binary info: {exc}")
+                self._setup_overlay.set_error("No engine variants found for your platform")
             return
 
+        repo = platform_configs[0]["github_repo"]
+        try:
+            all_assets = await asyncio.to_thread(get_all_release_assets, repo)
+        except Exception as exc:
+            logger.error("Failed to fetch release assets: %s", exc)
+            self._checking_binary = False
+            if self._setup_overlay is not None:
+                self._setup_overlay.set_error(f"Failed to fetch release: {exc}")
+            return
+
+        all_variants: list[dict] = []
+        for cfg_dict in platform_configs:
+            config = EngineDownloadConfig(
+                github_repo=cfg_dict["github_repo"],
+                asset_name_filter=cfg_dict["asset_name_filter"],
+                binary_name=cfg_dict["binary_name"],
+                archive_binary_name=cfg_dict.get("archive_binary_name", cfg_dict["binary_name"]),
+                archive_extra_files=cfg_dict.get("archive_extra_files", {}),
+                label=cfg_dict.get("label", ""),
+                description=cfg_dict.get("description", ""),
+            )
+            matched = [a for a in all_assets if config.asset_name_filter in a.name]
+            if matched:
+                all_variants.append({
+                    "config": config,
+                    "assets": matched,
+                    "label": config.label,
+                    "description": config.description,
+                })
+            else:
+                asset_names = [a.name for a in all_assets]
+                logger.info("No match for filter=%r labels=%r assets=%r",
+                            config.asset_name_filter, config.label, asset_names)
+
+        logger.info("all_variants count=%d labels=%s",
+                     len(all_variants), [v["label"] for v in all_variants])
         self._checking_binary = False
 
-        if not assets:
-            logger.error("No Lc0 assets found for filter=%s", asset_filter)
+        if not all_variants:
+            logger.error("No Lc0 assets found for any variant")
             if self._setup_overlay is not None:
                 self._setup_overlay.set_error("No compatible Lc0 release found for your system")
             return
 
-        best = assets[0]
+        variant_labels = [
+            ft.dropdown.Option(
+                key=str(i),
+                text=f"{v['label']} - {v.get('description', '')}",
+            )
+            for i, v in enumerate(all_variants)
+        ]
+
+        first_variant = all_variants[0]
+        first_asset = first_variant["assets"][0]
+        first_config = first_variant["config"]
+
         bus.emit(
             EngineInfoReadyEvent(
                 release_tag="latest",
-                asset_name=best.name,
-                asset_size_bytes=best.size,
-                asset_sha256=best.sha256 or "",
-                asset_platform=asset_filter,
+                asset_name=first_asset.name,
+                asset_size_bytes=first_asset.size,
+                asset_sha256=first_asset.sha256 or "",
+                asset_platform=first_config.asset_name_filter,
                 asset_arch="",
             )
         )
 
         if self._setup_overlay is not None:
             self._setup_overlay.set_ready(
-                best.name,
-                best.size,
-                best.sha256 or "",
-                asset_filter,
+                first_asset.name,
+                first_asset.size,
+                first_asset.sha256 or "",
+                first_config.asset_name_filter,
                 "",
             )
-            logger.info("Binary info pushed to overlay name=%s size=%d", best.name, best.size)
+            if self._setup_overlay._install_panel is not None:
+                self._setup_overlay._install_panel.set_variants(all_variants)
+            logger.info("Binary info pushed to overlay name=%s size=%d variants=%d",
+                        first_asset.name, first_asset.size, len(all_variants))
 
     def _handle_overlay_install_clicked(self) -> None:
         self.page.run_task(self._async_download_engine)
@@ -631,38 +704,28 @@ class ChessApp:
         dest_dir = get_engine_dir(self.page)
         dest_dir.mkdir(parents=True, exist_ok=True)
 
-        asset_filter = _get_lc0_asset_name_filter()
-        config = EngineDownloadConfig(
-            github_repo="LeelaChessZero/lc0",
-            asset_name_filter=asset_filter,
-            binary_name="lc0.exe" if os.name == "nt" else "lc0",
-            archive_binary_name="liblc0.so" if "android" in asset_filter else ("lc0.exe" if os.name == "nt" else "lc0"),
-            archive_extra_files={
-                "lib/arm64-v8a/libopenblas.so": None,
-                "lib/arm64-v8a/libc++_shared.so": None,
-                "lib/arm64-v8a/libgfortran.so": None,
-            } if "android" in asset_filter else {},
-        )
-
         panel = self._setup_overlay._install_panel if self._setup_overlay else None
 
-        try:
-            assets = await asyncio.to_thread(get_release_assets, config)
-        except Exception as exc:
-            logger.error("Lc0 query failed: %s", exc, exc_info=True)
+        variant = panel.selected_variant if panel else None
+        if not variant:
+            logger.error("No variant selected for download")
             if panel is not None:
-                panel.set_error(f"Failed to query binary info: {exc}")
-            bus.emit(EngineDownloadFailedEvent(error_message=str(exc)))
+                panel.set_error("No engine variant selected")
             return
 
-        if not assets:
-            msg = "No compatible Lc0 release found"
+        variant_config: EngineDownloadConfig = variant["config"]
+        variant_assets: list = variant["assets"]
+
+        asset_filter = variant_config.asset_name_filter
+        config = variant_config
+
+        if not variant_assets:
+            logger.error("No assets available for selected variant %s", config.label)
             if panel is not None:
-                panel.set_error(msg)
-            bus.emit(EngineDownloadFailedEvent(error_message=msg))
+                panel.set_error("No release found for this variant")
             return
 
-        best = assets[0]
+        best = variant_assets[0]
         loop = asyncio.get_running_loop()
 
         async def _update_ui(downloaded: int, total: int) -> None:
@@ -802,12 +865,15 @@ class ChessApp:
                     minibatch_size=config.minibatch_size,
                     temperature=config.temperature,
                     cpuct=config.cpuct,
+                    elo=config.elo,
+                    max_playouts=config.max_playouts,
                 )
 
                 self.bot_manager = BotManager(
                     engine_path=str(binary_path),
                     config=effective_config,
                     on_bot_move=self.board_view.play_uci_move,
+                    page=self.page,
                 )
                 logger.info("Created BotManager with binary=%s", binary_path)
                 self.bot_manager.start()
