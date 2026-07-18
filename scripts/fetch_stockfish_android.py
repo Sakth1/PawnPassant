@@ -1,8 +1,4 @@
-"""Download Stockfish Android binaries from latest dev prerelease.
-
-Official release builds use static linking (non-PIE) which is rejected by
-modern Android. Dev builds (post PR #6081) use dynamic linking and produce
-PIE-compatible executables.
+"""Download Stockfish Android binaries from latest GitHub release.
 
 Downloads and extracts the arm64-v8a and armeabi-v7a binaries into
 bundled/stockfish/android/<abi>/stockfish.
@@ -15,13 +11,14 @@ Default: all
 import argparse
 import json
 import os
+import sys
 import shutil
 import tarfile
 import tempfile
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-GITHUB_API_LIST = "https://api.github.com/repos/official-stockfish/Stockfish/releases?per_page=10"
+GITHUB_API = "https://api.github.com/repos/official-stockfish/Stockfish/releases?per_page=10"
 
 ASSET_MAP = {
     "arm64-v8a": "stockfish-android-arm64-universal.tar.gz",
@@ -31,17 +28,10 @@ ASSET_MAP = {
 BUNDLED_ROOT = Path(__file__).resolve().parent.parent / "bundled" / "stockfish" / "android"
 
 
-def _api_get(url: str) -> list | dict:
+def _api_get(url: str) -> dict:
     req = Request(url, headers={"Accept": "application/vnd.github.v3+json", "User-Agent": "PawnPassant/1.0"})
     with urlopen(req, timeout=30) as resp:
         return json.loads(resp.read())
-
-
-def _latest_prerelease(data: list) -> dict | None:
-    for r in data:
-        if r.get("prerelease", False) and not r.get("draft", False):
-            return r
-    return None
 
 
 def _find_asset(release: dict, name_filter: str) -> str | None:
@@ -54,7 +44,8 @@ def _find_asset(release: dict, name_filter: str) -> str | None:
 def download_and_extract(abi: str, url: str) -> None:
     print(f"Downloading {abi}...")
     with tempfile.TemporaryDirectory(prefix="stockfish_") as tmp:
-        tar_path = Path(tmp) / f"{abi}.tar.gz"
+        tar_name = ASSET_MAP[abi]
+        tar_path = Path(tmp) / tar_name
         req = Request(url, headers={"User-Agent": "PawnPassant/1.0"})
         with urlopen(req, timeout=300) as resp:
             with open(tar_path, "wb") as f:
@@ -66,10 +57,10 @@ def download_and_extract(abi: str, url: str) -> None:
 
         extract_dir = Path(tmp) / "extract"
         extract_dir.mkdir()
-        with tarfile.open(tar_path, "r:gz") as tf:
+        with tarfile.open(tar_path, "r:*") as tf:
             tf.extractall(str(extract_dir))
 
-        binary_candidates = list(extract_dir.rglob("stockfish*"))
+        binary_candidates = list(extract_dir.rglob("stockfish-android*"))
         if not binary_candidates:
             raise FileNotFoundError(f"No stockfish binary found in {abi} archive")
         binary = binary_candidates[0]
@@ -87,18 +78,18 @@ def main():
     parser.add_argument("--abi", default="all", choices=["arm64-v8a", "armeabi-v7a", "all"])
     args = parser.parse_args()
 
-    data = _api_get(GITHUB_API_LIST)
-    if not isinstance(data, list):
-        print("ERROR: Expected a list from releases endpoint", file=sys.stderr)
-        return 1
-
-    release = _latest_prerelease(data)
+    releases = _api_get(GITHUB_API)
+    release = None
+    for r in releases:
+        if not r.get("draft", False):
+            release = r
+            break
     if not release:
-        print("ERROR: No prerelease found among recent releases", file=sys.stderr)
-        return 1
+        print("ERROR: No suitable release found", file=sys.stderr)
+        sys.exit(1)
 
     tag = release.get("tag_name", "unknown")
-    print(f"Latest dev build: {tag}")
+    print(f"Using release: {tag}")
 
     abis = ["arm64-v8a", "armeabi-v7a"] if args.abi == "all" else [args.abi]
 
@@ -112,4 +103,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main() or 0)
+    main()
