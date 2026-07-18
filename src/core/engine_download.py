@@ -337,6 +337,13 @@ def extract_archive(
                 _extract_all_tar(tf, dest_dir, config.binary_name, extracted)
 
     if config.binary_name not in extracted:
+        prefix = config.binary_name + "-"
+        for key in list(extracted):
+            if key.startswith(prefix):
+                extracted[config.binary_name] = extracted[key]
+                break
+
+    if config.binary_name not in extracted:
         raise FileNotFoundError(
             f"Binary '{config.binary_name}' not found in archive {archive_path.name}. "
             f"Extracted: {list(extracted.keys())}"
