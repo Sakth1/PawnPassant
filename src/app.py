@@ -718,22 +718,11 @@ class ChessApp:
             bus.emit(EngineDownloadFailedEvent(error_message="Binary not found in archive"))
             return
 
-        valid, version = verify_engine_binary(path)
-        if not valid:
-            logger.error("Downloaded binary validation failed: %s", version)
-            if panel is not None:
-                panel.set_error(f"Downloaded binary is not compatible: {version}")
-            show_toast(self.page, f"Downloaded binary is not compatible: {version}", is_error=True)
-            bus.emit(EngineDownloadFailedEvent(error_message=version))
-            if Path(path).exists():
-                Path(path).unlink()
-            return
-
         self.settings_controller.update(
             engine_downloaded_path=path,
             engine_source="bundled",
         )
-        logger.info("Stockfish downloaded version=%s path=%s (not activated)", version, path)
+        logger.info("Stockfish downloaded successfully path=%s", path)
 
         bus.emit(EngineDownloadReadyEvent(download_path=path, release_tag="latest"))
 
