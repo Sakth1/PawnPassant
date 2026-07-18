@@ -20,19 +20,15 @@ from ui.layout import AppLayout, resolve_app_layout
 from ui.routing import RouteManager
 from ui.setup_overlay import SetupOverlay
 from core.bot_manager import BotManager
-from core.engine_download import EngineDownloadConfig, download_and_extract, get_release_assets
+from core.engine_download import EngineDownloadConfig, download_and_extract, get_all_release_assets
 from core.engine_verify import verify_engine_binary
-from core.lc0_config import (
-    DEFAULT_LC0_CONFIGS,
-    DEFAULT_NETWORKS,
-    LC0_ANDROID_CONFIG,
-    LC0_WINDOWS_CPU_CONFIG,
-    LC0_MACOS_CONFIG,
-    Lc0Options,
-    get_default_options_for_platform,
-    recommend_backends_for_system,
+from core.stockfish_config import (
+    STOCKFISH_GITHUB_REPO,
+    WINDOWS_DOWNLOAD_CONFIG,
+    get_platform_download_configs,
+    is_android,
+    is_windows,
 )
-from core.weights_downloader import download_network, get_available_networks, get_cached_networks
 from utils.constants import (
     ASSET_DIR,
     DEFAULT_PAGE_HEIGHT,
@@ -62,32 +58,12 @@ from utils.paths import (
 from utils.game_state import GameAgainst, game_state
 from utils.logging_config import reconfigure_logging
 from utils.log_collector import build_error_report
-from utils.models import Lc0GameConfig
+from utils.models import StockfishGameConfig
 from utils.settings import SettingsController
 from utils.signals import bus
 from ui.log_viewer_dialog import LogViewerDialog
 
 logger = logging.getLogger(__name__)
-
-
-def _get_lc0_config_for_platform() -> dict:
-    sys_platform = platform_from_page()
-    cfg = DEFAULT_LC0_CONFIGS.get(sys_platform)
-    if cfg:
-        return dict(cfg)
-    if os.name == "nt":
-        return dict(LC0_WINDOWS_CPU_CONFIG)
-    return dict(LC0_MACOS_CONFIG)
-
-
-def _get_lc0_asset_name_filter() -> str:
-    sys_platform = platform_from_page()
-    cfg = DEFAULT_LC0_CONFIGS.get(sys_platform)
-    if cfg:
-        return cfg["asset_name_filter"]
-    if os.name == "nt":
-        return LC0_WINDOWS_CPU_CONFIG["asset_name_filter"]
-    return LC0_MACOS_CONFIG["asset_name_filter"]
 
 
 def platform_from_page(page=None) -> str:
@@ -123,11 +99,9 @@ class ChessApp:
         self.bot_manager: BotManager | None = None
         self._setup_overlay: SetupOverlay | None = None
         self._pending_time_control: tuple[int, int] | None = None
-        self._pending_engine_config: Lc0GameConfig | None = None
-        self._pending_lc0_config: Lc0GameConfig | None = None
+        self._pending_engine_config: StockfishGameConfig | None = None
         self._checking_binary: bool = False
         self._log_viewer: LogViewerDialog | None = None
-        self._cached_networks: list | None = None
 
         reconfigure_logging(self.page)
         self.page.on_error = self._handle_flet_error
@@ -153,7 +127,16 @@ class ChessApp:
             on_play_computer=self._handle_open_computer_setup,
             on_play_someone=self._handle_open_online_setup,
         )
+
+        # Combined capture panel (backward compat for tests)
         self.piece_display = CaputredPieces()
+
+        # Split capture panels for 3b layout
+        self.opponent_captures = CaputredPieces(capturing_side=chess.BLACK)
+        self.player_captures = CaputredPieces(capturing_side=chess.WHITE)
+
+        self.time_control_UI._external_layout = True
+
         self.result_dialog_title = ft.Text(weight=ft.FontWeight.BOLD)
         self.result_dialog_message = ft.Text(text_align=ft.TextAlign.CENTER)
         self.result_dialog = ft.AlertDialog(
@@ -179,35 +162,61 @@ class ChessApp:
             actions_alignment=ft.MainAxisAlignment.END,
         )
 
+        # Board slot (used in both old test layout and new game layout)
+        self.board_slot = ft.Container(
+            content=self.board_view,
+            alignment=ft.Alignment.CENTER,
+        )
+
+        # Backward compat slots kept for existing tests
+        self.piece_display_slot = ft.Container(
+            content=self.piece_display,
+            alignment=ft.Alignment.CENTER,
+        )
+        self.clock_slot = ft.Container(
+            content=self.time_control_UI,
+            alignment=ft.Alignment.CENTER,
+        )
         self.content_row = ft.ResponsiveRow(
             columns=12,
             alignment=ft.MainAxisAlignment.CENTER,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=self.layout.gap,
             run_spacing=self.layout.gap,
-            controls=[],
+            controls=[self.piece_display_slot, self.board_slot, self.clock_slot],
         )
 
-        self.board_slot = ft.Container(
-            content=self.board_view,
-            alignment=ft.Alignment.CENTER,
-            col={"xs": 12, "md": 7},
+        # 3b layout: opponent timer + captures / board / player timer + captures + actions
+        self.top_section = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Container(content=self.time_control_UI.black_timer, expand=1),
+                    ft.Container(content=self.opponent_captures, expand=3),
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+            ),
         )
-        self.clock_slot = ft.Container(
-            content=self.time_control_UI,
-            alignment=ft.Alignment.CENTER,
-            col={"xs": 12, "md": 2},
+
+        self.bottom_section = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Container(content=self.time_control_UI.white_timer, expand=1),
+                    ft.Container(content=self.player_captures, expand=2),
+                    ft.Container(content=self.time_control_UI.action_bar, expand=1),
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+            ),
         )
-        self.piece_display_slot = ft.Container(
-            content=self.piece_display,
-            alignment=ft.Alignment.CENTER,
-            col={"xs": 12, "md": 3},
+
+        self.game_page_column = ft.Column(
+            controls=[
+                self.top_section,
+                self.board_slot,
+                self.bottom_section,
+            ],
+            spacing=self.layout.gap,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
-        self.content_row.controls = [
-            self.piece_display_slot,
-            self.board_slot,
-            self.clock_slot,
-        ]
 
         if self.dev_mode:
             self.position_selector = ft.Dropdown(
@@ -221,10 +230,10 @@ class ChessApp:
                 on_select=self._handle_position_change,
                 on_text_change=self._handle_position_change,
             )
-            root_controls = [self.content_row]
+            root_controls = [self.game_page_column]
         else:
             self.position_selector = None
-            root_controls = [self.content_row]
+            root_controls = [self.game_page_column]
 
         self.root_column = ft.Column(
             controls=root_controls,
@@ -347,14 +356,21 @@ class ChessApp:
         self.layout = resolve_app_layout(page_width, page_height)
         self.board_view.apply_layout(self.layout)
         self.piece_display.apply_layout(self.layout)
+        self.opponent_captures.apply_layout(self.layout)
+        self.player_captures.apply_layout(self.layout)
         self.time_control_UI.apply_layout(self.layout)
         self.home_view.apply_layout(self.layout)
         self.settings_view.apply_layout(self.layout)
-        self.content_row.spacing = self.layout.gap
-        self.content_row.run_spacing = self.layout.gap
+
+        # Backward-compat slot sizing for existing tests
         self.piece_display_slot.col = {"xs": 12, "md": self.layout.piece_col}
         self.board_slot.col = {"xs": 12, "md": self.layout.board_col}
         self.clock_slot.col = {"xs": 12, "md": self.layout.clock_col}
+
+        # New 3b layout sizing
+        self.content_row.spacing = self.layout.gap
+        self.content_row.run_spacing = self.layout.gap
+        self.game_page_column.spacing = self.layout.gap
         self.root_column.spacing = self.layout.gap
         self.safe_area.minimum_padding = 0
         self.content_container.padding = ft.Padding.all(self.layout.padding)
@@ -487,7 +503,6 @@ class ChessApp:
 
         settings = self.settings_controller.settings
 
-        engine_dir = get_engine_dir(self.page)
         bundled_path = get_bundled_engine_path(self.page)
         bundled_available = False
         bundled_version = ""
@@ -512,11 +527,6 @@ class ChessApp:
 
         binary_available = bundled_available or downloaded_path is not None
 
-        networks = get_available_networks(engine_dir)
-        if self._cached_networks is None:
-            cached = get_cached_networks(engine_dir)
-            self._cached_networks = cached
-
         self._setup_overlay = SetupOverlay(
             page=self.page,
             file_picker=self._file_picker,
@@ -526,11 +536,10 @@ class ChessApp:
             on_close=self._handle_overlay_closed,
             on_install_clicked=self._handle_overlay_install_clicked,
             on_binary_installed=self._handle_binary_installed,
-            engine_name="Leela Chess Zero",
+            engine_name="Stockfish",
             bundled_version=bundled_version,
             has_downloaded_version=downloaded_path is not None,
             on_activate_downloaded=self._handle_activate_downloaded,
-            available_networks=networks,
         )
         self._setup_overlay.open()
 
@@ -556,8 +565,8 @@ class ChessApp:
                 engine_source="downloaded",
                 engine_binary_path=path,
             )
-            show_toast(self.page, f"Activated Lc0 {version}")
-            logger.info("Activated downloaded Lc0 version=%s path=%s", version, path)
+            show_toast(self.page, f"Activated Stockfish {version}")
+            logger.info("Activated downloaded Stockfish version=%s path=%s", version, path)
             if self._setup_overlay is not None:
                 self._setup_overlay.show_config_panel()
         else:
@@ -565,56 +574,67 @@ class ChessApp:
             logger.error("Failed to activate downloaded binary: %s", version)
 
     async def _async_fetch_and_update_binary_info(self) -> None:
-        logger.info("Fetching available Lc0 binary info...")
+        logger.info("Fetching available Stockfish binary info...")
         if self._setup_overlay is not None:
             self._setup_overlay.set_fetching()
 
-        asset_filter = _get_lc0_asset_name_filter()
-        config = EngineDownloadConfig(
-            github_repo="LeelaChessZero/lc0",
-            asset_name_filter=asset_filter,
-            binary_name="lc0",
-            archive_binary_name="lc0",
-        )
-
-        try:
-            assets = await asyncio.to_thread(get_release_assets, config)
-        except Exception as exc:
-            logger.error("Lc0 binary info fetch failed: %s", exc, exc_info=True)
+        platform_configs = get_platform_download_configs()
+        if not platform_configs:
             self._checking_binary = False
             if self._setup_overlay is not None:
-                self._setup_overlay.set_error(f"Could not fetch binary info: {exc}")
+                self._setup_overlay.set_error("No Stockfish release found for your platform")
+                self._setup_overlay.set_ready()
+            return
+
+        try:
+            all_assets = await asyncio.to_thread(get_all_release_assets, STOCKFISH_GITHUB_REPO)
+        except Exception as exc:
+            logger.error("Failed to fetch release assets: %s", exc)
+            self._checking_binary = False
+            if self._setup_overlay is not None:
+                self._setup_overlay.set_error(f"Failed to fetch release: {exc}")
+            return
+
+        cfg = platform_configs[0]
+        config = EngineDownloadConfig(
+            github_repo=cfg.github_repo,
+            asset_name_filter=cfg.asset_name_filter,
+            binary_name=cfg.binary_name,
+            archive_binary_name=cfg.archive_binary_name,
+            label=cfg.label,
+            description=cfg.description,
+        )
+        matched = [a for a in all_assets if config.asset_name_filter in a.name]
+
+        if not matched:
+            logger.error("No Stockfish assets found matching filter=%s", config.asset_name_filter)
+            self._checking_binary = False
+            if self._setup_overlay is not None:
+                self._setup_overlay.set_error("No Stockfish release found for your system")
             return
 
         self._checking_binary = False
+        best_asset = matched[0]
 
-        if not assets:
-            logger.error("No Lc0 assets found for filter=%s", asset_filter)
-            if self._setup_overlay is not None:
-                self._setup_overlay.set_error("No compatible Lc0 release found for your system")
-            return
-
-        best = assets[0]
         bus.emit(
             EngineInfoReadyEvent(
                 release_tag="latest",
-                asset_name=best.name,
-                asset_size_bytes=best.size,
-                asset_sha256=best.sha256 or "",
-                asset_platform=asset_filter,
+                asset_name=best_asset.name,
+                asset_size_bytes=best_asset.size,
+                asset_sha256=best_asset.sha256 or "",
+                asset_platform=config.asset_name_filter,
                 asset_arch="",
             )
         )
 
         if self._setup_overlay is not None:
             self._setup_overlay.set_ready(
-                best.name,
-                best.size,
-                best.sha256 or "",
-                asset_filter,
+                best_asset.name,
+                best_asset.size,
+                best_asset.sha256 or "",
+                config.asset_name_filter,
                 "",
             )
-            logger.info("Binary info pushed to overlay name=%s size=%d", best.name, best.size)
 
     def _handle_overlay_install_clicked(self) -> None:
         self.page.run_task(self._async_download_engine)
@@ -631,38 +651,40 @@ class ChessApp:
         dest_dir = get_engine_dir(self.page)
         dest_dir.mkdir(parents=True, exist_ok=True)
 
-        asset_filter = _get_lc0_asset_name_filter()
-        config = EngineDownloadConfig(
-            github_repo="LeelaChessZero/lc0",
-            asset_name_filter=asset_filter,
-            binary_name="lc0.exe" if os.name == "nt" else "lc0",
-            archive_binary_name="liblc0.so" if "android" in asset_filter else ("lc0.exe" if os.name == "nt" else "lc0"),
-            archive_extra_files={
-                "lib/arm64-v8a/libopenblas.so": None,
-                "lib/arm64-v8a/libc++_shared.so": None,
-                "lib/arm64-v8a/libgfortran.so": None,
-            } if "android" in asset_filter else {},
-        )
-
         panel = self._setup_overlay._install_panel if self._setup_overlay else None
 
-        try:
-            assets = await asyncio.to_thread(get_release_assets, config)
-        except Exception as exc:
-            logger.error("Lc0 query failed: %s", exc, exc_info=True)
+        platform_configs = get_platform_download_configs()
+        if not platform_configs:
             if panel is not None:
-                panel.set_error(f"Failed to query binary info: {exc}")
+                panel.set_error("No Stockfish config for this platform")
+            return
+
+        cfg = platform_configs[0]
+        config = EngineDownloadConfig(
+            github_repo=cfg.github_repo,
+            asset_name_filter=cfg.asset_name_filter,
+            binary_name=cfg.binary_name,
+            archive_binary_name=cfg.archive_binary_name,
+            label=cfg.label,
+            description=cfg.description,
+        )
+
+        try:
+            all_assets = await asyncio.to_thread(get_all_release_assets, STOCKFISH_GITHUB_REPO)
+        except Exception as exc:
+            logger.error("Failed to fetch release: %s", exc)
+            if panel is not None:
+                panel.set_error(f"Failed to fetch release: {exc}")
             bus.emit(EngineDownloadFailedEvent(error_message=str(exc)))
             return
 
-        if not assets:
-            msg = "No compatible Lc0 release found"
+        matched = [a for a in all_assets if config.asset_name_filter in a.name]
+        if not matched:
             if panel is not None:
-                panel.set_error(msg)
-            bus.emit(EngineDownloadFailedEvent(error_message=msg))
+                panel.set_error("No Stockfish release found for your system")
             return
 
-        best = assets[0]
+        best = matched[0]
         loop = asyncio.get_running_loop()
 
         async def _update_ui(downloaded: int, total: int) -> None:
@@ -672,7 +694,6 @@ class ChessApp:
         def on_progress(downloaded: int, total: int) -> None:
             asyncio.run_coroutine_threadsafe(_update_ui(downloaded, total), loop)
 
-        logger.info("Running synchronous download")
         try:
             extracted = await asyncio.to_thread(
                 download_and_extract,
@@ -682,7 +703,7 @@ class ChessApp:
                 on_progress,
             )
         except Exception as exc:
-            logger.error("Lc0 download failed: %s", exc, exc_info=True)
+            logger.error("Stockfish download failed: %s", exc, exc_info=True)
             if panel is not None:
                 panel.set_error(f"Download failed: {exc}")
             show_toast(self.page, f"Download failed: {exc}", is_error=True)
@@ -696,8 +717,6 @@ class ChessApp:
                 panel.set_error("Binary not found in downloaded archive")
             bus.emit(EngineDownloadFailedEvent(error_message="Binary not found in archive"))
             return
-
-        logger.info("Download succeeded, path=%s", path)
 
         valid, version = verify_engine_binary(path)
         if not valid:
@@ -714,15 +733,13 @@ class ChessApp:
             engine_downloaded_path=path,
             engine_source="bundled",
         )
-        logger.info("Lc0 downloaded version=%s path=%s (not activated)", version, path)
+        logger.info("Stockfish downloaded version=%s path=%s (not activated)", version, path)
 
         bus.emit(EngineDownloadReadyEvent(download_path=path, release_tag="latest"))
 
         if panel is not None:
             panel.on_download_complete(path)
             panel.show_downloaded_available(version)
-
-        logger.info("_do_download_engine EXIT")
 
     def _handle_open_online_setup(self, time_control: tuple[int, int]) -> None:
         self._pending_time_control = time_control
@@ -736,9 +753,9 @@ class ChessApp:
         )
         self._setup_overlay.open()
 
-    def _handle_engine_start(self, config: Lc0GameConfig) -> None:
+    def _handle_engine_start(self, config: StockfishGameConfig) -> None:
         self._pending_engine_config = config
-        logger.info("Starting engine game config=preset=%s network=%s", config.preset_name, config.network_name)
+        logger.info("Starting engine game config=preset=%s", config)
         self._setup_overlay = None
         game_state.game_against = GameAgainst.COMPUTER
         self._launch_game()
@@ -771,7 +788,7 @@ class ChessApp:
 
     async def _async_navigate_and_start(self) -> None:
         if game_state.game_against == GameAgainst.COMPUTER and self.bot_manager is None:
-            config = self._pending_engine_config or Lc0GameConfig()
+            config = self._pending_engine_config or StockfishGameConfig()
             settings = self.settings_controller.settings
 
             binary_path = get_active_engine_path(
@@ -783,31 +800,11 @@ class ChessApp:
                 binary_path = Path(settings.engine_binary_path)
 
             if binary_path and binary_path.exists():
-                engine_dir = get_engine_dir(self.page)
-                cached_networks = get_cached_networks(engine_dir)
-                weights_path = ""
-                if cached_networks:
-                    weights_path = cached_networks[0].local_path
-
-                if config.network_path:
-                    weights_path = config.network_path
-
-                effective_config = Lc0GameConfig(
-                    use_preset=config.use_preset,
-                    preset_name=config.preset_name,
-                    network_name=config.network_name,
-                    network_path=weights_path,
-                    backend=config.backend,
-                    threads=config.threads,
-                    minibatch_size=config.minibatch_size,
-                    temperature=config.temperature,
-                    cpuct=config.cpuct,
-                )
-
                 self.bot_manager = BotManager(
                     engine_path=str(binary_path),
-                    config=effective_config,
+                    config=config,
                     on_bot_move=self.board_view.play_uci_move,
+                    page=self.page,
                 )
                 logger.info("Created BotManager with binary=%s", binary_path)
                 self.bot_manager.start()

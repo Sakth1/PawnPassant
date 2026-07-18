@@ -228,21 +228,26 @@ class HomeView(ft.Container):
                 col={"xs": 4, "md": 4},
             ),
         ]
+        stacked = self.layout.stacked
+        btn_span = {"xs": 12, "sm": 12, "md": 4} if stacked else {"xs": 4, "md": 4}
+        align_left = ft.Alignment.CENTER if stacked else ft.Alignment.CENTER_LEFT
+        align_right = ft.Alignment.CENTER if stacked else ft.Alignment.CENTER_RIGHT
+
         self.footer_row.controls = [
             ft.Container(
                 content=self.play_computer_button,
-                alignment=ft.Alignment.CENTER_LEFT,
-                col={"xs": 4, "md": 4},
+                alignment=align_left,
+                col=btn_span,
             ),
             ft.Container(
                 content=self.selection_text,
-                col={"xs": 4, "md": 4},
+                col=btn_span,
                 alignment=ft.Alignment.CENTER,
             ),
             ft.Container(
                 content=self.play_someone_button,
-                alignment=ft.Alignment.CENTER_RIGHT,
-                col={"xs": 4, "md": 4},
+                alignment=align_right,
+                col=btn_span,
             ),
         ]
         safe_update(self.grid)

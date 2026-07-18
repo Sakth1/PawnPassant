@@ -16,12 +16,12 @@ from ui.engine_setup_panel import EngineConfigPanel, EngineInstallPanel
 from ui.online_setup_panel import OnlineSetupPanel
 from ui.task_toast import show_toast
 from core.engine_verify import verify_engine_binary
-from utils.models import Lc0GameConfig
+from utils.models import StockfishGameConfig
 
 logger = logging.getLogger(__name__)
 
 
-def _resolve_archive_to_binary(path: Path, engine_name: str = "lc0") -> Path:
+def _resolve_archive_to_binary(path: Path, engine_name: str = "stockfish") -> Path:
     suffix = path.suffix.lower()
     is_tar_gz = suffix == ".gz" and path.name.lower().endswith(".tar.gz")
     is_tgz = suffix == ".tgz"
@@ -91,18 +91,17 @@ class SetupOverlay(ft.Container):
         file_picker: ft.FilePicker,
         mode: str = "computer",
         binary_available: bool = False,
-        on_start_game: Callable[[Lc0GameConfig], None] | None = None,
+        on_start_game: Callable[[StockfishGameConfig], None] | None = None,
         on_play_local: Callable[[], None] | None = None,
         on_close: Callable[[], None] | None = None,
         on_install_clicked: Callable[[], None] | None = None,
         on_binary_installed: Callable[[str], None] | None = None,
         asset_name: str = "",
         asset_size_bytes: int = 0,
-        engine_name: str = "Leela Chess Zero",
+        engine_name: str = "Stockfish",
         bundled_version: str = "",
         has_downloaded_version: bool = False,
         on_activate_downloaded: Callable[[], None] | None = None,
-        available_networks: list | None = None,
     ):
         super().__init__()
         self._page = page
@@ -119,7 +118,6 @@ class SetupOverlay(ft.Container):
         self._bundled_version = bundled_version
         self._has_downloaded_version = has_downloaded_version
         self._on_activate_downloaded = on_activate_downloaded
-        self._available_networks = available_networks
 
         self._title_text = ft.Text(
             "Play vs Computer" if mode == "computer" else "Play Someone",
@@ -257,7 +255,6 @@ class SetupOverlay(ft.Container):
         self._config_panel = EngineConfigPanel(
             on_start_game=self._on_start_game_callback,
             on_back=self._show_install_panel,
-            available_networks=self._available_networks,
         )
         self._panel_container.content = self._config_panel
         self._page.update()
@@ -272,7 +269,7 @@ class SetupOverlay(ft.Container):
         self._panel_container.content = self._online_panel
         self._page.update()
 
-    def _on_start_game_callback(self, config: Lc0GameConfig) -> None:
+    def _on_start_game_callback(self, config: StockfishGameConfig) -> None:
         self.close()
         if self._on_start_game:
             self._on_start_game(config)

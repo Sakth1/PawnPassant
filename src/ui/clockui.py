@@ -118,6 +118,7 @@ class ClockUI(ft.Container):
         self.bgcolor = TIMER_BG
         self.expand = False
         self.alignment = ft.Alignment.CENTER
+        self._external_layout = False
         self.border_radius = self.layout.timer_radius
         self.divider = ft.Container(
             height=3,
@@ -225,14 +226,13 @@ class ClockUI(ft.Container):
             time_control[0],
             time_control[1],
         )
-        # The timer column is reversed after each move; resetting the list
-        # restores black-on-top and white-on-bottom for a fresh game.
-        self.content.controls = [
-            self.black_timer,
-            self.action_bar,
-            self.divider,
-            self.white_timer,
-        ]
+        if not self._external_layout:
+            self.content.controls = [
+                self.black_timer,
+                self.action_bar,
+                self.divider,
+                self.white_timer,
+            ]
         display_value = time_control_to_string(time_control)
         for timer_main, timer_ms, timer_container in (
             (self.black_timer_main, self.black_timer_ms, self.black_timer),
@@ -401,6 +401,8 @@ class ClockUI(ft.Container):
 
     def _flip_clock(self):
         """Reverse the clock display orientation."""
+        if self._external_layout:
+            return
         self.content.controls.reverse()
         safe_update(self)
 

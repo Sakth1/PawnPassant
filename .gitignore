@@ -180,6 +180,13 @@ debugging_screenshots
 .opencode
 src/assets/engine
 
+# Stockfish Android binaries — too large for git.
+# Regenerate with: python scripts/fetch_stockfish_android.py
+bundled/
+
+# Populated by scripts/prepare_android_engine.py before flet build apk
+assets/stockfish/android/*/
+
 #agents, AI
 #.agents
 #skills-lock.json

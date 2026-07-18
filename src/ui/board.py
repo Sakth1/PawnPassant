@@ -536,100 +536,65 @@ class ChessBoard(ft.Container):
         """Reposition the rook after a queen-side castle."""
 
         last_move = self.game_manager.last_move()
-        piece_color_is_white: Optional[Color] = self.game_manager.color_at(
-            last_move.to_square
-        )
-        if piece_color_is_white is True:
-            rook = self._get_piece_at_square(
-                self.square_map.get(CASTLING_ROOK_START_SQUARE.get("QUEEN_SIDE_WHITE"))
+        piece_color = self.game_manager.color_at(last_move.to_square)
+        if piece_color is True:
+            self.square_map[CASTLING_ROOK_START_SQUARE["QUEEN_SIDE_WHITE"]].update_content(None)
+            self.square_map[CASTLING_ROOK_END_SQUARE["QUEEN_SIDE_WHITE"]].update_content(
+                ChessPiece(self.game_manager.piece_at(
+                    parse_square(CASTLING_ROOK_END_SQUARE["QUEEN_SIDE_WHITE"])
+                ))
             )
-            king: Optional[ChessPiece] = self._get_piece_at_square(
-                self.square_map.get(CASTLING_KING_START_SQUARE.get("QUEEN_SIDE_WHITE"))
+            self.square_map[CASTLING_KING_START_SQUARE["QUEEN_SIDE_WHITE"]].update_content(None)
+            self.square_map[CASTLING_KING_END_SQUARE["QUEEN_SIDE_WHITE"]].update_content(
+                ChessPiece(self.game_manager.piece_at(
+                    parse_square(CASTLING_KING_END_SQUARE["QUEEN_SIDE_WHITE"])
+                ))
             )
-
-            self.square_map[
-                CASTLING_ROOK_START_SQUARE.get("QUEEN_SIDE_WHITE")
-            ].update_content(None)
-            self.square_map[
-                CASTLING_ROOK_END_SQUARE.get("QUEEN_SIDE_WHITE")
-            ].update_content(rook)
-
-            self.square_map[
-                CASTLING_KING_START_SQUARE.get("QUEEN_SIDE_WHITE")
-            ].update_content(None)
-            self.square_map[
-                CASTLING_KING_END_SQUARE.get("QUEEN_SIDE_WHITE")
-            ].update_content(king)
-
         else:
-            rook = self._get_piece_at_square(
-                self.square_map.get(CASTLING_ROOK_START_SQUARE.get("QUEEN_SIDE_BLACK"))
+            self.square_map[CASTLING_ROOK_START_SQUARE["QUEEN_SIDE_BLACK"]].update_content(None)
+            self.square_map[CASTLING_ROOK_END_SQUARE["QUEEN_SIDE_BLACK"]].update_content(
+                ChessPiece(self.game_manager.piece_at(
+                    parse_square(CASTLING_ROOK_END_SQUARE["QUEEN_SIDE_BLACK"])
+                ))
             )
-            king: Optional[ChessPiece] = self._get_piece_at_square(
-                self.square_map.get(CASTLING_KING_START_SQUARE.get("QUEEN_SIDE_BLACK"))
+            self.square_map[CASTLING_KING_START_SQUARE["QUEEN_SIDE_BLACK"]].update_content(None)
+            self.square_map[CASTLING_KING_END_SQUARE["QUEEN_SIDE_BLACK"]].update_content(
+                ChessPiece(self.game_manager.piece_at(
+                    parse_square(CASTLING_KING_END_SQUARE["QUEEN_SIDE_BLACK"])
+                ))
             )
-            self.square_map[
-                CASTLING_ROOK_START_SQUARE.get("QUEEN_SIDE_BLACK")
-            ].update_content(None)
-            self.square_map[
-                CASTLING_ROOK_END_SQUARE.get("QUEEN_SIDE_BLACK")
-            ].update_content(rook)
-
-            self.square_map[
-                CASTLING_KING_START_SQUARE.get("QUEEN_SIDE_BLACK")
-            ].update_content(None)
-            self.square_map[
-                CASTLING_KING_END_SQUARE.get("QUEEN_SIDE_BLACK")
-            ].update_content(king)
 
     def _king_side_castling(self):
         """Reposition the rook after a king-side castle."""
 
         last_move = self.game_manager.last_move()
-        piece_color_is_white: Optional[Color] = self.game_manager.color_at(
-            last_move.to_square
-        )
-        if piece_color_is_white is True:
-            rook = self._get_piece_at_square(
-                self.square_map.get(CASTLING_ROOK_START_SQUARE.get("KING_SIDE_WHITE"))
+        piece_color = self.game_manager.color_at(last_move.to_square)
+        if piece_color is True:
+            self.square_map[CASTLING_ROOK_START_SQUARE["KING_SIDE_WHITE"]].update_content(None)
+            self.square_map[CASTLING_ROOK_END_SQUARE["KING_SIDE_WHITE"]].update_content(
+                ChessPiece(self.game_manager.piece_at(
+                    parse_square(CASTLING_ROOK_END_SQUARE["KING_SIDE_WHITE"])
+                ))
             )
-            king: Optional[ChessPiece] = self._get_piece_at_square(
-                self.square_map.get(CASTLING_KING_START_SQUARE.get("KING_SIDE_WHITE"))
+            self.square_map[CASTLING_KING_START_SQUARE["KING_SIDE_WHITE"]].update_content(None)
+            self.square_map[CASTLING_KING_END_SQUARE["KING_SIDE_WHITE"]].update_content(
+                ChessPiece(self.game_manager.piece_at(
+                    parse_square(CASTLING_KING_END_SQUARE["KING_SIDE_WHITE"])
+                ))
             )
-            self.square_map[
-                CASTLING_ROOK_START_SQUARE.get("KING_SIDE_WHITE")
-            ].update_content(None)
-            self.square_map[
-                CASTLING_ROOK_END_SQUARE.get("KING_SIDE_WHITE")
-            ].update_content(rook)
-
-            self.square_map[
-                CASTLING_KING_START_SQUARE.get("KING_SIDE_WHITE")
-            ].update_content(None)
-            self.square_map[
-                CASTLING_KING_END_SQUARE.get("KING_SIDE_WHITE")
-            ].update_content(king)
-
         else:
-            rook = self._get_piece_at_square(
-                self.square_map.get(CASTLING_ROOK_START_SQUARE.get("KING_SIDE_BLACK"))
+            self.square_map[CASTLING_ROOK_START_SQUARE["KING_SIDE_BLACK"]].update_content(None)
+            self.square_map[CASTLING_ROOK_END_SQUARE["KING_SIDE_BLACK"]].update_content(
+                ChessPiece(self.game_manager.piece_at(
+                    parse_square(CASTLING_ROOK_END_SQUARE["KING_SIDE_BLACK"])
+                ))
             )
-            king: Optional[ChessPiece] = self._get_piece_at_square(
-                self.square_map.get(CASTLING_KING_START_SQUARE.get("KING_SIDE_BLACK"))
+            self.square_map[CASTLING_KING_START_SQUARE["KING_SIDE_BLACK"]].update_content(None)
+            self.square_map[CASTLING_KING_END_SQUARE["KING_SIDE_BLACK"]].update_content(
+                ChessPiece(self.game_manager.piece_at(
+                    parse_square(CASTLING_KING_END_SQUARE["KING_SIDE_BLACK"])
+                ))
             )
-            self.square_map[
-                CASTLING_ROOK_START_SQUARE.get("KING_SIDE_BLACK")
-            ].update_content(None)
-            self.square_map[
-                CASTLING_ROOK_END_SQUARE.get("KING_SIDE_BLACK")
-            ].update_content(rook)
-
-            self.square_map[
-                CASTLING_KING_START_SQUARE.get("KING_SIDE_BLACK")
-            ].update_content(None)
-            self.square_map[
-                CASTLING_KING_END_SQUARE.get("KING_SIDE_BLACK")
-            ].update_content(king)
 
     def _complete_move(self, requested_move: Move, movement_type: MoveType):
         """Commit a legal move and update the UI according to its special behavior."""

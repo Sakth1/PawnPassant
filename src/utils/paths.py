@@ -71,7 +71,7 @@ def get_active_engine_path(
     page=None,
     source: str = "bundled",
     downloaded_path: str = "",
-    engine_name: str = "lc0",
+    engine_name: str = "stockfish",
 ) -> Path | None:
     if source == "bundled":
         bundled = get_bundled_engine_path(page, engine_name)
@@ -87,7 +87,11 @@ def get_active_engine_path(
     return get_bundled_engine_path(page, engine_name)
 
 
-def get_bundled_engine_path(page=None, engine_name: str = "lc0") -> Path | None:
+def get_bundled_engine_path(page=None, engine_name: str = "stockfish") -> Path | None:
+    android_path = _extract_android_asset_engine(page, engine_name)
+    if android_path:
+        return android_path
+
     env_lib = os.environ.get("FLET_APP_LIB_DIR")
     so_name = f"lib{engine_name}.so"
     if env_lib:
@@ -108,7 +112,46 @@ def get_bundled_engine_path(page=None, engine_name: str = "lc0") -> Path | None:
     return None
 
 
-def get_downloaded_engine_path(page=None, engine_name: str = "lc0") -> Path | None:
+def _extract_android_asset_engine(page=None, engine_name: str = "stockfish") -> Path | None:
+    """Copy bundled engine from APK assets to writable engine dir on Android."""
+    from core.stockfish_config import is_android
+    if not is_android():
+        return None
+
+    assets_dir = os.environ.get("FLET_ASSETS_DIR")
+    if not assets_dir:
+        return None
+
+    import platform as _platform
+    machine = _platform.machine()
+    abi = "arm64-v8a" if "64" in machine else "armeabi-v7a"
+
+    asset_binary = Path(assets_dir) / "stockfish" / "android" / abi / engine_name
+    if not asset_binary.exists():
+        asset_binary = Path(assets_dir) / "stockfish" / "android" / abi / f"{engine_name}.exe"
+        if not asset_binary.exists():
+            return None
+
+    engine_dir = _android_engine_dir(page)
+    engine_dir.mkdir(parents=True, exist_ok=True)
+    dest = engine_dir / engine_name
+
+    if not dest.exists():
+        import shutil
+        logger.info("Copying bundled engine from %s to %s", asset_binary, dest)
+        try:
+            shutil.copy2(str(asset_binary), str(dest))
+            dest.chmod(0o755)
+        except OSError as exc:
+            logger.warning("Failed to extract bundled engine: %s", exc)
+            return None
+
+    if dest.exists():
+        return dest.resolve()
+    return None
+
+
+def get_downloaded_engine_path(page=None, engine_name: str = "stockfish") -> Path | None:
     eng_dir = get_engine_dir(page)
     exe_name = f"{engine_name}.exe" if os.name == "nt" else engine_name
     candidate = eng_dir / exe_name

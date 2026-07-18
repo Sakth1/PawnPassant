@@ -238,6 +238,18 @@ def recommend_backends_for_system() -> list[str]:
     return recommended
 
 
+def _make_config(filter_name: str, label: str, description: str, binary_name: str = "lc0.exe", extra_files: dict | None = None) -> dict:
+    return {
+        "github_repo": "LeelaChessZero/lc0",
+        "asset_name_filter": filter_name,
+        "binary_name": binary_name,
+        "archive_binary_name": binary_name,
+        "archive_extra_files": extra_files or {},
+        "label": label,
+        "description": description,
+    }
+
+
 LC0_ANDROID_CONFIG = {
     "github_repo": "LeelaChessZero/lc0",
     "asset_name_filter": "android",
@@ -248,15 +260,51 @@ LC0_ANDROID_CONFIG = {
         "lib/arm64-v8a/libc++_shared.so": None,
         "lib/arm64-v8a/libgfortran.so": None,
     },
+    "label": "Android CPU",
+    "description": "CPU-only via OpenBLAS for Android devices.",
 }
 
-LC0_WINDOWS_CPU_CONFIG = {
-    "github_repo": "LeelaChessZero/lc0",
-    "asset_name_filter": "windows-cpu-openblas",
-    "binary_name": "lc0.exe",
-    "archive_binary_name": "lc0.exe",
-    "archive_extra_files": {},
-}
+LC0_WINDOWS_CPU_CONFIG = _make_config(
+    "cpu-openblas",
+    "CPU (OpenBLAS)",
+    "CPU-only via OpenBLAS. Works on any Windows PC. No GPU required.",
+)
+
+LC0_WINDOWS_DNNL_CONFIG = _make_config(
+    "cpu-dnnl",
+    "CPU (DNNL/oneDNN)",
+    "CPU via Intel oneDNN library. Faster than OpenBLAS on Intel CPUs.",
+)
+
+LC0_WINDOWS_DML_CONFIG = _make_config(
+    "onnx-dml",
+    "DirectML (Any GPU)",
+    "Any DirectX 12 GPU via ONNX + DirectML. No CUDA or NVIDIA needed.",
+)
+
+LC0_WINDOWS_CUDA12_CONFIG = _make_config(
+    "cuda12.zip",
+    "CUDA 12 (NVIDIA)",
+    "NVIDIA GPU via CUDA 12. Requires compatible NVIDIA GPU + CUDA 12 runtime.",
+)
+
+LC0_WINDOWS_CUDA11_CONFIG = _make_config(
+    "cuda11.zip",
+    "CUDA 11 (NVIDIA)",
+    "NVIDIA GPU via CUDA 11. Requires compatible NVIDIA GPU + CUDA 11 runtime.",
+)
+
+LC0_WINDOWS_CUDNN_CONFIG = _make_config(
+    "cudnn.zip",
+    "cuDNN (NVIDIA, fastest)",
+    "NVIDIA GPU via cuDNN. Faster than plain CUDA. Requires cuDNN installed.",
+)
+
+LC0_WINDOWS_TENSORRT_CONFIG = _make_config(
+    "onnx-trt",
+    "TensorRT (NVIDIA)",
+    "NVIDIA GPU via ONNX + TensorRT. Requires TensorRT installed.",
+)
 
 LC0_MACOS_CONFIG = {
     "github_repo": "LeelaChessZero/lc0",
@@ -264,11 +312,46 @@ LC0_MACOS_CONFIG = {
     "binary_name": "lc0",
     "archive_binary_name": "lc0",
     "archive_extra_files": {},
+    "label": "macOS",
+    "description": "Native macOS build.",
 }
 
+
+ALL_WINDOWS_CONFIGS: list[dict] = [
+    LC0_WINDOWS_CPU_CONFIG,
+    LC0_WINDOWS_DNNL_CONFIG,
+    LC0_WINDOWS_DML_CONFIG,
+    LC0_WINDOWS_CUDA12_CONFIG,
+    LC0_WINDOWS_CUDA11_CONFIG,
+    LC0_WINDOWS_CUDNN_CONFIG,
+    LC0_WINDOWS_TENSORRT_CONFIG,
+]
 
 DEFAULT_LC0_CONFIGS = {
     "android": LC0_ANDROID_CONFIG,
     "windows": LC0_WINDOWS_CPU_CONFIG,
     "macos": LC0_MACOS_CONFIG,
 }
+
+
+def get_platform_configs() -> list[dict]:
+    """Return all viable download configs for the current platform."""
+    sys_platform = platform.system().lower()
+    if sys_platform == "android" or "android" in sys_platform:
+        return [LC0_ANDROID_CONFIG]
+    if sys_platform == "darwin":
+        return [LC0_MACOS_CONFIG]
+    if sys_platform == "windows":
+        viable = [LC0_WINDOWS_CPU_CONFIG, LC0_WINDOWS_DNNL_CONFIG, LC0_WINDOWS_DML_CONFIG]
+        try:
+            import subprocess
+            result = subprocess.run(["nvidia-smi"], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                viable.append(LC0_WINDOWS_CUDA12_CONFIG)
+                viable.append(LC0_WINDOWS_CUDA11_CONFIG)
+                viable.append(LC0_WINDOWS_CUDNN_CONFIG)
+                viable.append(LC0_WINDOWS_TENSORRT_CONFIG)
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            pass
+        return viable
+    return [LC0_WINDOWS_CPU_CONFIG]
