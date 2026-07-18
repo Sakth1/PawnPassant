@@ -116,9 +116,9 @@ jobs:
           }
 
           $bundleDir = $exe.DirectoryName
-          $pythonDll = Join-Path $bundleDir "python312.dll"
-          if (-not (Test-Path $pythonDll)) {
-            throw "Windows bundle appears incomplete: python312.dll not found next to executable."
+          $pythonDll = Get-ChildItem -Path $bundleDir -Recurse -Filter "python312.dll" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $pythonDll) {
+            throw "Windows bundle appears incomplete: python312.dll not found in or under $bundleDir"
           }
 
           Write-Host "Selected app executable: $($exe.FullName)"
@@ -204,6 +204,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: metadata
     strategy:
+      fail-fast: false
       matrix:
         abi: [arm64-v8a, armeabi-v7a]
 
@@ -250,7 +251,15 @@ jobs:
 
       - name: Build Android APK
         run: |
-          flet build apk --yes --compile-packages --skip-flutter-doctor --no-rich-output
+          flet build apk --yes --skip-flutter-doctor --no-rich-output
+
+      - name: Debug — list build output
+        shell: bash
+        run: |
+          echo "=== build/ ==="
+          find build -type f 2>/dev/null || echo "(empty)"
+          echo "=== dist/ ==="
+          find dist -type f 2>/dev/null || echo "(empty)"
 
       - name: Decode Android keystore
         shell: bash
