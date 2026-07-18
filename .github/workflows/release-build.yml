@@ -205,13 +205,6 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
     needs: metadata
-    strategy:
-      fail-fast: false
-      matrix:
-        abi: [arm64-v8a, armeabi-v7a]
-
-    env:
-      ANDROID_ABI: ${{ matrix.abi }}
 
     steps:
       - name: Checkout
@@ -245,11 +238,12 @@ jobs:
 
       - name: Download Stockfish binaries
         run: |
-          python scripts/fetch_stockfish_android.py --abi ${{ matrix.abi }}
+          python scripts/fetch_stockfish_android.py --abi all
 
-      - name: Prepare engine binary for APK
+      - name: Prepare engine binaries for APK
         run: |
-          python scripts/prepare_android_engine.py ${{ matrix.abi }}
+          python scripts/prepare_android_engine.py arm64-v8a
+          python scripts/prepare_android_engine.py armeabi-v7a
 
       - name: Build Android APK
         run: |
@@ -317,7 +311,7 @@ jobs:
         id: collect
         shell: bash
         run: |
-          new_name="${{ needs.metadata.outputs.artifact_stem }}-${{ matrix.abi }}.apk"
+          new_name="${{ needs.metadata.outputs.artifact_stem }}.apk"
           if [ ! -f "signed.apk" ]; then
             echo "Signed APK not found." >&2
             exit 1
@@ -328,7 +322,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ needs.metadata.outputs.artifact_stem }}-android-${{ matrix.abi }}
+          name: ${{ needs.metadata.outputs.artifact_stem }}-android
           path: ${{ steps.collect.outputs.path }}
 
   publish-release:
@@ -346,12 +340,11 @@ jobs:
           name: ${{ needs.metadata.outputs.artifact_stem }}-windows
           path: release-assets
 
-      - name: Download Android artifacts (all ABIs)
+      - name: Download Android artifact
         uses: actions/download-artifact@v4
         with:
-          pattern: ${{ needs.metadata.outputs.artifact_stem }}-android-*
+          name: ${{ needs.metadata.outputs.artifact_stem }}-android
           path: release-assets
-          merge-multiple: true
 
       - name: Attach binaries to release
         uses: softprops/action-gh-release@v2

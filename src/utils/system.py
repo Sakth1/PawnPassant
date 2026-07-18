@@ -25,12 +25,12 @@ def get_sys_arch() -> Arch:
 
 
 def get_sys_platform() -> Platform:
+    if "ANDROID_ROOT" in os.environ:
+        return Platform.ANDROID
     system = platform.system().lower()
     if system == "windows":
         return Platform.WINDOWS
     if system == "linux":
-        if "ANDROID_ROOT" in os.environ:
-            return Platform.ANDROID
         return Platform.LINUX
     if system == "darwin":
         return Platform.MACOS
