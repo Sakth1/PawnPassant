@@ -94,12 +94,12 @@ def elo_label(elo: int) -> str:
 STOCKFISH_GITHUB_REPO = "official-stockfish/Stockfish"
 
 
-WINDOWS_ASSET_FILTER = "windows-x86-64-universal"
+WINDOWS_ASSET_FILTER = "windows-x86-64"
 WINDOWS_BINARY_NAME = "stockfish.exe"
 WINDOWS_ARCHIVE_BINARY_NAME = "stockfish.exe"
 
 
-ANDROID_ARM64_ASSET_FILTER = "android-arm64-universal"
+ANDROID_ARM64_ASSET_FILTER = "android-armv8"
 ANDROID_ARM64_BINARY_NAME = "stockfish"
 ANDROID_ARM64_ARCHIVE_BINARY_NAME = "stockfish"
 
