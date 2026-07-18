@@ -340,7 +340,11 @@ def extract_archive(
         prefix = config.binary_name + "-"
         for key in list(extracted):
             if key.startswith(prefix):
-                extracted[config.binary_name] = extracted[key]
+                src = extracted[key]
+                dst = src.parent / config.binary_name
+                src.rename(dst)
+                extracted[config.binary_name] = dst
+                del extracted[key]
                 break
 
     if config.binary_name not in extracted:

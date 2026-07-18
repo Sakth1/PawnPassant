@@ -315,10 +315,4 @@ def verify_engine_binary(path: str) -> tuple[bool, str]:
             )
             return False, f"Binary not compatible: {reason}"
 
-    extra_args: list[str] | None = None
-    if _is_android():
-        linker = _find_linker()
-        if linker:
-            extra_args = [linker]
-
-    return _verify_via_uci(path, extra_args=extra_args)
+    return _verify_via_uci(path)
