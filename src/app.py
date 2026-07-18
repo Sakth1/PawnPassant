@@ -587,7 +587,9 @@ class ChessApp:
             return
 
         try:
-            _, all_assets = await asyncio.to_thread(get_all_release_assets, STOCKFISH_GITHUB_REPO)
+            _, all_assets = await asyncio.to_thread(
+                get_all_release_assets, STOCKFISH_GITHUB_REPO, is_android()
+            )
         except Exception as exc:
             logger.error("Failed to fetch release assets: %s", exc)
             self._checking_binary = False
@@ -670,7 +672,9 @@ class ChessApp:
         )
 
         try:
-            tag, all_assets = await asyncio.to_thread(get_all_release_assets, STOCKFISH_GITHUB_REPO)
+            tag, all_assets = await asyncio.to_thread(
+                get_all_release_assets, STOCKFISH_GITHUB_REPO, is_android()
+            )
         except Exception as exc:
             logger.error("Failed to fetch release: %s", exc)
             if panel is not None:
@@ -684,8 +688,7 @@ class ChessApp:
                 panel.set_error("No Stockfish release found for your system")
             return
 
-        non_dotprod = [a for a in matched if "dotprod" not in a.name]
-        best = (non_dotprod or matched)[0]
+        best = matched[0]
         loop = asyncio.get_running_loop()
 
         async def _update_ui(downloaded: int, total: int) -> None:

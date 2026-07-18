@@ -210,6 +210,13 @@ def _check_android_compatible(diag: dict) -> tuple[bool, str]:
     if diag["e_type"] is None:
         return False, "Not a valid ELF file."
 
+    if diag["e_type"] == ET_EXEC:
+        return False, (
+            "Binary is statically linked (non-PIE). Android 5.0+ requires "
+            "position-independent executables (PIE). Download the development "
+            "build instead."
+        )
+
     if diag["e_machine"] is not None:
         import platform as _platform
         expected = {

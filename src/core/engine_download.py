@@ -133,7 +133,30 @@ def get_release_assets(config: EngineDownloadConfig) -> list[EngineAsset]:
     return assets
 
 
-def get_all_release_assets(repo: str) -> tuple[str, list[EngineAsset]]:
+def get_all_release_assets(repo: str, prerelease: bool = False) -> tuple[str, list[EngineAsset]]:
+    if prerelease:
+        return _get_prerelease_assets(repo)
+    return _get_latest_release_assets(repo)
+
+
+def _get_prerelease_assets(repo: str) -> tuple[str, list[EngineAsset]]:
+    try:
+        data = _github_api_get(_build_github_api_url(repo, "releases?per_page=10"))
+    except Exception as exc:
+        logger.error("Failed to fetch releases list: %s", exc)
+        return ("unknown", [])
+
+    if isinstance(data, list):
+        for r in data:
+            if r.get("prerelease", False) and not r.get("draft", False):
+                return _release_to_assets(r, repo)
+        logger.warning("No prerelease found among recent releases, falling back to latest")
+        return _get_latest_release_assets(repo)
+
+    return ("unknown", [])
+
+
+def _get_latest_release_assets(repo: str) -> tuple[str, list[EngineAsset]]:
     endpoint = "releases/latest"
     url = _build_github_api_url(repo, endpoint)
     try:
@@ -149,7 +172,10 @@ def get_all_release_assets(repo: str) -> tuple[str, list[EngineAsset]]:
     release = _release_from_api(data)
     if not release:
         return ("unknown", [])
+    return _release_to_assets(release, repo)
 
+
+def _release_to_assets(release: dict, repo: str) -> tuple[str, list[EngineAsset]]:
     tag = release.get("tag_name", "unknown")
     logger.info("Found release %s for %s", tag, repo)
 
