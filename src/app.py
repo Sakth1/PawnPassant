@@ -587,7 +587,7 @@ class ChessApp:
             return
 
         try:
-            all_assets = await asyncio.to_thread(get_all_release_assets, STOCKFISH_GITHUB_REPO)
+            _, all_assets = await asyncio.to_thread(get_all_release_assets, STOCKFISH_GITHUB_REPO)
         except Exception as exc:
             logger.error("Failed to fetch release assets: %s", exc)
             self._checking_binary = False
@@ -670,7 +670,7 @@ class ChessApp:
         )
 
         try:
-            all_assets = await asyncio.to_thread(get_all_release_assets, STOCKFISH_GITHUB_REPO)
+            tag, all_assets = await asyncio.to_thread(get_all_release_assets, STOCKFISH_GITHUB_REPO)
         except Exception as exc:
             logger.error("Failed to fetch release: %s", exc)
             if panel is not None:
@@ -724,11 +724,11 @@ class ChessApp:
         )
         logger.info("Stockfish downloaded successfully path=%s", path)
 
-        bus.emit(EngineDownloadReadyEvent(download_path=path, release_tag="latest"))
+        bus.emit(EngineDownloadReadyEvent(download_path=path, release_tag=tag))
 
         if panel is not None:
             panel.on_download_complete(path)
-            panel.show_downloaded_available(version)
+            panel.show_downloaded_available(tag)
 
     def _handle_open_online_setup(self, time_control: tuple[int, int]) -> None:
         self._pending_time_control = time_control

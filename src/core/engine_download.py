@@ -133,7 +133,7 @@ def get_release_assets(config: EngineDownloadConfig) -> list[EngineAsset]:
     return assets
 
 
-def get_all_release_assets(repo: str) -> list[EngineAsset]:
+def get_all_release_assets(repo: str) -> tuple[str, list[EngineAsset]]:
     endpoint = "releases/latest"
     url = _build_github_api_url(repo, endpoint)
     try:
@@ -144,11 +144,11 @@ def get_all_release_assets(repo: str) -> list[EngineAsset]:
             data = _github_api_get(_build_github_api_url(repo, "releases?per_page=5"))
         except Exception as exc2:
             logger.error("Failed to fetch releases list: %s", exc2)
-            return []
+            return ("unknown", [])
 
     release = _release_from_api(data)
     if not release:
-        return []
+        return ("unknown", [])
 
     tag = release.get("tag_name", "unknown")
     logger.info("Found release %s for %s", tag, repo)
@@ -166,7 +166,7 @@ def get_all_release_assets(repo: str) -> list[EngineAsset]:
     for asset in assets:
         asset.sha256 = _fetch_sha256(asset)
 
-    return assets
+    return tag, assets
 
 
 def get_all_platform_assets(configs: list[EngineDownloadConfig]) -> dict[str, list[EngineAsset]]:
@@ -176,7 +176,7 @@ def get_all_platform_assets(configs: list[EngineDownloadConfig]) -> dict[str, li
         if cfg.github_repo in seen_repos:
             continue
         seen_repos.add(cfg.github_repo)
-        all_assets = get_all_release_assets(cfg.github_repo)
+        _, all_assets = get_all_release_assets(cfg.github_repo)
         for other_cfg in configs:
             if other_cfg.github_repo != cfg.github_repo:
                 continue
@@ -342,8 +342,11 @@ def extract_archive(
             if key.startswith(prefix):
                 src = extracted[key]
                 dst = src.parent / config.binary_name
-                src.rename(dst)
-                dst.chmod(0o755)
+                if dst.exists():
+                    dst.unlink()
+                shutil.copy2(src, dst)
+                _make_executable(dst)
+                src.unlink()
                 extracted[config.binary_name] = dst
                 del extracted[key]
                 break
