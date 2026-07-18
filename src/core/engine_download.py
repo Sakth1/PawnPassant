@@ -253,8 +253,12 @@ def _is_targz(path: Path) -> bool:
     return path.suffix.lower() in {".gz", ".tgz"} or str(path).endswith(".tar.gz")
 
 
+def _is_tar(path: Path) -> bool:
+    return path.suffix.lower() == ".tar" and not _is_targz(path)
+
+
 def _is_archive(path: Path) -> bool:
-    return _is_zip(path) or _is_targz(path)
+    return _is_zip(path) or _is_targz(path) or _is_tar(path)
 
 
 def _normalise_archive_entry_name(entry_name: str) -> str:
@@ -317,6 +321,14 @@ def extract_archive(
                 _extract_all_zip(zf, dest_dir, config.binary_name, extracted)
     elif _is_targz(archive_path):
         with tarfile.open(archive_path, "r:gz") as tf:
+            if config.archive_extra_files:
+                for internal_name, rename in config.archive_extra_files.items():
+                    _extract_tar_entry(tf, internal_name, dest_dir, rename, extracted)
+                _extract_tar_entry(tf, config.archive_binary_name, dest_dir, config.binary_name, extracted)
+            else:
+                _extract_all_tar(tf, dest_dir, config.binary_name, extracted)
+    elif _is_tar(archive_path):
+        with tarfile.open(archive_path, "r:") as tf:
             if config.archive_extra_files:
                 for internal_name, rename in config.archive_extra_files.items():
                     _extract_tar_entry(tf, internal_name, dest_dir, rename, extracted)
