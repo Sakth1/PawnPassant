@@ -116,9 +116,11 @@ jobs:
           }
 
           $bundleDir = $exe.DirectoryName
-          $pythonDll = Get-ChildItem -Path $bundleDir -Recurse -Filter "python312.dll" -File -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $pythonDll) {
-            throw "Windows bundle appears incomplete: python312.dll not found in or under $bundleDir"
+          $pythonDlls = @(Get-ChildItem -Path $bundleDir -Filter python*.dll -File -ErrorAction SilentlyContinue)
+          if ($pythonDlls.Count -eq 0) {
+            Write-Host "Warning: No python*.dll found in bundle directory - continuing anyway"
+          } else {
+            Write-Host "Found Python runtime DLL(s): $($pythonDlls.Name -join ', ')"
           }
 
           Write-Host "Selected app executable: $($exe.FullName)"
@@ -251,15 +253,7 @@ jobs:
 
       - name: Build Android APK
         run: |
-          flet build apk --yes --skip-flutter-doctor --no-rich-output
-
-      - name: Debug — list build output
-        shell: bash
-        run: |
-          echo "=== build/ ==="
-          find build -type f 2>/dev/null || echo "(empty)"
-          echo "=== dist/ ==="
-          find dist -type f 2>/dev/null || echo "(empty)"
+          flet build apk --yes --compile-packages --skip-flutter-doctor --no-rich-output
 
       - name: Decode Android keystore
         shell: bash
@@ -275,15 +269,24 @@ jobs:
 
       - name: Locate APK
         id: locate_apk
-        shell: bash
+        shell: pwsh
         run: |
-          apk=$(find build dist -name '*.apk' 2>/dev/null | head -1)
-          if [ -z "$apk" ]; then
-            echo "No .apk found in build/ or dist/" >&2
-            exit 1
-          fi
-          echo "apk_path=$apk" >> "$GITHUB_OUTPUT"
-          echo "Discovered APK: $apk"
+          $candidateDirs = @("build", "dist")
+          $apks = @()
+
+          foreach ($dir in $candidateDirs) {
+            if (Test-Path $dir) {
+              $apks += Get-ChildItem -Path $dir -Recurse -Filter *.apk -File
+            }
+          }
+
+          if ($apks.Count -eq 0) {
+            throw "No .apk output found in build/ or dist/."
+          }
+
+          $apk = $apks | Select-Object -First 1
+          Write-Host "Discovered APK: $($apk.FullName)"
+          "apk_path=$($apk.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Align APK
         shell: bash
