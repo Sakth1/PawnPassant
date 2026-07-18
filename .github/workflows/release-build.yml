@@ -203,6 +203,12 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
     needs: metadata
+    strategy:
+      matrix:
+        abi: [arm64-v8a, armeabi-v7a]
+
+    env:
+      ANDROID_ABI: ${{ matrix.abi }}
 
     steps:
       - name: Checkout
@@ -234,6 +240,14 @@ jobs:
         run: |
           echo "source_packages=${{ needs.metadata.outputs.source_packages }}"
 
+      - name: Download Stockfish binaries
+        run: |
+          python scripts/fetch_stockfish_android.py --abi ${{ matrix.abi }}
+
+      - name: Prepare engine binary for APK
+        run: |
+          python scripts/prepare_android_engine.py ${{ matrix.abi }}
+
       - name: Build Android APK
         run: |
           flet build apk --yes --compile-packages --skip-flutter-doctor --no-rich-output
@@ -252,24 +266,15 @@ jobs:
 
       - name: Locate APK
         id: locate_apk
-        shell: pwsh
+        shell: bash
         run: |
-          $candidateDirs = @("build", "dist")
-          $apks = @()
-
-          foreach ($dir in $candidateDirs) {
-            if (Test-Path $dir) {
-              $apks += Get-ChildItem -Path $dir -Recurse -Filter *.apk -File
-            }
-          }
-
-          if ($apks.Count -eq 0) {
-            throw "No .apk output found in build/ or dist/."
-          }
-
-          $apk = $apks | Select-Object -First 1
-          Write-Host "Discovered APK: $($apk.FullName)"
-          "apk_path=$($apk.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          apk=$(find build dist -name '*.apk' 2>/dev/null | head -1)
+          if [ -z "$apk" ]; then
+            echo "No .apk found in build/ or dist/" >&2
+            exit 1
+          fi
+          echo "apk_path=$apk" >> "$GITHUB_OUTPUT"
+          echo "Discovered APK: $apk"
 
       - name: Align APK
         shell: bash
@@ -298,22 +303,20 @@ jobs:
 
       - name: Collect APK
         id: collect
-        shell: pwsh
+        shell: bash
         run: |
-          $newApkName = "${{ needs.metadata.outputs.artifact_stem }}.apk"
-
-          if (-not (Test-Path "signed.apk")) {
-            throw "Signed APK not found."
-          }
-
-          Move-Item -Path "signed.apk" -Destination $newApkName -Force
-
-          "path=$newApkName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          new_name="${{ needs.metadata.outputs.artifact_stem }}-${{ matrix.abi }}.apk"
+          if [ ! -f "signed.apk" ]; then
+            echo "Signed APK not found." >&2
+            exit 1
+          fi
+          mv signed.apk "$new_name"
+          echo "path=$new_name" >> "$GITHUB_OUTPUT"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ needs.metadata.outputs.artifact_stem }}-android
+          name: ${{ needs.metadata.outputs.artifact_stem }}-android-${{ matrix.abi }}
           path: ${{ steps.collect.outputs.path }}
 
   publish-release:
@@ -331,11 +334,12 @@ jobs:
           name: ${{ needs.metadata.outputs.artifact_stem }}-windows
           path: release-assets
 
-      - name: Download Android artifact
+      - name: Download Android artifacts (all ABIs)
         uses: actions/download-artifact@v4
         with:
-          name: ${{ needs.metadata.outputs.artifact_stem }}-android
+          pattern: ${{ needs.metadata.outputs.artifact_stem }}-android-*
           path: release-assets
+          merge-multiple: true
 
       - name: Attach binaries to release
         uses: softprops/action-gh-release@v2

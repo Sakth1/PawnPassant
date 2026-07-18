@@ -7,6 +7,8 @@ from typing import Callable
 import chess
 from chess import engine as chess_engine
 
+from core.stockfish_config import ELO_MIN, ELO_MAX
+
 logger = logging.getLogger(__name__)
 
 
@@ -74,6 +76,16 @@ class EngineManager:
 
         logger.info("Engine: %s by %s", self._engine_name, self._engine_author)
         return True
+
+    def configure_stockfish(self, elo: int, threads: int = 2, hash_mb: int = 256) -> None:
+        clamped = max(ELO_MIN, min(ELO_MAX, elo))
+        opts: dict[str, str] = {
+            "UCI_LimitStrength": "true",
+            "UCI_Elo": str(clamped),
+            "Threads": str(threads),
+            "Hash": str(hash_mb),
+        }
+        self.configure(opts)
 
     def configure(self, options: dict[str, str]) -> None:
         self._options.update(options)

@@ -22,18 +22,13 @@ from ui.setup_overlay import SetupOverlay
 from core.bot_manager import BotManager
 from core.engine_download import EngineDownloadConfig, download_and_extract, get_all_release_assets
 from core.engine_verify import verify_engine_binary
-from core.lc0_config import (
-    DEFAULT_LC0_CONFIGS,
-    DEFAULT_NETWORKS,
-    LC0_ANDROID_CONFIG,
-    LC0_WINDOWS_CPU_CONFIG,
-    LC0_MACOS_CONFIG,
-    Lc0Options,
-    get_default_options_for_platform,
-    get_platform_configs,
-    recommend_backends_for_system,
+from core.stockfish_config import (
+    STOCKFISH_GITHUB_REPO,
+    WINDOWS_DOWNLOAD_CONFIG,
+    get_platform_download_configs,
+    is_android,
+    is_windows,
 )
-from core.weights_downloader import download_network, get_available_networks, get_cached_networks
 from utils.constants import (
     ASSET_DIR,
     DEFAULT_PAGE_HEIGHT,
@@ -63,22 +58,12 @@ from utils.paths import (
 from utils.game_state import GameAgainst, game_state
 from utils.logging_config import reconfigure_logging
 from utils.log_collector import build_error_report
-from utils.models import Lc0GameConfig
+from utils.models import StockfishGameConfig
 from utils.settings import SettingsController
 from utils.signals import bus
 from ui.log_viewer_dialog import LogViewerDialog
 
 logger = logging.getLogger(__name__)
-
-
-def _get_lc0_config_for_platform() -> dict:
-    sys_platform = platform_from_page()
-    cfg = DEFAULT_LC0_CONFIGS.get(sys_platform)
-    if cfg:
-        return dict(cfg)
-    if os.name == "nt":
-        return dict(LC0_WINDOWS_CPU_CONFIG)
-    return dict(LC0_MACOS_CONFIG)
 
 
 def platform_from_page(page=None) -> str:
@@ -114,11 +99,9 @@ class ChessApp:
         self.bot_manager: BotManager | None = None
         self._setup_overlay: SetupOverlay | None = None
         self._pending_time_control: tuple[int, int] | None = None
-        self._pending_engine_config: Lc0GameConfig | None = None
-        self._pending_lc0_config: Lc0GameConfig | None = None
+        self._pending_engine_config: StockfishGameConfig | None = None
         self._checking_binary: bool = False
         self._log_viewer: LogViewerDialog | None = None
-        self._cached_networks: list | None = None
 
         reconfigure_logging(self.page)
         self.page.on_error = self._handle_flet_error
@@ -520,7 +503,6 @@ class ChessApp:
 
         settings = self.settings_controller.settings
 
-        engine_dir = get_engine_dir(self.page)
         bundled_path = get_bundled_engine_path(self.page)
         bundled_available = False
         bundled_version = ""
@@ -545,11 +527,6 @@ class ChessApp:
 
         binary_available = bundled_available or downloaded_path is not None
 
-        networks = get_available_networks(engine_dir)
-        if self._cached_networks is None:
-            cached = get_cached_networks(engine_dir)
-            self._cached_networks = cached
-
         self._setup_overlay = SetupOverlay(
             page=self.page,
             file_picker=self._file_picker,
@@ -559,11 +536,10 @@ class ChessApp:
             on_close=self._handle_overlay_closed,
             on_install_clicked=self._handle_overlay_install_clicked,
             on_binary_installed=self._handle_binary_installed,
-            engine_name="Leela Chess Zero",
+            engine_name="Stockfish",
             bundled_version=bundled_version,
             has_downloaded_version=downloaded_path is not None,
             on_activate_downloaded=self._handle_activate_downloaded,
-            available_networks=networks,
         )
         self._setup_overlay.open()
 
@@ -589,8 +565,8 @@ class ChessApp:
                 engine_source="downloaded",
                 engine_binary_path=path,
             )
-            show_toast(self.page, f"Activated Lc0 {version}")
-            logger.info("Activated downloaded Lc0 version=%s path=%s", version, path)
+            show_toast(self.page, f"Activated Stockfish {version}")
+            logger.info("Activated downloaded Stockfish version=%s path=%s", version, path)
             if self._setup_overlay is not None:
                 self._setup_overlay.show_config_panel()
         else:
@@ -598,20 +574,20 @@ class ChessApp:
             logger.error("Failed to activate downloaded binary: %s", version)
 
     async def _async_fetch_and_update_binary_info(self) -> None:
-        logger.info("Fetching available Lc0 binary info...")
+        logger.info("Fetching available Stockfish binary info...")
         if self._setup_overlay is not None:
             self._setup_overlay.set_fetching()
 
-        platform_configs = get_platform_configs()
+        platform_configs = get_platform_download_configs()
         if not platform_configs:
             self._checking_binary = False
             if self._setup_overlay is not None:
-                self._setup_overlay.set_error("No engine variants found for your platform")
+                self._setup_overlay.set_error("No Stockfish release found for your platform")
+                self._setup_overlay.set_ready()
             return
 
-        repo = platform_configs[0]["github_repo"]
         try:
-            all_assets = await asyncio.to_thread(get_all_release_assets, repo)
+            all_assets = await asyncio.to_thread(get_all_release_assets, STOCKFISH_GITHUB_REPO)
         except Exception as exc:
             logger.error("Failed to fetch release assets: %s", exc)
             self._checking_binary = False
@@ -619,75 +595,46 @@ class ChessApp:
                 self._setup_overlay.set_error(f"Failed to fetch release: {exc}")
             return
 
-        all_variants: list[dict] = []
-        for cfg_dict in platform_configs:
-            config = EngineDownloadConfig(
-                github_repo=cfg_dict["github_repo"],
-                asset_name_filter=cfg_dict["asset_name_filter"],
-                binary_name=cfg_dict["binary_name"],
-                archive_binary_name=cfg_dict.get("archive_binary_name", cfg_dict["binary_name"]),
-                archive_extra_files=cfg_dict.get("archive_extra_files", {}),
-                label=cfg_dict.get("label", ""),
-                description=cfg_dict.get("description", ""),
-            )
-            matched = [a for a in all_assets if config.asset_name_filter in a.name]
-            if matched:
-                all_variants.append({
-                    "config": config,
-                    "assets": matched,
-                    "label": config.label,
-                    "description": config.description,
-                })
-            else:
-                asset_names = [a.name for a in all_assets]
-                logger.info("No match for filter=%r labels=%r assets=%r",
-                            config.asset_name_filter, config.label, asset_names)
+        cfg = platform_configs[0]
+        config = EngineDownloadConfig(
+            github_repo=cfg.github_repo,
+            asset_name_filter=cfg.asset_name_filter,
+            binary_name=cfg.binary_name,
+            archive_binary_name=cfg.archive_binary_name,
+            label=cfg.label,
+            description=cfg.description,
+        )
+        matched = [a for a in all_assets if config.asset_name_filter in a.name]
 
-        logger.info("all_variants count=%d labels=%s",
-                     len(all_variants), [v["label"] for v in all_variants])
-        self._checking_binary = False
-
-        if not all_variants:
-            logger.error("No Lc0 assets found for any variant")
+        if not matched:
+            logger.error("No Stockfish assets found matching filter=%s", config.asset_name_filter)
+            self._checking_binary = False
             if self._setup_overlay is not None:
-                self._setup_overlay.set_error("No compatible Lc0 release found for your system")
+                self._setup_overlay.set_error("No Stockfish release found for your system")
             return
 
-        variant_labels = [
-            ft.dropdown.Option(
-                key=str(i),
-                text=f"{v['label']} - {v.get('description', '')}",
-            )
-            for i, v in enumerate(all_variants)
-        ]
-
-        first_variant = all_variants[0]
-        first_asset = first_variant["assets"][0]
-        first_config = first_variant["config"]
+        self._checking_binary = False
+        best_asset = matched[0]
 
         bus.emit(
             EngineInfoReadyEvent(
                 release_tag="latest",
-                asset_name=first_asset.name,
-                asset_size_bytes=first_asset.size,
-                asset_sha256=first_asset.sha256 or "",
-                asset_platform=first_config.asset_name_filter,
+                asset_name=best_asset.name,
+                asset_size_bytes=best_asset.size,
+                asset_sha256=best_asset.sha256 or "",
+                asset_platform=config.asset_name_filter,
                 asset_arch="",
             )
         )
 
         if self._setup_overlay is not None:
             self._setup_overlay.set_ready(
-                first_asset.name,
-                first_asset.size,
-                first_asset.sha256 or "",
-                first_config.asset_name_filter,
+                best_asset.name,
+                best_asset.size,
+                best_asset.sha256 or "",
+                config.asset_name_filter,
                 "",
             )
-            if self._setup_overlay._install_panel is not None:
-                self._setup_overlay._install_panel.set_variants(all_variants)
-            logger.info("Binary info pushed to overlay name=%s size=%d variants=%d",
-                        first_asset.name, first_asset.size, len(all_variants))
 
     def _handle_overlay_install_clicked(self) -> None:
         self.page.run_task(self._async_download_engine)
@@ -706,26 +653,38 @@ class ChessApp:
 
         panel = self._setup_overlay._install_panel if self._setup_overlay else None
 
-        variant = panel.selected_variant if panel else None
-        if not variant:
-            logger.error("No variant selected for download")
+        platform_configs = get_platform_download_configs()
+        if not platform_configs:
             if panel is not None:
-                panel.set_error("No engine variant selected")
+                panel.set_error("No Stockfish config for this platform")
             return
 
-        variant_config: EngineDownloadConfig = variant["config"]
-        variant_assets: list = variant["assets"]
+        cfg = platform_configs[0]
+        config = EngineDownloadConfig(
+            github_repo=cfg.github_repo,
+            asset_name_filter=cfg.asset_name_filter,
+            binary_name=cfg.binary_name,
+            archive_binary_name=cfg.archive_binary_name,
+            label=cfg.label,
+            description=cfg.description,
+        )
 
-        asset_filter = variant_config.asset_name_filter
-        config = variant_config
-
-        if not variant_assets:
-            logger.error("No assets available for selected variant %s", config.label)
+        try:
+            all_assets = await asyncio.to_thread(get_all_release_assets, STOCKFISH_GITHUB_REPO)
+        except Exception as exc:
+            logger.error("Failed to fetch release: %s", exc)
             if panel is not None:
-                panel.set_error("No release found for this variant")
+                panel.set_error(f"Failed to fetch release: {exc}")
+            bus.emit(EngineDownloadFailedEvent(error_message=str(exc)))
             return
 
-        best = variant_assets[0]
+        matched = [a for a in all_assets if config.asset_name_filter in a.name]
+        if not matched:
+            if panel is not None:
+                panel.set_error("No Stockfish release found for your system")
+            return
+
+        best = matched[0]
         loop = asyncio.get_running_loop()
 
         async def _update_ui(downloaded: int, total: int) -> None:
@@ -735,7 +694,6 @@ class ChessApp:
         def on_progress(downloaded: int, total: int) -> None:
             asyncio.run_coroutine_threadsafe(_update_ui(downloaded, total), loop)
 
-        logger.info("Running synchronous download")
         try:
             extracted = await asyncio.to_thread(
                 download_and_extract,
@@ -745,7 +703,7 @@ class ChessApp:
                 on_progress,
             )
         except Exception as exc:
-            logger.error("Lc0 download failed: %s", exc, exc_info=True)
+            logger.error("Stockfish download failed: %s", exc, exc_info=True)
             if panel is not None:
                 panel.set_error(f"Download failed: {exc}")
             show_toast(self.page, f"Download failed: {exc}", is_error=True)
@@ -759,8 +717,6 @@ class ChessApp:
                 panel.set_error("Binary not found in downloaded archive")
             bus.emit(EngineDownloadFailedEvent(error_message="Binary not found in archive"))
             return
-
-        logger.info("Download succeeded, path=%s", path)
 
         valid, version = verify_engine_binary(path)
         if not valid:
@@ -777,15 +733,13 @@ class ChessApp:
             engine_downloaded_path=path,
             engine_source="bundled",
         )
-        logger.info("Lc0 downloaded version=%s path=%s (not activated)", version, path)
+        logger.info("Stockfish downloaded version=%s path=%s (not activated)", version, path)
 
         bus.emit(EngineDownloadReadyEvent(download_path=path, release_tag="latest"))
 
         if panel is not None:
             panel.on_download_complete(path)
             panel.show_downloaded_available(version)
-
-        logger.info("_do_download_engine EXIT")
 
     def _handle_open_online_setup(self, time_control: tuple[int, int]) -> None:
         self._pending_time_control = time_control
@@ -799,9 +753,9 @@ class ChessApp:
         )
         self._setup_overlay.open()
 
-    def _handle_engine_start(self, config: Lc0GameConfig) -> None:
+    def _handle_engine_start(self, config: StockfishGameConfig) -> None:
         self._pending_engine_config = config
-        logger.info("Starting engine game config=preset=%s network=%s", config.preset_name, config.network_name)
+        logger.info("Starting engine game config=preset=%s", config)
         self._setup_overlay = None
         game_state.game_against = GameAgainst.COMPUTER
         self._launch_game()
@@ -834,7 +788,7 @@ class ChessApp:
 
     async def _async_navigate_and_start(self) -> None:
         if game_state.game_against == GameAgainst.COMPUTER and self.bot_manager is None:
-            config = self._pending_engine_config or Lc0GameConfig()
+            config = self._pending_engine_config or StockfishGameConfig()
             settings = self.settings_controller.settings
 
             binary_path = get_active_engine_path(
@@ -846,32 +800,9 @@ class ChessApp:
                 binary_path = Path(settings.engine_binary_path)
 
             if binary_path and binary_path.exists():
-                engine_dir = get_engine_dir(self.page)
-                cached_networks = get_cached_networks(engine_dir)
-                weights_path = ""
-                if cached_networks:
-                    weights_path = cached_networks[0].local_path
-
-                if config.network_path:
-                    weights_path = config.network_path
-
-                effective_config = Lc0GameConfig(
-                    use_preset=config.use_preset,
-                    preset_name=config.preset_name,
-                    network_name=config.network_name,
-                    network_path=weights_path,
-                    backend=config.backend,
-                    threads=config.threads,
-                    minibatch_size=config.minibatch_size,
-                    temperature=config.temperature,
-                    cpuct=config.cpuct,
-                    elo=config.elo,
-                    max_playouts=config.max_playouts,
-                )
-
                 self.bot_manager = BotManager(
                     engine_path=str(binary_path),
-                    config=effective_config,
+                    config=config,
                     on_bot_move=self.board_view.play_uci_move,
                     page=self.page,
                 )

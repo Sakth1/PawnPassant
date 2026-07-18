@@ -1,6 +1,6 @@
 [project]
 name = "pawnpassant"
-version = "v0.4.3"
+version = "v0.4.4"
 description = "A cross-platform chess game with full rules enforcement, chess clock, and Leela Chess Zero AI, built with Flet."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -29,7 +29,7 @@ source_packages = ["chess"]
 
 [tool.flet.android]
 permissions = ["android.permission.INTERNET"]
-split_per_abi = false
+split_per_abi = true
 compile_packages = true
 dependencies = [
     "chess>=1.11.2",
@@ -42,13 +42,11 @@ path = "src"
 binary_name = "Pawn-Passant"
 
 # ── Android engine setup ─────────────────────────────────────────────
-# Lc0 is NOT bundled in the APK. The engine binary and neural network
-# weights are downloaded at runtime from GitHub and lczero.org
-# respectively, under user control via the in-app download UI.
-#
-# On Android the Lc0 APK release contains liblc0.so + libopenblas.so
-# which are extracted to the app data directory and executed with
-# LD_LIBRARY_PATH pointing at the same directory.
+# Stockfish is bundled per ABI in the APK. Run
+#   scripts/prepare_android_engine.py <abi>
+# before `flet build apk` to place the correct binary into assets/.
+# Binaries are kept in bundled/stockfish/android/<abi>/stockfish
+# (not tracked by git — too large; regenerate via scripts/fetch_stockfish_android.py).
 
 [tool.ruff]
 line-length = 88

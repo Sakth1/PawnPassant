@@ -55,7 +55,7 @@ class AppSettings:
     engine_source: str = "bundled"
     engine_downloaded_path: str = ""
     engine_difficulty: str = "intermediate"
-    engine_type: str = "lc0"
+    engine_type: str = "stockfish"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -219,3 +219,17 @@ class Lc0DifficultyPreset:
     cpuct: float
     threads: int
     playouts: int
+
+
+@dataclass
+class StockfishGameConfig:
+    elo: int = 1800
+    threads: int = 2
+    hash_mb: int = 256
+
+
+@dataclass
+class StockfishDifficultyPreset:
+    name: str
+    description: str
+    elo: int
