@@ -210,13 +210,6 @@ def _check_android_compatible(diag: dict) -> tuple[bool, str]:
     if diag["e_type"] is None:
         return False, "Not a valid ELF file."
 
-    if diag["e_type"] != ET_DYN:
-        return False, (
-            f"Android requires PIE executables (ET_DYN, value 3). "
-            f"This binary has {diag['e_type_name']}. "
-            "Download the Android NDK build of the engine."
-        )
-
     if diag["e_machine"] is not None:
         import platform as _platform
         expected = {
