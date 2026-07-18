@@ -684,7 +684,8 @@ class ChessApp:
                 panel.set_error("No Stockfish release found for your system")
             return
 
-        best = matched[0]
+        non_dotprod = [a for a in matched if "dotprod" not in a.name]
+        best = (non_dotprod or matched)[0]
         loop = asyncio.get_running_loop()
 
         async def _update_ui(downloaded: int, total: int) -> None:
@@ -718,11 +719,22 @@ class ChessApp:
             bus.emit(EngineDownloadFailedEvent(error_message="Binary not found in archive"))
             return
 
+        valid, ver_str = verify_engine_binary(path)
+        if not valid:
+            logger.error("Downloaded binary failed verification: %s", ver_str)
+            if panel is not None:
+                panel.set_error(f"Downloaded binary not compatible: {ver_str}")
+            show_toast(self.page, f"Downloaded binary not compatible: {ver_str}", is_error=True)
+            bus.emit(EngineDownloadFailedEvent(error_message=ver_str))
+            if Path(path).exists():
+                Path(path).unlink()
+            return
+
         self.settings_controller.update(
             engine_downloaded_path=path,
             engine_source="bundled",
         )
-        logger.info("Stockfish downloaded successfully path=%s", path)
+        logger.info("Stockfish downloaded version=%s path=%s (not activated)", ver_str, path)
 
         bus.emit(EngineDownloadReadyEvent(download_path=path, release_tag=tag))
 
