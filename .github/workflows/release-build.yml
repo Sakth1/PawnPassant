@@ -295,10 +295,10 @@ jobs:
         with:
           name: stockfish-android-wheels
           path: dist/wheels
-
-      - name: Install Stockfish engine wheels
-        run: |
-          python -m pip install dist/wheels/*.whl
+        # NOTE: do NOT pip-install these on the host runner — their
+        # android_* platform tags are rejected by host pip by design.
+        # `flet build` picks them up via [tool.flet.android.dev_packages]
+        # and serious_python installs them targeting Android.
 
       - name: Build Android APK
         run: |
