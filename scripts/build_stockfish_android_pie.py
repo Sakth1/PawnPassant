@@ -126,6 +126,9 @@ def _run(cmd: list[str], cwd: Path, env: dict[str, str]) -> None:
 
 
 def _ensure_source(workdir: Path, ref: str) -> Path:
+    # Absolute paths throughout: a relative clone target would resolve
+    # against cwd (nested wrong path) instead of the repo root.
+    workdir = workdir.resolve()
     workdir.mkdir(parents=True, exist_ok=True)
     checkout = workdir / "Stockfish"
     if not (checkout / ".git").exists():

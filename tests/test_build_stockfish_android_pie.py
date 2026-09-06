@@ -83,3 +83,29 @@ def test_require_linux_accepts_linux():
 def test_missing_ndk_bin_dir_is_a_clear_error(tmp_path):
     with pytest.raises(SystemExit):
         build_pie.require_ndk_bin(str(tmp_path / "no-such-ndk"))
+
+
+def test_ensure_source_uses_absolute_clone_target(tmp_path, monkeypatch):
+    """Regression: CI cloned into a nested path.
+
+    ``_ensure_source`` ran ``git clone <relative-target>`` with
+    ``cwd=<relative-workdir>``, so git resolved the target against the
+    cwd (``build/stockfish-pie/build/stockfish-pie/Stockfish``) and the
+    source check failed. Clone target must be absolute.
+    """
+    recorded = {}
+
+    def fake_run(cmd, cwd, env):
+        recorded["cmd"] = cmd
+        recorded["cwd"] = cwd
+        target = Path(cmd[-1])
+        assert target.is_absolute(), f"clone target not absolute: {target}"
+        (target / "src").mkdir(parents=True)
+
+    monkeypatch.setattr(build_pie, "_run", fake_run)
+    monkeypatch.chdir(tmp_path)
+
+    src = build_pie._ensure_source(Path("build/stockfish-pie"), "sf_19")
+
+    assert src == tmp_path / "build" / "stockfish-pie" / "Stockfish" / "src"
+    assert recorded["cmd"][0] == "git"
