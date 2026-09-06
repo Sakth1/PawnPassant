@@ -63,12 +63,26 @@ def test_build_command_is_dynamic_pie_not_static():
     assert "max-page-size=16384" in ldflags  # Android 15 16KB-page rule
 
 
+def test_build_steps_clean_between_abis():
+    """Regression: armv7 build reused arm64 objects.
+
+    Without a clean, ``make`` sees a fresh ``stockfish`` binary and prints
+    ``Nothing to be done`` — the arm64 binary then ships mislabeled as
+    armv7 and the PIE gate rejects it. Steps must be clean → net → build.
+    """
+    steps = build_pie.build_steps(
+        "armeabi-v7a", ndk_bin="/opt/ndk/bin", source_dir=Path("/tmp/sf/src")
+    )
+
+    assert [name for name, _, _ in steps] == ["clean", "net", "build"]
+
+
 def test_build_command_runs_make_net_first_for_embedded_nnue():
     steps = build_pie.build_steps(
         "arm64-v8a", ndk_bin="/opt/ndk/bin", source_dir=Path("/tmp/sf/src")
     )
 
-    assert steps[0][0] == "net"
+    assert steps[1][0] == "net"
 
 
 def test_require_linux_rejects_non_linux():

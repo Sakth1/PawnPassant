@@ -91,10 +91,18 @@ def build_command(
 def build_steps(
     abi: str, ndk_bin: str, source_dir: Path
 ) -> list[tuple[str, list[str], dict[str, str]]]:
-    """Ordered (name, command, env) steps; NNUE embedding comes first."""
+    """Ordered (name, command, env) steps.
+
+    ``clean`` first: object files are architecture-specific, and without it
+    ``make`` sees the previous ABI's fresh ``stockfish`` binary and skips
+    the rebuild (``Nothing to be done``), mislabeling one ABI's binary as
+    another's. ``net`` re-embeds the NNUE after the clean.
+    """
     cmd, env = build_command(abi, ndk_bin, source_dir)
+    _, stockfish_arch = toolchain_for_abi(abi)
+    make_clean = (["make", "clean", f"ARCH={stockfish_arch}", "COMP=ndk"], env)
     make_net = (["make", "net"], env)
-    return [("net", *make_net), ("build", cmd, env)]
+    return [("clean", *make_clean), ("net", *make_net), ("build", cmd, env)]
 
 
 def require_platform(platform_name: str) -> None:
