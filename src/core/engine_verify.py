@@ -206,7 +206,25 @@ def read_elf_diagnostics(path: str) -> dict:
     return info
 
 
-def _check_android_compatible(diag: dict) -> tuple[bool, str]:
+def _detect_host_machine() -> int | None:
+    import platform as _platform
+    expected = {
+        "aarch64": EM_AARCH64,
+        "arm64": EM_AARCH64,
+        "armv8": EM_AARCH64,
+        "x86_64": EM_X86_64,
+        "amd64": EM_X86_64,
+    }
+    machine = _platform.machine().lower()
+    for key, value in expected.items():
+        if key in machine:
+            return value
+    return None
+
+
+def _check_android_compatible(
+    diag: dict, expected_machine: int | None = None
+) -> tuple[bool, str]:
     if diag["e_type"] is None:
         return False, "Not a valid ELF file."
 
@@ -218,24 +236,12 @@ def _check_android_compatible(diag: dict) -> tuple[bool, str]:
         )
 
     if diag["e_machine"] is not None:
-        import platform as _platform
-        expected = {
-            "aarch64": EM_AARCH64,
-            "arm64": EM_AARCH64,
-            "armv8": EM_AARCH64,
-            "x86_64": EM_X86_64,
-            "amd64": EM_X86_64,
-        }
-        machine = _platform.machine().lower()
-        expected_val = None
-        for k, v in expected.items():
-            if k in machine:
-                expected_val = v
-                break
-        if expected_val is not None and diag["e_machine"] != expected_val:
+        if expected_machine is None:
+            expected_machine = _detect_host_machine()
+        if expected_machine is not None and diag["e_machine"] != expected_machine:
             return False, (
                 f"Architecture mismatch: binary is {diag['machine_name']} "
-                f"(e_machine={diag['e_machine']}) but device is {machine}. "
+                f"(e_machine={diag['e_machine']}). "
                 f"Download the correct binary for your device architecture."
             )
 
@@ -297,6 +303,32 @@ def _verify_via_uci(path: str, extra_args: list[str] | None = None) -> tuple[boo
 
     preview = stdout[:200].replace("\n", " | ")
     return False, f"Engine did not respond to UCI. Output: {preview}"
+
+
+def check_android_binary(
+    path: str, expected_machine: int | None = None
+) -> tuple[bool, str]:
+    """Validate an Android-bound engine binary purely from ELF headers.
+
+    Unlike :func:`verify_engine_binary` this runs on any host OS, so CI can
+    gate Android packaging artifacts (which must be position-independent
+    ``ET_DYN`` binaries) without executing them. Pass ``expected_machine``
+    when cross-building (e.g. an arm64 binary built on an x86_64 runner);
+    when omitted the host CPU is used.
+    """
+    diag = read_elf_diagnostics(path)
+    compatible, reason = _check_android_compatible(
+        diag, expected_machine=expected_machine
+    )
+    if not compatible:
+        logger.error(
+            "Android packaging gate failed for path=%s: %s | diag=%s",
+            path,
+            reason,
+            {k: v for k, v in diag.items() if k != "errors"},
+        )
+        return False, reason
+    return True, ""
 
 
 def verify_engine_binary(path: str) -> tuple[bool, str]:

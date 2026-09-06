@@ -87,7 +87,31 @@ def get_active_engine_path(
     return get_bundled_engine_path(page, engine_name)
 
 
+def _native_library_engine(engine_name: str = "stockfish") -> Path | None:
+    """Engine shipped as a native library (lib<engine>.so).
+
+    Flet/serious_python exposes the app's native library directory via
+    ``ANDROID_NATIVE_LIBRARY_DIR``. With legacy packaging the Stockfish PIE
+    binary is extracted there and can be executed in place — the only
+    runnable location on Android 10+.
+    """
+    env_lib = os.environ.get("ANDROID_NATIVE_LIBRARY_DIR")
+    if not env_lib:
+        return None
+    candidate = Path(env_lib) / f"lib{engine_name}.so"
+    if candidate.exists():
+        return candidate.resolve()
+    return None
+
+
 def get_bundled_engine_path(page=None, engine_name: str = "stockfish") -> Path | None:
+    # Native library directory first: on Android 10+ it is the only location
+    # the OS will execute from (writable app storage is W^X-blocked), so a
+    # bundled lib<engine>.so must shadow any assets/ copy.
+    native = _native_library_engine(engine_name)
+    if native is not None:
+        return native
+
     android_path = _extract_android_asset_engine(page, engine_name)
     if android_path:
         return android_path
