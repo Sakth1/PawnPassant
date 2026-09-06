@@ -202,9 +202,63 @@ jobs:
             ${{ steps.collect.outputs.portable_path }}
             ${{ steps.collect.outputs.installer_path }}
 
-  build-android:
+  build-android-engine:
+    # Self-built PIE Stockfish (see docs/android-stockfish.md). Upstream
+    # prebuilts are static ET_EXEC and cannot run on modern Android.
     runs-on: ubuntu-latest
     needs: metadata
+
+    env:
+      STOCKFISH_REF: sf_19
+      ENGINE_WHEEL_VERSION: 19.0.0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android NDK r27c
+        run: |
+          NDKV="27.2.12479018"
+          ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
+          echo "y" | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDKV"
+          echo "ANDROID_NDK_BIN=$ANDROID_SDK_ROOT/ndk/$NDKV/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "$GITHUB_ENV"
+
+      - name: Build PIE Stockfish binaries
+        run: |
+          python scripts/build_stockfish_android_pie.py \
+            --abi all --ref "$STOCKFISH_REF" \
+            --ndk-bin "$ANDROID_NDK_BIN" \
+            --outdir dist/stockfish-android
+
+      - name: Package engine wheels
+        run: |
+          python scripts/package_android_engine.py \
+            --dist dist/stockfish-android \
+            --outdir dist/wheels \
+            --version "$ENGINE_WHEEL_VERSION"
+
+      - name: Upload engine wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: stockfish-android-wheels
+          path: dist/wheels/*.whl
+
+  build-android:
+    runs-on: ubuntu-latest
+    needs:
+      - metadata
+      - build-android-engine
 
     steps:
       - name: Checkout
@@ -236,14 +290,15 @@ jobs:
         run: |
           echo "source_packages=${{ needs.metadata.outputs.source_packages }}"
 
-      - name: Download Stockfish binaries
-        run: |
-          python scripts/fetch_stockfish_android.py --abi all
+      - name: Download Stockfish engine wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: stockfish-android-wheels
+          path: dist/wheels
 
-      - name: Prepare engine binaries for APK
+      - name: Install Stockfish engine wheels
         run: |
-          python scripts/prepare_android_engine.py arm64-v8a
-          python scripts/prepare_android_engine.py armeabi-v7a
+          python -m pip install dist/wheels/*.whl
 
       - name: Build Android APK
         run: |
@@ -281,6 +336,15 @@ jobs:
           $apk = $apks | Select-Object -First 1
           Write-Host "Discovered APK: $($apk.FullName)"
           "apk_path=$($apk.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Verify engine bundled in APK
+        shell: bash
+        run: |
+          if ! unzip -l "${{ steps.locate_apk.outputs.apk_path }}" | grep -q "libstockfish.so"; then
+            echo "ERROR: libstockfish.so missing from APK lib/<abi>/ — engine not packaged." >&2
+            exit 1
+          fi
+          unzip -l "${{ steps.locate_apk.outputs.apk_path }}" | grep "libstockfish.so"
 
       - name: Align APK
         shell: bash

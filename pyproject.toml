@@ -8,15 +8,15 @@ authors = [
     { name = "Sakth1" }
 ]
 dependencies = [
-    "flet>=0.85.3",
+    "flet>=0.86.2",
     "chess>=1.11.2",
 ]
 
 [dependency-groups]
 dev = [
-    "flet-cli>=0.85.3",
-    "flet-desktop>=0.85.3",
-    "flet-web>=0.85.3",
+    "flet-cli>=0.86.2",
+    "flet-desktop>=0.86.2",
+    "flet-web>=0.86.2",
     "pytest>=9.0.3",
 ]
 
@@ -31,6 +31,11 @@ source_packages = ["chess"]
 permissions = ["android.permission.INTERNET"]
 split_per_abi = true
 compile_packages = true
+# Extract native .so files to ANDROID_NATIVE_LIBRARY_DIR at install time.
+# Required: the bundled Stockfish PIE binary (libstockfish.so) must have a
+# real executable filesystem path — with modern (mmap) packaging there is
+# no .so on disk, and Android 10+ refuses to execute anything else.
+legacy_packaging = true
 dependencies = [
     "chess>=1.11.2",
 ]
@@ -42,11 +47,14 @@ path = "src"
 binary_name = "Pawn-Passant"
 
 # ── Android engine setup ─────────────────────────────────────────────
-# Stockfish is bundled per ABI in the APK. Run
-#   scripts/prepare_android_engine.py <abi>
-# before `flet build apk` to place the correct binary into assets/.
-# Binaries are kept in bundled/stockfish/android/<abi>/stockfish
-# (not tracked by git — too large; regenerate via scripts/fetch_stockfish_android.py).
+# Stockfish is self-built as PIE and bundled per ABI as a native library.
+# See docs/android-stockfish.md. CI flow:
+#   scripts/build_stockfish_android_pie.py  -> dist/stockfish-android/<abi>/
+#   scripts/package_android_engine.py       -> dist/wheels/*.whl (pip-installed
+#                                              before `flet build apk`)
+# (scripts/fetch_stockfish_android.py + prepare_android_engine.py describe the
+# old assets-based flow, which cannot work on Android 10+: upstream binaries
+# are non-PIE and asset copies land in non-executable storage.)
 
 [tool.ruff]
 line-length = 88
