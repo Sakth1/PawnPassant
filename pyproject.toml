@@ -38,19 +38,7 @@ compile_packages = true
 legacy_packaging = true
 dependencies = [
     "chess>=1.11.2",
-    # Self-built PIE Stockfish, one wheel per ABI (see below). Pinned in
-    # lockstep with ENGINE_WHEEL_VERSION in release-build.yml.
-    "pawnpassant-stockfish-android-arm64==19.0.0",
-    "pawnpassant-stockfish-android-armv7==19.0.0",
 ]
-
-# Local wheel overrides for `flet build`: serious_python installs these
-# targeting the Android platform (host pip would reject their
-# android_* tags, so never pip-install them directly). Paths resolve
-# against the project root; CI downloads the wheels artifact to dist/.
-[tool.flet.android.dev_packages]
-"pawnpassant-stockfish-android-arm64" = "dist/wheels/pawnpassant_stockfish_android_arm64-19.0.0-py3-none-android_24_arm64_v8a.whl"
-"pawnpassant-stockfish-android-armv7" = "dist/wheels/pawnpassant_stockfish_android_armv7-19.0.0-py3-none-android_24_armeabi_v7a.whl"
 
 [tool.flet.app]
 path = "src"
@@ -59,12 +47,15 @@ path = "src"
 binary_name = "Pawn-Passant"
 
 # ── Android engine setup ─────────────────────────────────────────────
-# Stockfish is self-built as PIE and bundled per ABI as a native library.
+# Stockfish is self-built as PIE and injected into the APKs' lib/<abi>/
+# after `flet build apk` (wheels can't go through pip: serious_python
+# targets one ABI, so any sibling-arch wheel hard-fails the build).
 # See docs/android-stockfish.md. CI flow:
 #   scripts/build_stockfish_android_pie.py  -> dist/stockfish-android/<abi>/
-#   scripts/package_android_engine.py       -> dist/wheels/*.whl (consumed by
-#                                              `flet build apk` via
-#                                              [tool.flet.android.dev_packages])
+#   scripts/package_android_engine.py       -> dist/wheels/*.whl (kept for a
+#                                              future PyPI publishing path)
+#   scripts/inject_android_engine.py        -> lib/<abi>/libstockfish.so
+#                                              into every built APK pre-sign
 # (scripts/fetch_stockfish_android.py + prepare_android_engine.py describe the
 # old assets-based flow, which cannot work on Android 10+: upstream binaries
 # are non-PIE and asset copies land in non-executable storage.)

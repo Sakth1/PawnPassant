@@ -254,6 +254,12 @@ jobs:
           name: stockfish-android-wheels
           path: dist/wheels/*.whl
 
+      - name: Upload engine binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: stockfish-android-libs
+          path: dist/stockfish-android
+
   build-android:
     runs-on: ubuntu-latest
     needs:
@@ -290,15 +296,14 @@ jobs:
         run: |
           echo "source_packages=${{ needs.metadata.outputs.source_packages }}"
 
-      - name: Download Stockfish engine wheels
+      - name: Download Stockfish engine binaries
         uses: actions/download-artifact@v4
         with:
-          name: stockfish-android-wheels
-          path: dist/wheels
-        # NOTE: do NOT pip-install these on the host runner — their
-        # android_* platform tags are rejected by host pip by design.
-        # `flet build` picks them up via [tool.flet.android.dev_packages]
-        # and serious_python installs them targeting Android.
+          name: stockfish-android-libs
+          path: dist/stockfish-android
+        # NOTE: these are Android-platform binaries, not host packages.
+        # They are injected into the APKs' lib/<abi>/ dirs after
+        # `flet build` (see Inject step) — never pip-installed.
 
       - name: Build Android APK
         run: |
@@ -316,78 +321,91 @@ jobs:
         run: |
           "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" "build-tools;35.0.0"
 
-      - name: Locate APK
-        id: locate_apk
-        shell: pwsh
-        run: |
-          $candidateDirs = @("build", "dist")
-          $apks = @()
-
-          foreach ($dir in $candidateDirs) {
-            if (Test-Path $dir) {
-              $apks += Get-ChildItem -Path $dir -Recurse -Filter *.apk -File
-            }
-          }
-
-          if ($apks.Count -eq 0) {
-            throw "No .apk output found in build/ or dist/."
-          }
-
-          $apk = $apks | Select-Object -First 1
-          Write-Host "Discovered APK: $($apk.FullName)"
-          "apk_path=$($apk.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-
-      - name: Verify engine bundled in APK
+      - name: Locate APKs
         shell: bash
         run: |
-          if ! unzip -l "${{ steps.locate_apk.outputs.apk_path }}" | grep -q "libstockfish.so"; then
-            echo "ERROR: libstockfish.so missing from APK lib/<abi>/ — engine not packaged." >&2
+          mapfile -t APKS < <(find build dist -name '*.apk' -type f 2>/dev/null | sort)
+          if [ "${#APKS[@]}" -eq 0 ]; then
+            echo "No .apk output found in build/ or dist/." >&2
             exit 1
           fi
-          unzip -l "${{ steps.locate_apk.outputs.apk_path }}" | grep "libstockfish.so"
+          printf '%s\n' "${APKS[@]}"
 
-      - name: Align APK
+      - name: Inject Stockfish engine into APKs
         shell: bash
         run: |
-          "${ANDROID_SDK_ROOT}/build-tools/35.0.0/zipalign" -f -p 4 "${{ steps.locate_apk.outputs.apk_path }}" aligned.apk
+          mapfile -t APKS < <(find build dist -name '*.apk' -type f 2>/dev/null | sort)
+          inject_args=()
+          for apk in "${APKS[@]}"; do
+            inject_args+=(--apk "$apk")
+          done
+          python scripts/inject_android_engine.py "${inject_args[@]}" \
+            --libdir dist/stockfish-android
 
-      - name: Sign APK
+      - name: Verify engine bundled in APKs
+        shell: bash
+        run: |
+          mapfile -t APKS < <(find build dist -name '*.apk' -type f 2>/dev/null | sort)
+          for apk in "${APKS[@]}"; do
+            if ! unzip -l "$apk" | grep -q "lib/.*/libstockfish.so"; then
+              echo "ERROR: libstockfish.so missing from $apk" >&2
+              exit 1
+            fi
+            unzip -l "$apk" | grep "libstockfish.so"
+          done
+
+      - name: Align APKs
+        shell: bash
+        run: |
+          mkdir -p aligned-apks
+          mapfile -t APKS < <(find build dist -name '*.apk' -type f 2>/dev/null | sort)
+          for apk in "${APKS[@]}"; do
+            "${ANDROID_SDK_ROOT}/build-tools/35.0.0/zipalign" -f -p 4 "$apk" "aligned-apks/$(basename "$apk")"
+          done
+
+      - name: Sign APKs
         shell: bash
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          cp aligned.apk signed.apk
-          "${ANDROID_SDK_ROOT}/build-tools/35.0.0/apksigner" sign \
-            --ks keystore.jks \
-            --ks-key-alias "$KEY_ALIAS" \
-            --ks-pass "pass:$KEYSTORE_PASSWORD" \
-            --key-pass "pass:$KEY_PASSWORD" \
-            signed.apk
+          mkdir -p signed-apks
+          for apk in aligned-apks/*.apk; do
+            base="$(basename "$apk")"
+            cp "$apk" "signed-apks/$base"
+            "${ANDROID_SDK_ROOT}/build-tools/35.0.0/apksigner" sign \
+              --ks keystore.jks \
+              --ks-key-alias "$KEY_ALIAS" \
+              --ks-pass "pass:$KEYSTORE_PASSWORD" \
+              --key-pass "pass:$KEY_PASSWORD" \
+              "signed-apks/$base"
+          done
 
-      - name: Verify signed APK
+      - name: Verify signed APKs
         shell: bash
         run: |
-          "${ANDROID_SDK_ROOT}/build-tools/35.0.0/apksigner" verify signed.apk
+          for apk in signed-apks/*.apk; do
+            "${ANDROID_SDK_ROOT}/build-tools/35.0.0/apksigner" verify "$apk"
+          done
 
-      - name: Collect APK
+      - name: Collect APKs
         id: collect
         shell: bash
         run: |
-          new_name="${{ needs.metadata.outputs.artifact_stem }}.apk"
-          if [ ! -f "signed.apk" ]; then
-            echo "Signed APK not found." >&2
-            exit 1
-          fi
-          mv signed.apk "$new_name"
-          echo "path=$new_name" >> "$GITHUB_OUTPUT"
+          mkdir -p release-apks
+          for apk in signed-apks/*.apk; do
+            new_name="${{ needs.metadata.outputs.artifact_stem }}-$(basename "$apk" .apk).apk"
+            mv "$apk" "release-apks/$new_name"
+          done
+          ls release-apks/
+          echo "path=release-apks" >> "$GITHUB_OUTPUT"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ needs.metadata.outputs.artifact_stem }}-android
-          path: ${{ steps.collect.outputs.path }}
+          path: ${{ steps.collect.outputs.path }}/*.apk
 
   publish-release:
     runs-on: ubuntu-latest
