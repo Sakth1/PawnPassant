@@ -85,6 +85,17 @@ def test_missing_ndk_bin_dir_is_a_clear_error(tmp_path):
         build_pie.require_ndk_bin(str(tmp_path / "no-such-ndk"))
 
 
+def test_resolve_outdir_is_absolute(tmp_path, monkeypatch):
+    """Regression: llvm-strip ran with a relative dest against cwd=src.
+
+    ``main()`` passed ``--outdir`` through unresolved, so the strip/copy
+    target resolved against the Stockfish src dir instead of the repo.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    assert build_pie.resolve_outdir(Path("dist/wheels")).is_absolute()
+
+
 def test_ensure_source_uses_absolute_clone_target(tmp_path, monkeypatch):
     """Regression: CI cloned into a nested path.
 

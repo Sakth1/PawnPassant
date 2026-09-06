@@ -171,6 +171,11 @@ def _gate_binary(binary: Path, abi: str) -> None:
     print(f"  PIE gate passed for {abi}")
 
 
+def resolve_outdir(path: Path) -> Path:
+    """Absolute output dir: build steps run with cwd inside Stockfish src."""
+    return path.resolve()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build PIE Stockfish for Android")
     parser.add_argument(
@@ -193,7 +198,7 @@ def main() -> None:
     ndk_bin = require_ndk_bin(args.ndk_bin)
 
     src = _ensure_source(Path(args.workdir), args.ref)
-    outdir = Path(args.outdir)
+    outdir = resolve_outdir(Path(args.outdir))
     for abi in resolve_abis(args.abi):
         print(f"=== Building {abi} ===")
         for name, cmd, env in build_steps(abi, ndk_bin, src):
