@@ -31,6 +31,7 @@ def _write_minimal_elf(path: Path, *, e_type: int, e_machine: int) -> None:
 def test_abi_to_wheel_tag():
     assert pack.wheel_tag_for_abi("arm64-v8a") == "android_24_arm64_v8a"
     assert pack.wheel_tag_for_abi("armeabi-v7a") == "android_24_armeabi_v7a"
+    assert pack.wheel_tag_for_abi("x86_64") == "android_24_x86_64"
 
 
 def test_dist_name_for_abi():

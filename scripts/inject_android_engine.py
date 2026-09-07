@@ -5,7 +5,8 @@ for a single ABI, so any sibling-arch wheel hard-fails the build with
 "not a supported wheel on this platform". Instead this script copies the
 already ELF-gated ``libstockfish.so`` files straight into each APK:
 
-    python scripts/inject_android_engine.py --apk app.apk --libdir dist/stockfish-android
+    python scripts/inject_android_engine.py \
+        --apk app.apk --libdir dist/stockfish-android
 
 ``--libdir`` mirrors the build script layout: ``<android-abi>/libstockfish.so``.
 APK ABIs are detected from the APK's own ``lib/<abi>/`` entries, so each
@@ -67,7 +68,9 @@ def inject_engine(apk: Path, libdir: Path) -> list[str]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Inject engine .so files into APKs")
-    parser.add_argument("--apk", required=True, action="append", help="APK file (repeatable)")
+    parser.add_argument(
+        "--apk", required=True, action="append", help="APK file (repeatable)"
+    )
     parser.add_argument(
         "--libdir", required=True,
         help="Engine lib dir (<android-abi>/libstockfish.so layout)",

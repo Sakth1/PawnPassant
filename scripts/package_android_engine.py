@@ -24,17 +24,20 @@ from pathlib import Path
 ABI_WHEEL_TAG: dict[str, str] = {
     "arm64-v8a": "android_24_arm64_v8a",
     "armeabi-v7a": "android_24_armeabi_v7a",
+    "x86_64": "android_24_x86_64",
 }
 
 ABI_DIST_SUFFIX: dict[str, str] = {
     "arm64-v8a": "arm64",
     "armeabi-v7a": "armv7",
+    "x86_64": "x86_64",
 }
 
 ABI_EXPECTED_MACHINE: dict[str, int] = {
-    # ELF e_machine: 183 = AArch64, 40 = ARM.
+    # ELF e_machine: 183 = AArch64, 40 = ARM, 62 = x86-64.
     "arm64-v8a": 183,
     "armeabi-v7a": 40,
+    "x86_64": 62,
 }
 
 PACKAGE_DIR = "pawnpassant_stockfish"

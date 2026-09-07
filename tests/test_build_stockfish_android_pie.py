@@ -20,7 +20,7 @@ import build_stockfish_android_pie as build_pie  # noqa: E402
 
 
 def test_resolve_all_abis():
-    assert build_pie.resolve_abis("all") == ["arm64-v8a", "armeabi-v7a"]
+    assert build_pie.resolve_abis("all") == ["arm64-v8a", "armeabi-v7a", "x86_64"]
 
 
 def test_resolve_single_abi():
@@ -29,7 +29,7 @@ def test_resolve_single_abi():
 
 def test_resolve_unknown_abi_rejected():
     with pytest.raises(ValueError):
-        build_pie.resolve_abis("x86_64")
+        build_pie.resolve_abis("mips")
 
 
 def test_arm64_toolchain_uses_api29_clang():
@@ -44,6 +44,14 @@ def test_armv7_toolchain_uses_api29_clang():
 
     assert compiler == "armv7a-linux-androideabi29-clang++"
     assert stockfish_arch == "armv7-neon"
+
+
+def test_x86_64_toolchain_uses_api29_clang():
+    # Flet also emits an x86_64 split APK (emulators + rare devices).
+    compiler, stockfish_arch = build_pie.toolchain_for_abi("x86_64")
+
+    assert compiler == "x86_64-linux-android29-clang++"
+    assert stockfish_arch == "x86-64"
 
 
 def test_build_command_is_dynamic_pie_not_static():

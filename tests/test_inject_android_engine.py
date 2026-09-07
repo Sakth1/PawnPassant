@@ -18,7 +18,7 @@ SCRIPTS_DIR = str(Path(__file__).resolve().parents[1] / "scripts")
 if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 
-import inject_android_engine as inject
+import inject_android_engine as inject  # noqa: E402
 
 
 def _make_apk(path: Path, abis: list[str]) -> None:

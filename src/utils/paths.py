@@ -87,6 +87,17 @@ def get_active_engine_path(
     return get_bundled_engine_path(page, engine_name)
 
 
+def device_android_abi() -> str:
+    """Android ABI of this device (arm64-v8a, armeabi-v7a, or x86_64)."""
+    import platform as _platform
+    machine = _platform.machine().lower()
+    if "aarch64" in machine or "arm64" in machine or "armv8" in machine:
+        return "arm64-v8a"
+    if "x86_64" in machine or "amd64" in machine:
+        return "x86_64"
+    return "armeabi-v7a"
+
+
 def _native_library_engine(engine_name: str = "stockfish") -> Path | None:
     """Engine shipped as a native library (lib<engine>.so).
 
@@ -146,9 +157,7 @@ def _extract_android_asset_engine(page=None, engine_name: str = "stockfish") -> 
     if not assets_dir:
         return None
 
-    import platform as _platform
-    machine = _platform.machine()
-    abi = "arm64-v8a" if "64" in machine else "armeabi-v7a"
+    abi = device_android_abi()
 
     asset_binary = Path(assets_dir) / "stockfish" / "android" / abi / engine_name
     if not asset_binary.exists():

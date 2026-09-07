@@ -91,6 +91,22 @@ def test_missing_native_lib_dir_env_is_not_an_error(monkeypatch):
     paths.get_bundled_engine_path(engine_name="stockfish")
 
 
+def test_device_android_abi_mapping(monkeypatch):
+    import platform
+
+    cases = {
+        "aarch64": "arm64-v8a",
+        "arm64": "arm64-v8a",
+        "x86_64": "x86_64",
+        "amd64": "x86_64",
+        "armv7l": "armeabi-v7a",
+        "armv8l": "arm64-v8a",
+    }
+    for machine, abi in cases.items():
+        monkeypatch.setattr(platform, "machine", lambda m=machine: m)
+        assert paths.device_android_abi() == abi, machine
+
+
 def test_native_lib_wins_over_asset_copy(tmp_path, monkeypatch):
     """A bundled lib/*.so must shadow any stale assets/ copy.
 
@@ -98,12 +114,9 @@ def test_native_lib_wins_over_asset_copy(tmp_path, monkeypatch):
     refuses to execute from — the native library directory is the only
     runnable location, so it must resolve first.
     """
-    import platform as _platform
-
     _clean_env(monkeypatch)
     monkeypatch.setenv("ANDROID_ROOT", "/system")
-    machine = _platform.machine()
-    abi = "arm64-v8a" if "64" in machine else "armeabi-v7a"
+    abi = paths.device_android_abi()
     assets_dir = tmp_path / "assets"
     (assets_dir / "stockfish" / "android" / abi).mkdir(parents=True)
     (assets_dir / "stockfish" / "android" / abi / "stockfish").write_bytes(

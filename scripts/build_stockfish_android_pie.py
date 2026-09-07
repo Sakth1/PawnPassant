@@ -34,6 +34,7 @@ ABI_MAP: dict[str, tuple[str, str, int]] = {
     # importable without src/ on sys.path.
     "arm64-v8a": ("aarch64-linux-android29-clang++", "armv8", 183),
     "armeabi-v7a": ("armv7a-linux-androideabi29-clang++", "armv7-neon", 40),
+    "x86_64": ("x86_64-linux-android29-clang++", "x86-64", 62),
 }
 
 # API 29 = oldest level with the fixed ELF TLS layout (NDK r27c errors out
